@@ -6,17 +6,30 @@ import { SqliteCountRepository } from '../../storage/mobile-sqlite/sqlite-count-
 import { DexieMasterSkuRepository } from '../../storage/web-indexeddb/dexie-master-sku-repository'
 import { DexieCountRepository } from '../../storage/web-indexeddb/dexie-count-repository'
 import { Inven3WebDatabase } from '../../storage/web-indexeddb/inven3-web-database'
+import { SqliteCountingContextRepository } from '../../storage/mobile-sqlite/sqlite-counting-context-repository'
+import { DexieCountingContextRepository } from '../../storage/web-indexeddb/dexie-counting-context-repository'
+import type { CountingContextRepository } from '../../domain/ports/counting-context-repository'
 import type { CountingRuntime } from './counting-screen'
 
 /**
  * Infrastructure composition only. Auth/inventory selection must supply the
  * already-authorized ABIERTO context; this factory does not fetch or invent it.
  */
+let webDatabase: Inven3WebDatabase | undefined
+let mobileDatabase: CapacitorSqliteDatabase | undefined
+
+function getWebDatabase(): Inven3WebDatabase { webDatabase ??= new Inven3WebDatabase(); return webDatabase }
+function getMobileDatabase(): CapacitorSqliteDatabase { mobileDatabase ??= new CapacitorSqliteDatabase('inven3'); return mobileDatabase }
+
+export function getCountingContextRepository(): CountingContextRepository {
+  return Capacitor.getPlatform() === 'web' ? new DexieCountingContextRepository(getWebDatabase()) : new SqliteCountingContextRepository(getMobileDatabase())
+}
+
 export function createCountingRuntime(context: ActiveCountingContext): CountingRuntime {
   if (Capacitor.getPlatform() === 'web') {
-    const database = new Inven3WebDatabase()
+    const database = getWebDatabase()
     return { context, masters: new DexieMasterSkuRepository(database), counts: new DexieCountRepository(database) }
   }
-  const database = new CapacitorSqliteDatabase('inven3')
+  const database = getMobileDatabase()
   return { context, masters: new SqliteMasterSkuRepository(database), counts: new SqliteCountRepository(database) }
 }

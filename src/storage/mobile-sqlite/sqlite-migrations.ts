@@ -35,6 +35,12 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = [
       await database.execute('create index if not exists local_count_records_sync_status_idx on local_count_records (sync_status)')
     },
   },
+  {
+    version: 4,
+    up: async (database) => {
+      await database.execute("create table if not exists local_counting_context (context_key text primary key check (context_key = 'active'), user_id text not null, inventory_id text not null, inventory_status text not null check (inventory_status = 'ABIERTO'), verified_at text not null)")
+    },
+  },
 ]
 
 export async function applySqliteMigrations(database: SqliteDatabase, migrations: readonly SqliteMigration[] = SQLITE_MIGRATIONS): Promise<void> {

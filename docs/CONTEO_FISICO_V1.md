@@ -1,6 +1,8 @@
 # Conteo físico v1 — Fase 3
 
-La captura es exclusivamente local y offline-first. La entrada crea el runtime sólo cuando Auth verificó al usuario, RLS devolvió exactamente un inventario asignado y éste está `ABIERTO`; ningún campo de usuario o inventario es editable en la pantalla. Los estados `BORRADOR`, `PREPARADO`, `CERRADO` y `CONGELADO`, cero o más de un inventario abierto, o un contexto no disponible, mantienen la captura bloqueada. Una vez creado el runtime, guardar no depende de Internet.
+La captura es exclusivamente local y offline-first. Al iniciar, la entrada intenta siempre una verificación autoritativa: Auth, perfil activo, RLS, exactamente un inventario asignado y estado `ABIERTO`. Si resulta `AUTHORIZED`, actualiza el **last-known authorized counting context** persistente y crea el runtime; ningún campo de usuario o inventario es editable en la pantalla. Los estados `BORRADOR`, `PREPARADO`, `CERRADO` y `CONGELADO`, cero o más de un inventario abierto, o una respuesta `NOT_AUTHORIZED`/`AMBIGUOUS`, mantienen la captura bloqueada y no reutilizan una copia antigua.
+
+Ante `UNAVAILABLE` real del backend, el runtime puede reconstruirse sólo desde ese contexto previamente verificado, la identidad de la sesión local del mismo `user_id` y el maestro local. El contexto no contiene tokens ni concede una autorización nueva; logout y cambio de usuario lo invalidan. Por tanto, mientras un dispositivo está totalmente offline opera contra el último estado `ABIERTO` confirmado por servidor: no puede conocer un cierre remoto ocurrido durante la desconexión. Al recuperar conectividad, el servidor vuelve a prevalecer. Sin maestro local, el contexto autorizado no habilita captura.
 
 ## Formulario A:J
 
