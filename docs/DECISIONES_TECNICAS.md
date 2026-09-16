@@ -61,5 +61,12 @@
 - **Decisión:** cargar CSV/XLSX en preview de cliente, confirmar el snapshot por RPC atómica y distribuirlo con el puerto `MasterSkuRepository` hacia SQLite o Dexie.
 - **Motivo:** el archivo no es verdad final; la base debe validar autorización, estado, duplicados y auditoría. El reemplazo local debe preservar el snapshot anterior si falla la descarga.
 - **Alternativas:** insertar filas desde el cliente; SQL común para SQLite y Dexie; mutar el maestro abierto. Descartadas por integridad, acoplamiento y trazabilidad.
-- **Consecuencias:** ADMIN realiza importación masiva; ANALISTA asignado sólo resuelve SKU excepcionales auditados. La metadata versionada con fingerprint determinista permite detección de actualización sin Realtime.
+- **Consecuencias:** ADMIN realiza importación masiva; ANALISTA asignado sólo resuelve SKU excepcionales auditados en estado `ABIERTO`. La metadata versionada con fingerprint determinista permite detección de actualización sin Realtime. Cada mutación de maestro o ciclo de vida bloquea la fila del inventario mediante `FOR UPDATE`, y el reemplazo offline verifica filas, fingerprint y estabilidad de metadata antes de persistir.
+- **Estado:** aceptada.
+
+## ADR-009 — Runner SQLite forward-only
+
+- **Decisión:** las migraciones locales se declaran como una secuencia versionada y se aplican una por una en transacciones, con `PRAGMA user_version` como cursor.
+- **Motivo:** asignar una versión tras `CREATE TABLE IF NOT EXISTS` no demuestra que el schema llegó íntegro ni permite evolucionar con seguridad hacia conteos y sincronización.
+- **Consecuencias:** una migración fallida conserva la versión previa; una base creada por una app más nueva se rechaza de forma controlada. Las versiones futuras se agregan sin reescribir las anteriores.
 - **Estado:** aceptada.

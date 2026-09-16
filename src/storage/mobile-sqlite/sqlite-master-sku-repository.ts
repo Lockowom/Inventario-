@@ -1,6 +1,7 @@
-import { normalizeMasterCode, masterMetadataSchema, masterSkuSchema, type MasterMetadata, type MasterSku } from '../../domain/master/contracts'
+import { createMasterFingerprint, normalizeMasterCode, masterMetadataSchema, masterSkuSchema, type MasterMetadata, type MasterSku } from '../../domain/master/contracts'
 import type { MasterSkuRepository, MasterSnapshot } from '../../domain/ports/master-sku-repository'
 import type { SqliteDatabase } from './sqlite-database'
+import { applySqliteMigrations } from './sqlite-migrations'
 
 interface SqliteMasterSkuRow extends Record<string, unknown> { inventory_id: string; codigo: string; descripcion: string; control_type: MasterSku['controlType']; cached_at: string }
 interface SqliteMasterMetadataRow extends Record<string, unknown> { inventory_id: string; master_version: number; row_count: number; fingerprint: string; cached_at: string }
@@ -13,9 +14,7 @@ export class SqliteMasterSkuRepository implements MasterSkuRepository {
   public async initialize(): Promise<void> {
     if (this.initialized) return
     await this.database.initialize()
-    await this.database.execute('create table if not exists inven3_master_sku (inventory_id text not null, codigo text not null, descripcion text not null, control_type text not null check (control_type in (\'SERIAL\', \'PARTIDA\', \'LEGACY\')), cached_at text not null, unique (inventory_id, codigo))')
-    await this.database.execute('create table if not exists inven3_master_metadata (inventory_id text primary key, master_version integer not null check (master_version > 0), row_count integer not null check (row_count > 0), fingerprint text not null, cached_at text not null)')
-    await this.database.execute('pragma user_version = 2')
+    await applySqliteMigrations(this.database)
     this.initialized = true
   }
 
@@ -42,6 +41,7 @@ export class SqliteMasterSkuRepository implements MasterSkuRepository {
     const metadata = masterMetadataSchema.parse(snapshot.metadata)
     const items = snapshot.items.map((item) => masterSkuSchema.parse(item))
     if (metadata.rowCount !== items.length || new Set(items.map((item) => item.codigo)).size !== items.length || items.some((item) => item.inventoryId !== metadata.inventoryId)) throw new Error('Snapshot local inválido.')
+    if (await createMasterFingerprint(items) !== metadata.fingerprint.toLowerCase()) throw new Error('El fingerprint del snapshot local no coincide con sus filas.')
     await this.database.transaction(async () => {
       await this.database.execute('delete from inven3_master_sku where inventory_id = ?', [metadata.inventoryId])
       for (const item of items) await this.database.execute('insert into inven3_master_sku (inventory_id, codigo, descripcion, control_type, cached_at) values (?, ?, ?, ?, ?)', [item.inventoryId, item.codigo, item.descripcion, item.controlType, item.cachedAt])

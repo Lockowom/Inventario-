@@ -2,15 +2,31 @@ import { deriveMasterControlType, masterImportPreviewSchema, normalizeMasterCode
 
 type CellRow = unknown[]
 
+function detectCsvDelimiter(contents: string): ',' | ';' {
+  let quoted = false
+  let commas = 0
+  let semicolons = 0
+  for (let index = 0; index < contents.length; index += 1) {
+    const character = contents[index]
+    if (character === '"') {
+      if (quoted && contents[index + 1] === '"') { index += 1 } else quoted = !quoted
+    } else if (!quoted && (character === '\n' || character === '\r')) break
+    else if (!quoted && character === ',') commas += 1
+    else if (!quoted && character === ';') semicolons += 1
+  }
+  return semicolons > commas ? ';' : ','
+}
+
 function parseCsvRows(contents: string): CellRow[] {
   const rows: string[][] = [[]]
+  const delimiter = detectCsvDelimiter(contents)
   let value = ''
   let quoted = false
   for (let index = 0; index < contents.length; index += 1) {
     const character = contents[index]
     if (character === '"') {
       if (quoted && contents[index + 1] === '"') { value += '"'; index += 1 } else quoted = !quoted
-    } else if (character === ',' && !quoted) { rows.at(-1)!.push(value); value = ''
+    } else if (character === delimiter && !quoted) { rows.at(-1)!.push(value); value = ''
     } else if ((character === '\n' || character === '\r') && !quoted) {
       if (character === '\r' && contents[index + 1] === '\n') index += 1
       rows.at(-1)!.push(value); value = ''; rows.push([])

@@ -16,6 +16,13 @@ describe('maestro SKU: normalización e importación', () => {
     expect(validMasterItems(preview)).toMatchObject([{ codigo: '00001234', descripcion: 'Producto uno', controlType: 'LEGACY' }, { codigo: 'NVI75200055P', controlType: 'PARTIDA' }])
   })
 
+  it('autodetecta coma y punto y coma, conservando campos quoted con delimitadores', () => {
+    const comma = parseMasterCsv('\uFEFFCODIGO,DESCRIPCION\r\n00001,"Producto, con coma"')
+    const semicolon = parseMasterCsv('CODIGO;DESCRIPCION\n00002;"Producto; con punto y coma"')
+    expect(validMasterItems(comma)[0]).toMatchObject({ codigo: '00001', descripcion: 'Producto, con coma' })
+    expect(validMasterItems(semicolon)[0]).toMatchObject({ codigo: '00002', descripcion: 'Producto; con punto y coma' })
+  })
+
   it('reporta vacíos y duplicados sin habilitar una importación parcial', () => {
     const preview = parseMasterCsv('CODIGO,DESCRIPCION\n,Sin código\nA1,\n a1 ,Duplicado')
     expect(preview.validRows).toBe(0)
@@ -25,13 +32,13 @@ describe('maestro SKU: normalización e importación', () => {
     expect(preview.rows[2]?.errors).toContain('CODIGO DUPLICADO')
   })
 
-  it('parsea XLSX sin transformar un código de texto con ceros iniciales', async () => {
-    const sheet = XLSX.utils.aoa_to_sheet([['CODIGO', 'DESCRIPCION'], ['00725', 'Producto con lote']])
+  it('preserva códigos XLSX de texto con ceros iniciales y no inventa ceros para una celda numérica', async () => {
+    const sheet = XLSX.utils.aoa_to_sheet([['CODIGO', 'DESCRIPCION'], ['00725', 'Uno'], ['00001', 'Dos'], ['001234', 'Tres'], [725, 'Número original']])
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, sheet, 'Maestro')
     const bytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
     const preview = await parseMasterXlsx(bytes)
-    expect(validMasterItems(preview)[0]).toMatchObject({ codigo: '00725', descripcion: 'Producto con lote' })
+    expect(validMasterItems(preview).map((item) => item.codigo)).toEqual(['00725', '00001', '001234', '725'])
   })
 
   it('genera el mismo fingerprint para la misma semántica sin importar el orden', async () => {

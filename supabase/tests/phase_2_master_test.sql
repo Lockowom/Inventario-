@@ -1,5 +1,5 @@
 begin;
-select plan(21);
+select plan(28);
 
 insert into auth.users (id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
@@ -30,6 +30,7 @@ select throws_ok($$select public.import_inventory_master('41000000-0000-0000-000
 reset role;
 
 select set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000002', true); set local role authenticated;
+select throws_ok($$select public.add_master_exception('41000000-0000-0000-0000-000000000001', 'BORRADORP', 'No permitido', 'motivo')$$, '23514', 'Master exceptions are only allowed while inventory is ABIERTO', 'exception in BORRADOR fails');
 select throws_ok($$select public.prepare_inventory('41000000-0000-0000-0000-000000000001')$$, '23514', 'Inventory requires a non-empty master before preparation', 'prepare with an empty master fails');
 reset role;
 
@@ -42,6 +43,7 @@ reset role;
 
 select set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000002', true); set local role authenticated;
 select lives_ok($$select public.prepare_inventory('41000000-0000-0000-0000-000000000002')$$, 'prepare with a valid master succeeds');
+select throws_ok($$select public.add_master_exception('41000000-0000-0000-0000-000000000002', 'PREPARADOP', 'No permitido', 'motivo')$$, '23514', 'Master exceptions are only allowed while inventory is ABIERTO', 'exception in PREPARADO fails');
 select lives_ok($$select public.open_inventory('41000000-0000-0000-0000-000000000002')$$, 'open with a valid master succeeds');
 reset role;
 select set_config('request.jwt.claim.sub', '31000000-0000-0000-0000-000000000001', true); set local role authenticated;
@@ -55,8 +57,13 @@ select is((select control_type from public.inventory_master_exceptions where inv
 select is((select master_version from public.inventory_master_metadata where inventory_id = '41000000-0000-0000-0000-000000000002'), 2, 'exception increments master version');
 select throws_ok($$select public.add_master_exception('41000000-0000-0000-0000-000000000002', 'EXCEPTIONP', 'Duplicado', 'motivo')$$, '23505', 'Master codigo already exists', 'duplicate exception fails');
 select lives_ok($$select public.close_inventory('41000000-0000-0000-0000-000000000002')$$, 'assigned ANALISTA can close inventory');
-select throws_ok($$select public.add_master_exception('41000000-0000-0000-0000-000000000002', 'CLOSED', 'No permitido', 'motivo')$$, '23514', 'Master exceptions are not allowed after inventory close', 'exception in CERRADO fails');
+select throws_ok($$select public.add_master_exception('41000000-0000-0000-0000-000000000002', 'CLOSED', 'No permitido', 'motivo')$$, '23514', 'Master exceptions are only allowed while inventory is ABIERTO', 'exception in CERRADO fails');
 select ok((select fingerprint ~ '^[a-f0-9]{64}$' from public.inventory_master_metadata where inventory_id = '41000000-0000-0000-0000-000000000002'), 'metadata has deterministic SHA-256 fingerprint');
+select ok(position('app_private.lock_inventory' in pg_get_functiondef('public.import_inventory_master(uuid,jsonb,text,text)'::regprocedure)) > 0, 'import serializes on the inventory row');
+select ok(position('app_private.lock_inventory' in pg_get_functiondef('public.add_master_exception(uuid,text,text,text)'::regprocedure)) > 0, 'exception serializes on the inventory row');
+select ok(position('app_private.lock_inventory' in pg_get_functiondef('public.prepare_inventory(uuid)'::regprocedure)) > 0, 'prepare serializes on the inventory row');
+select ok(position('app_private.lock_inventory' in pg_get_functiondef('public.open_inventory(uuid)'::regprocedure)) > 0, 'open serializes on the inventory row');
+select ok(position('app_private.lock_inventory' in pg_get_functiondef('public.close_inventory(uuid)'::regprocedure)) > 0, 'close serializes on the inventory row');
 
 select * from finish();
 rollback;
