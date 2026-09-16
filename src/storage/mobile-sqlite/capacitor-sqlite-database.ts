@@ -1,7 +1,7 @@
 import { CapacitorSQLite, SQLiteConnection, type SQLiteDBConnection } from '@capacitor-community/sqlite'
-import type { LocalDatabase, SqlResult } from '../local-database'
+import type { SqliteDatabase, SqliteResult } from './sqlite-database'
 
-export class CapacitorSqliteDatabase implements LocalDatabase {
+export class CapacitorSqliteDatabase implements SqliteDatabase {
   private connection: SQLiteDBConnection | undefined
   private readonly sqlite = new SQLiteConnection(CapacitorSQLite)
 
@@ -32,7 +32,7 @@ export class CapacitorSqliteDatabase implements LocalDatabase {
     await this.requireConnection().run(statement, [...values])
   }
 
-  public async query<Row extends Record<string, unknown>>(statement: string, values: readonly unknown[] = []): Promise<SqlResult<Row>> {
+  public async query<Row extends Record<string, unknown>>(statement: string, values: readonly unknown[] = []): Promise<SqliteResult<Row>> {
     const result = await this.requireConnection().query(statement, [...values])
     return { values: (result.values ?? []) as Row[] }
   }

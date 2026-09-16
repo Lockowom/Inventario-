@@ -1,8 +1,8 @@
-import type { LocalDatabase } from '../local-database'
+import type { SqliteDatabase } from './sqlite-database'
 
 export interface SqlitePocResult { inserted: number; updated: number; persisted: boolean }
 
-export async function runSqliteProofOfConcept(database: LocalDatabase): Promise<SqlitePocResult> {
+export async function runSqliteProofOfConcept(database: SqliteDatabase): Promise<SqlitePocResult> {
   await database.initialize()
   await database.execute('CREATE TABLE IF NOT EXISTS inven3_sqlite_poc (id TEXT PRIMARY KEY, value TEXT NOT NULL)')
   await database.transaction(async () => {

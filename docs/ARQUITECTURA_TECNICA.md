@@ -4,15 +4,27 @@ INVEN3 es una aplicación React/TypeScript construida con Vite. El bundle estát
 
 ## Capas y responsabilidades
 
-- `src/domain`: contratos Zod y tipos de negocio compartibles. No importa React, Capacitor, Dexie ni Supabase.
+- `src/domain`: contratos Zod, tipos y puertos semánticos de negocio compartibles. No importa React, Capacitor, SQL, Dexie ni Supabase.
 - `src/features`: casos de uso y UI por capacidad. Se mantienen vacíos hasta que exista una necesidad de Fase 1+.
-- `src/storage`: puertos de persistencia. `LocalDatabase` evita que el dominio dependa de un plugin nativo; `mobile-sqlite` adapta `@capacitor-community/sqlite` y `web-indexeddb` aloja Dexie.
+- `src/storage`: adaptadores de infraestructura. `mobile-sqlite` contiene el puerto técnico `SqliteDatabase` y el adaptador de `@capacitor-community/sqlite`; `web-indexeddb` aloja Dexie. Ninguno es un contrato de dominio.
 - `src/services`: adaptadores de infraestructura remota, incluido Supabase con variables públicas de Vite.
 - `src/sync` y `src/scanner`: reservados para motores y adaptadores futuros, sin reglas de captura implementadas en esta fase.
 
 ## Persistencia y flujo de datos
 
-La futura captura seguirá: validación con contratos compartidos → transacción local (SQLite móvil o IndexedDB web) → confirmación local → motor de sincronización → RPC protegida en Supabase. Las operaciones críticas no se implementarán como secuencias de mutaciones desde el cliente.
+La futura captura seguirá: validación con contratos compartidos → repositorio de dominio → adaptador local (SQLite móvil o IndexedDB/Dexie web) → confirmación local → motor de sincronización → RPC protegida en Supabase. Las operaciones críticas no se implementarán como secuencias de mutaciones desde el cliente.
+
+```text
+DOMAIN / USE CASES
+        ↓
+repositories / ports
+        ↓
+ ┌──────┴──────┐
+SQLite        Dexie
+mobile         web
+```
+
+Los repositorios del dominio son el contrato compartido real: expresan operaciones sobre entidades, no SQL ni APIs Dexie. `SqliteDatabase` es deliberadamente un detalle de bajo nivel exclusivo de `storage/mobile-sqlite`, utilizado por la PoC. Las futuras implementaciones de repositorios podrán usar SQLite o Dexie sin exponer strings SQL a casos de uso.
 
 SQLite se implementa mediante `CapacitorSqliteDatabase`; `runSqliteProofOfConcept` cubre creación de base y tabla, escritura, actualización, lectura, transacción, cierre, reapertura y persistencia. En una prueba real Android/iOS debe ejecutarse contra la misma base nativa antes de promoverla a la capa de conteos.
 
@@ -22,7 +34,7 @@ El cliente usa solo `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. La clave `se
 
 ## Diseño y plataformas
 
-Los tokens CSS centralizan spacing, tipografía, radios, alturas de controles, objetivos táctiles y safe areas. El layout parte de una columna, no permite overflow horizontal y agrega una segunda columna desde 600px. Capacitor usa el identificador `com.lockowom.inven3`.
+Los tokens CSS centralizan spacing, tipografía, radios, alturas de controles, objetivos táctiles y safe areas. El lenguaje base es oscuro y de alto contraste, sin azul ni naranja como colores dominantes; success, warning y error conservan tokens diferenciados y accesibles. El layout parte de una columna, no permite overflow horizontal y agrega una segunda columna desde 600px. Capacitor usa el identificador `com.lockowom.inven3`.
 
 ### SQLite y iOS
 

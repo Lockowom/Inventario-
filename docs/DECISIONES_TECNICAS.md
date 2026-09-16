@@ -10,10 +10,10 @@
 
 ## ADR-002 — Persistencia detrás de un puerto y SQLite Capacitor 8
 
-- **Decisión:** `LocalDatabase` abstrae SQLite y la futura capa web Dexie. El adaptador nativo usa `@capacitor-community/sqlite` 8.1.1.
-- **Motivo:** 8.1.1 declara compatibilidad con `@capacitor/core >=8.0.0` y mantiene al dominio desacoplado de Capacitor y del motor de almacenamiento.
-- **Alternativas:** SQLite 7.0.3 (descartada: no corresponde al major de Capacitor 8); importar el plugin desde casos de uso.
-- **Consecuencias:** los adaptadores deben preservar transacciones y semántica de errores. La PoC nativa debe certificarse en Android e iOS reales antes de implementar conteos.
+- **Decisión:** los repositorios/puertos del dominio son el contrato compartido entre plataformas. `SqliteDatabase` queda como un puerto técnico privado de `storage/mobile-sqlite`; Dexie será un adaptador web, no un emulador SQL. El adaptador nativo usa `@capacitor-community/sqlite` 8.1.1.
+- **Motivo:** los casos de uso no deben conocer strings SQL ni APIs de Dexie. Los repositorios permiten sostener la misma semántica de negocio con infraestructuras de almacenamiento diferentes.
+- **Alternativas:** exponer una interfaz SQL común para ambas plataformas (descartada: acopla futuros casos de uso al SQL); SQLite 7.0.3 (descartada: no corresponde al major de Capacitor 8).
+- **Consecuencias:** cada agregado tendrá un repositorio de dominio en su fase correspondiente y adaptadores SQLite/Dexie que preserven sus invariantes. La PoC nativa debe certificarse en Android e iOS reales antes de implementar conteos.
 - **Estado:** aceptada.
 
 ## ADR-005 — Gestor de paquetes iOS: Swift Package Manager
