@@ -27,7 +27,7 @@ create trigger inventory_master_metadata_set_updated_at before update on public.
 
 create function app_private.master_fingerprint(target_inventory_id uuid) returns text language sql stable security definer set search_path = public, pg_temp as $$
   select encode(
-    digest(
+    extensions.digest(
       coalesce(
         (select string_agg(codigo || E'\x1f' || descripcion || E'\x1f' || control_type::text, E'\x1e' order by codigo)
          from public.inventory_master_items
