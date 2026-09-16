@@ -55,3 +55,11 @@
 - **Alternativas:** validar estas combinaciones solo en TypeScript; ubicar helpers en `public`; omitir la prueba de base de datos en CI. Descartadas porque no certifican integridad ni privilegios reales de PostgreSQL.
 - **Consecuencias:** `count_records`, cortes, rectificaciones y archivos deben conservar sus relaciones compuestas; las funciones públicas de ciclo de vida son las únicas RPC concedidas a `authenticated`. CI no enlaza ni aplica cambios a Supabase remoto.
 - **Estado:** aceptada.
+
+## ADR-008 — Snapshot de maestro y distribución offline transaccional
+
+- **Decisión:** cargar CSV/XLSX en preview de cliente, confirmar el snapshot por RPC atómica y distribuirlo con el puerto `MasterSkuRepository` hacia SQLite o Dexie.
+- **Motivo:** el archivo no es verdad final; la base debe validar autorización, estado, duplicados y auditoría. El reemplazo local debe preservar el snapshot anterior si falla la descarga.
+- **Alternativas:** insertar filas desde el cliente; SQL común para SQLite y Dexie; mutar el maestro abierto. Descartadas por integridad, acoplamiento y trazabilidad.
+- **Consecuencias:** ADMIN realiza importación masiva; ANALISTA asignado sólo resuelve SKU excepcionales auditados. La metadata versionada con fingerprint determinista permite detección de actualización sin Realtime.
+- **Estado:** aceptada.

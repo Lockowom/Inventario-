@@ -4,7 +4,7 @@ Sistema de captura para Inventario General físico, offline-first, con soporte A
 
 ## Estado
 
-**Fase actual:** Fase 1 — modelo, seguridad, roles y ciclo de vida.
+**Fase actual:** Fase 2 — maestro SKU, preparación y distribución offline.
 
 ## Inicio rápido
 
@@ -55,6 +55,8 @@ La certificación de SQLite, permisos de cámara y scanner requiere pruebas en d
 - [`docs/MODELO_DATOS_V1.md`](docs/MODELO_DATOS_V1.md) — entidades, relaciones y constraints de Fase 1.
 - [`docs/SEGURIDAD_RLS_V1.md`](docs/SEGURIDAD_RLS_V1.md) — políticas RLS y RPC protegidas.
 - [`docs/AUTH_Y_ROLES_V1.md`](docs/AUTH_Y_ROLES_V1.md) — cliente Auth y modelo de roles.
+- [`docs/MAESTRO_SKU_V1.md`](docs/MAESTRO_SKU_V1.md) — contrato, preview e importación del maestro SKU.
+- [`docs/OFFLINE_MASTER_V1.md`](docs/OFFLINE_MASTER_V1.md) — snapshot local, versión y refresco offline.
 
 ## Regla de gobierno
 

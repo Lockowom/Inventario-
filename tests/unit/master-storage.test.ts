@@ -1,0 +1,60 @@
+import { describe, expect, it } from 'vitest'
+import type { MasterSnapshot } from '../../src/domain/ports/master-sku-repository'
+import { DexieMasterSkuRepository } from '../../src/storage/web-indexeddb/dexie-master-sku-repository'
+import { Inven3WebDatabase } from '../../src/storage/web-indexeddb/inven3-web-database'
+import { SqliteMasterSkuRepository } from '../../src/storage/mobile-sqlite/sqlite-master-sku-repository'
+import type { SqliteDatabase, SqliteResult } from '../../src/storage/mobile-sqlite/sqlite-database'
+
+const inventoryId = '11111111-1111-4111-8111-111111111111'
+const snapshot: MasterSnapshot = {
+  items: [
+    { inventoryId, codigo: '00001', descripcion: 'Uno', controlType: 'LEGACY', cachedAt: '2026-09-16T00:00:00.000Z' },
+    { inventoryId, codigo: 'ABCSP', descripcion: 'Dos', controlType: 'PARTIDA', cachedAt: '2026-09-16T00:00:00.000Z' },
+  ],
+  metadata: { inventoryId, masterVersion: 1, rowCount: 2, fingerprint: 'a'.repeat(64), cachedAt: '2026-09-16T00:00:00.000Z' },
+}
+
+function sharedMasterContract(name: string, createRepository: () => { findByCode: (id: string, code: string) => Promise<unknown>; listByInventory: (id: string) => Promise<unknown[]>; getMetadata: (id: string) => Promise<unknown>; replaceSnapshot: (value: MasterSnapshot) => Promise<void> }) {
+  describe(name, () => {
+    it('guarda, busca y expone metadata', async () => {
+      const repository = createRepository()
+      await repository.replaceSnapshot(snapshot)
+      await expect(repository.findByCode(inventoryId, ' 00001 ')).resolves.toMatchObject({ codigo: '00001', descripcion: 'Uno' })
+      await expect(repository.listByInventory(inventoryId)).resolves.toHaveLength(2)
+      await expect(repository.getMetadata(inventoryId)).resolves.toMatchObject({ masterVersion: 1, rowCount: 2 })
+    })
+
+    it('rechaza un snapshot inválido sin reemplazar el anterior', async () => {
+      const repository = createRepository()
+      await repository.replaceSnapshot(snapshot)
+      await expect(repository.replaceSnapshot({ ...snapshot, metadata: { ...snapshot.metadata, rowCount: 1 } })).rejects.toThrow()
+      await expect(repository.findByCode(inventoryId, '00001')).resolves.toMatchObject({ descripcion: 'Uno' })
+    })
+  })
+}
+
+sharedMasterContract('Dexie master repository', () => new DexieMasterSkuRepository(new Inven3WebDatabase()))
+sharedMasterContract('SQLite master repository', () => new SqliteMasterSkuRepository(new FakeSqliteDatabase()))
+
+class FakeSqliteDatabase implements SqliteDatabase {
+  private skuRows: Array<{ inventory_id: string; codigo: string; descripcion: string; control_type: string; cached_at: string }> = []
+  private metadataRows: Array<{ inventory_id: string; master_version: number; row_count: number; fingerprint: string; cached_at: string }> = []
+  public async initialize(): Promise<void> {}
+  public async close(): Promise<void> {}
+  public async transaction<T>(operation: () => Promise<T>): Promise<T> {
+    const skuBefore = [...this.skuRows]; const metadataBefore = [...this.metadataRows]
+    try { return await operation() } catch (error: unknown) { this.skuRows = skuBefore; this.metadataRows = metadataBefore; throw error }
+  }
+  public async execute(statement: string, values: readonly unknown[] = []): Promise<void> {
+    if (statement.startsWith('delete from inven3_master_sku')) { this.skuRows = this.skuRows.filter((row) => row.inventory_id !== values[0]); return }
+    if (statement.startsWith('insert into inven3_master_sku')) { this.skuRows.push({ inventory_id: String(values[0]), codigo: String(values[1]), descripcion: String(values[2]), control_type: String(values[3]), cached_at: String(values[4]) }); return }
+    if (statement.startsWith('insert into inven3_master_metadata')) {
+      const next = { inventory_id: String(values[0]), master_version: Number(values[1]), row_count: Number(values[2]), fingerprint: String(values[3]), cached_at: String(values[4]) }
+      this.metadataRows = [...this.metadataRows.filter((row) => row.inventory_id !== next.inventory_id), next]
+    }
+  }
+  public async query<Row extends Record<string, unknown>>(statement: string, values: readonly unknown[] = []): Promise<SqliteResult<Row>> {
+    const rows = statement.includes('inven3_master_metadata') ? this.metadataRows.filter((row) => row.inventory_id === values[0]) : this.skuRows.filter((row) => row.inventory_id === values[0] && (!statement.includes('and codigo') || row.codigo === values[1]))
+    return { values: rows.map((row) => ({ ...row })) as unknown as Row[] }
+  }
+}
