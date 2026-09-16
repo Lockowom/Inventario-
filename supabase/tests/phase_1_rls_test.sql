@@ -33,8 +33,7 @@ insert into public.count_records (id, client_count_id, inventory_id, user_id, de
 select throws_ok('set local role anon; select * from public.inventories', '42501', 'permission denied for table inventories', 'anon has no access to protected tables');
 reset role;
 select set_config('request.jwt.claim.sub', '30000000-0000-0000-0000-000000000003', true); set local role authenticated;
-update public.inventories set status = 'PREPARADO' where id = '40000000-0000-0000-0000-000000000001';
-select is((select status from public.inventories where id = '40000000-0000-0000-0000-000000000001'), 'BORRADOR'::public.inventory_status, 'CONTADOR cannot change inventory status directly');
+select throws_ok('update public.inventories set status = ''PREPARADO'' where id = ''40000000-0000-0000-0000-000000000001''', '42501', 'permission denied for table inventories', 'CONTADOR cannot change inventory status directly');
 select is((select count(*) from public.count_records), 1::bigint, 'CONTADOR reads own count');
 reset role;
 select set_config('request.jwt.claim.sub', '30000000-0000-0000-0000-000000000004', true); set local role authenticated;
