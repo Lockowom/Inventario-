@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  app-checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -22,3 +22,17 @@ jobs:
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
+
+  database-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx supabase start -x gotrue,realtime,storage-api,imgproxy,kong,mailpit,postgrest,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - run: npx supabase db reset
+      - run: npx supabase test db --local supabase/tests
+      - run: npx supabase db advisors --local --type security --level warn --fail-on error

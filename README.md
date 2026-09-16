@@ -4,7 +4,7 @@ Sistema de captura para Inventario General físico, offline-first, con soporte A
 
 ## Estado
 
-**Fase actual:** Fase 0 — fundación técnica.
+**Fase actual:** Fase 1 — modelo, seguridad, roles y ciclo de vida.
 
 ## Inicio rápido
 
@@ -52,6 +52,9 @@ La certificación de SQLite, permisos de cámara y scanner requiere pruebas en d
 ## Documentación oficial
 
 - [`docs/BLUEPRINT_INVEN3_V1.0.md`](docs/BLUEPRINT_INVEN3_V1.0.md) — Blueprint Técnico y Funcional aprobado para INVEN3 v1.0.
+- [`docs/MODELO_DATOS_V1.md`](docs/MODELO_DATOS_V1.md) — entidades, relaciones y constraints de Fase 1.
+- [`docs/SEGURIDAD_RLS_V1.md`](docs/SEGURIDAD_RLS_V1.md) — políticas RLS y RPC protegidas.
+- [`docs/AUTH_Y_ROLES_V1.md`](docs/AUTH_Y_ROLES_V1.md) — cliente Auth y modelo de roles.
 
 ## Regla de gobierno
 
