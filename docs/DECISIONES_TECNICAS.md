@@ -39,3 +39,11 @@
 - **Alternativas:** acceso cliente directo a tablas sensibles.
 - **Consecuencias:** el schema de Fase 1 requiere políticas y RPC antes de la UI operacional.
 - **Estado:** aceptada.
+
+## ADR-006 — Modelo PostgreSQL y ciclo de vida protegido
+
+- **Decisión:** modelar entidades operacionales en migraciones forward-only, con UUID, `timestamptz`, RLS y constraints de base. Las transiciones de inventario se ejecutan exclusivamente mediante RPC transaccionales.
+- **Motivo:** la integridad, la auditoría y el control de roles no pueden depender de una UI ni de llamadas cliente múltiples.
+- **Alternativas:** actualizaciones directas de estado desde frontend; roles en metadata de Auth; borrado operacional. Todas descartadas por seguridad y trazabilidad.
+- **Consecuencias:** un Supabase local es necesario para ejecutar pgTAP y generar tipos. Ninguna migración ha sido aplicada a un proyecto remoto.
+- **Estado:** aceptada.

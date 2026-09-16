@@ -1,0 +1,31 @@
+# Modelo de datos v1 — Fase 1
+
+La migración inicial usa UUID, `timestamptz` (UTC), claves foráneas restrictivas, índices de acceso y constraints para invariantes inequívocas. Los identificadores operacionales se almacenan como `text` para preservar ceros iniciales.
+
+```mermaid
+erDiagram
+  PROFILES ||--o{ INVENTORIES : crea
+  PROFILES ||--o{ INVENTORY_ASSIGNMENTS : recibe
+  INVENTORIES ||--o{ INVENTORY_ASSIGNMENTS : contiene
+  INVENTORIES ||--o{ INVENTORY_MASTER_ITEMS : snapshot
+  PROFILES ||--o{ SYNC_DEVICES : usa
+  INVENTORIES ||--o{ COUNT_RECORDS : contiene
+  PROFILES ||--o{ COUNT_RECORDS : registra
+  SYNC_DEVICES ||--o{ COUNT_RECORDS : origina
+  COUNT_RECORDS ||--o{ COUNT_REVISIONS : conserva
+  INVENTORIES ||--o{ INVENTORY_CUTS : agrupa
+  INVENTORY_CUTS ||--o{ INVENTORY_CUT_ITEMS : snapshot
+  COUNT_RECORDS ||--o| INVENTORY_CUT_ITEMS : pertenece
+  INVENTORY_CUTS ||--o{ CUT_RECTIFICATIONS : afecta
+  INVENTORIES ||--o{ GENERATED_FILES : genera
+  INVENTORIES ||--o{ AUDIT_EVENTS : audita
+```
+
+## Relaciones e invariantes
+
+- `profiles.user_id` referencia `auth.users`; el rol vive en tabla protegida, no en metadata editable por cliente.
+- `inventory_assignments` y `inventory_master_items` son únicos por `(inventory_id, user_id)` y `(inventory_id, codigo)` respectivamente.
+- `count_records.client_count_id` es único globalmente; es la base de idempotencia futura. `cantidad_contada > 0`; las reglas de serial y ubicación permanecen en dominio/RPC, no en CHECKs transversales.
+- `inventory_cut_items.count_record_id` es único: un conteo entra en cero o un corte, nunca en dos. El futuro RPC de corte actualizará `count_records.cut_id` y el snapshot en una transacción.
+- Revisiones, rectificaciones y auditoría son append-only para roles operacionales: no existen políticas `UPDATE` o `DELETE` para alterarlas.
+- `inventory_freeze_guards` conserva pendientes conocidos por dispositivo. `freeze_inventory` bloquea solo ante señales conocidas; la sincronización futura será responsable de publicar y resolver esas señales.
