@@ -24,6 +24,13 @@
 - **Consecuencias:** `cap sync ios` actualiza el Podfile; en macOS se debe ejecutar `pod install` y abrir `App.xcworkspace`. La certificación física de cámara no se suplanta desde Windows.
 - **Estado:** aceptada.
 
+## ADR-011 — Capacidad local atómica y contexto de captura autorizado
+
+- **Decisión:** la reserva de un conteo `PENDING` se realiza únicamente mediante `savePendingWithCapacity` dentro de una transacción del adaptador. El runtime de captura se crea sólo desde Auth, perfil activo y una respuesta RLS que contenga exactamente un inventario asignado `ABIERTO`.
+- **Motivo:** separar `count` de `save` permitía superar 50 con llamadas concurrentes; un literal TypeScript no demuestra que el inventario siga autorizado y abierto.
+- **Consecuencias:** los umbrales 40/45/50 son visibles y textuales; en 50 se bloquea guardar sin borrar datos. La verificación de contexto ocurre al entrar y la escritura física no depende de red. La selección explícita entre múltiples inventarios pertenece a la navegación posterior.
+- **Estado:** aceptada.
+
 ## ADR-003 — Validaciones compartibles Zod
 
 - **Decisión:** Zod define contratos de dominio reutilizables.

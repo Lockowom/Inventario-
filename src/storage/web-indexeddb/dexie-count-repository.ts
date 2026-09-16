@@ -1,5 +1,5 @@
 import { localCountRecordSchema, type LocalCountRecord } from '../../domain/count/contracts'
-import type { CountListFilter, CountRepository } from '../../domain/ports/count-repository'
+import { PendingCountCapacityError, type CountListFilter, type CountRepository, type SavedPendingCount } from '../../domain/ports/count-repository'
 import { Inven3WebDatabase } from './inven3-web-database'
 
 export class DexieCountRepository implements CountRepository {
@@ -22,6 +22,18 @@ export class DexieCountRepository implements CountRepository {
     const valid = localCountRecordSchema.parse(record)
     await this.database.transaction('rw', this.database.localCountRecords, async () => { await this.database.localCountRecords.add(valid) })
     return valid
+  }
+
+  public async savePendingWithCapacity(record: LocalCountRecord, maxPending: number): Promise<SavedPendingCount> {
+    const valid = localCountRecordSchema.parse(record)
+    if (valid.syncStatus !== 'PENDING') throw new Error('La capacidad local sólo se reserva para conteos PENDING.')
+    let pending = 0
+    await this.database.transaction('rw', this.database.localCountRecords, async () => {
+      pending = await this.database.localCountRecords.where('deviceId').equals(valid.deviceId).filter((item) => item.syncStatus === 'PENDING').count()
+      if (pending >= maxPending) throw new PendingCountCapacityError(maxPending)
+      await this.database.localCountRecords.add(valid)
+    })
+    return { record: valid, pending: pending + 1 }
   }
 
   public async findByClientId(clientCountId: string): Promise<LocalCountRecord | null> {

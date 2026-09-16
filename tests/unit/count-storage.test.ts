@@ -34,6 +34,22 @@ describe('identidad persistente del dispositivo', () => {
   })
 })
 
+describe('capacidad atómica de Dexie', () => {
+  it('con dos escrituras concurrentes desde 49 deja exactamente 50 PENDING', async () => {
+    const database = new Inven3WebDatabase(`inven3-capacity-${crypto.randomUUID()}`)
+    const repository = new DexieCountRepository(database)
+    await Promise.all(Array.from({ length: 49 }, (_, index) => repository.save({ ...record, id: `44444444-4444-4444-8444-${String(index).padStart(12, '0')}`, clientCountId: `55555555-5555-4555-8555-${String(index).padStart(12, '0')}` })))
+    const [first, second] = await Promise.allSettled([
+      repository.savePendingWithCapacity({ ...record, id: '66666666-6666-4666-8666-666666666666', clientCountId: '77777777-7777-4777-8777-777777777777' }, 50),
+      repository.savePendingWithCapacity({ ...record, id: '88888888-8888-4888-8888-888888888888', clientCountId: '99999999-9999-4999-8999-999999999999' }, 50),
+    ])
+    expect([first, second].filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+    expect([first, second].filter((result) => result.status === 'rejected')).toHaveLength(1)
+    expect(await repository.countPendingByDevice(record.deviceId)).toBe(50)
+    database.close()
+  })
+})
+
 class FakeCountSqlite implements SqliteDatabase {
   public userVersion = 0
   private deviceId: string | null = null

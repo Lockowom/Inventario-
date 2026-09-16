@@ -1,6 +1,6 @@
 # Conteo físico v1 — Fase 3
 
-La captura es exclusivamente local y offline-first. Requiere un contexto autenticado con inventario `ABIERTO`; no crea estados, no consulta stock, no muestra diferencias y no llama Supabase.
+La captura es exclusivamente local y offline-first. La entrada crea el runtime sólo cuando Auth verificó al usuario, RLS devolvió exactamente un inventario asignado y éste está `ABIERTO`; ningún campo de usuario o inventario es editable en la pantalla. Los estados `BORRADOR`, `PREPARADO`, `CERRADO` y `CONGELADO`, cero o más de un inventario abierto, o un contexto no disponible, mantienen la captura bloqueada. Una vez creado el runtime, guardar no depende de Internet.
 
 ## Formulario A:J
 
@@ -21,7 +21,9 @@ La captura es exclusivamente local y offline-first. Requiere un contexto autenti
 
 Antes de guardar se crean `id` y `client_count_id` UUID, se toma `captured_at` UTC y se obtiene una identidad persistente del dispositivo. Todo conteo nuevo inicia `PENDING`. Se guardan como máximo 50 `PENDING` por dispositivo: 0–39 normal, 40–44 advertencia, 45–49 crítico y 50 bloquea nuevos guardados sin borrar datos.
 
-La confirmación visual sólo ocurre tras la transacción local. Ante error, el formulario conserva los datos. “Mis conteos” muestra únicamente conteos propios del inventario y permite búsqueda local por código, serie, partida o ubicación.
+La confirmación visual sólo ocurre tras la transacción local. Ante error, el formulario conserva los datos. “Mis conteos” muestra únicamente conteos propios del inventario y permite búsqueda local por código, serie, partida o ubicación. La pantalla informa `Pendientes: N / 50`: advertencia textual en 40–44, advertencia crítica en 45–49 y bloqueo textual de `GUARDAR` en 50.
+
+`savePendingWithCapacity` es atómico: SQLite ejecuta `BEGIN IMMEDIATE`, cuenta y escribe en la misma transacción; Dexie hace el conteo y la escritura dentro de una transacción read-write. Por tanto dos intentos desde 49 producen un guardado y un rechazo, nunca 51.
 
 ## Fuera de alcance
 

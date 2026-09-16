@@ -1,5 +1,5 @@
 import { localCountRecordSchema, type LocalCountRecord } from '../../domain/count/contracts'
-import type { CountListFilter, CountRepository } from '../../domain/ports/count-repository'
+import { PendingCountCapacityError, type CountListFilter, type CountRepository, type SavedPendingCount } from '../../domain/ports/count-repository'
 import type { SqliteDatabase } from './sqlite-database'
 import { applySqliteMigrations } from './sqlite-migrations'
 
@@ -34,6 +34,20 @@ export class SqliteCountRepository implements CountRepository {
       await this.database.execute('insert into local_count_records (id, client_count_id, inventory_id, user_id, device_id, ubicacion, codigo, serie, partida, pieza_producto, fecha_vencimiento, talla, color, cantidad_contada, descripcion, control_type, captured_at, created_at, sync_status, sync_attempts, last_sync_error) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [valid.id, valid.clientCountId, valid.inventoryId, valid.userId, valid.deviceId, valid.ubicacion, valid.codigo, valid.serie, valid.partida, valid.piezaProducto, valid.fechaVencimiento, valid.talla, valid.color, valid.cantidadContada, valid.descripcion, valid.controlType, valid.capturedAt, valid.createdAt, valid.syncStatus, valid.syncAttempts, valid.lastSyncError])
     })
     return valid
+  }
+
+  public async savePendingWithCapacity(record: LocalCountRecord, maxPending: number): Promise<SavedPendingCount> {
+    await this.initialize()
+    const valid = localCountRecordSchema.parse(record)
+    if (valid.syncStatus !== 'PENDING') throw new Error('La capacidad local sólo se reserva para conteos PENDING.')
+    let pending = 0
+    await this.database.transaction(async () => {
+      const result = await this.database.query<TotalRow>("select count(*) as total from local_count_records where device_id = ? and sync_status = 'PENDING'", [valid.deviceId])
+      pending = Number(result.values[0]?.total ?? 0)
+      if (pending >= maxPending) throw new PendingCountCapacityError(maxPending)
+      await this.database.execute('insert into local_count_records (id, client_count_id, inventory_id, user_id, device_id, ubicacion, codigo, serie, partida, pieza_producto, fecha_vencimiento, talla, color, cantidad_contada, descripcion, control_type, captured_at, created_at, sync_status, sync_attempts, last_sync_error) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [valid.id, valid.clientCountId, valid.inventoryId, valid.userId, valid.deviceId, valid.ubicacion, valid.codigo, valid.serie, valid.partida, valid.piezaProducto, valid.fechaVencimiento, valid.talla, valid.color, valid.cantidadContada, valid.descripcion, valid.controlType, valid.capturedAt, valid.createdAt, valid.syncStatus, valid.syncAttempts, valid.lastSyncError])
+    })
+    return { record: valid, pending: pending + 1 }
   }
 
   public async findByClientId(clientCountId: string): Promise<LocalCountRecord | null> {
