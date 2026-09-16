@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.env.local
+!.env.example
+android/.gradle/
+android/app/build/
+ios/App/App/public/
+playwright-report/
+test-results/

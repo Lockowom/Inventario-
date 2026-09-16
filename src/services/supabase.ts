@@ -1,0 +1,11 @@
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+
+const url = import.meta.env.VITE_SUPABASE_URL
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+export const isSupabaseConfigured = Boolean(url && anonKey)
+
+export function createSupabaseClient(): SupabaseClient | undefined {
+  if (!isSupabaseConfigured) return undefined
+  return createClient(url, anonKey, { auth: { persistSession: true, autoRefreshToken: true } })
+}

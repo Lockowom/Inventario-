@@ -4,7 +4,37 @@ Sistema de captura para Inventario General físico, offline-first, con soporte A
 
 ## Estado
 
-**Fase actual:** planificación cerrada / preparación de implementación.
+**Fase actual:** Fase 0 — fundación técnica.
+
+## Inicio rápido
+
+```bash
+cp .env.example .env.local
+npm ci
+npm run dev
+```
+
+La pantalla inicial es un diagnóstico de infraestructura. Las variables de Supabase son opcionales en Fase 0; nunca agregues una clave `service_role` al cliente.
+
+### Verificación
+
+```bash
+npm run lint
+npm run typecheck
+npm run test
+npm run build
+```
+
+### Plataformas nativas
+
+El identificador de la aplicación es `com.lockowom.inven3`. Android e iOS consumen el bundle local de `dist/`:
+
+```bash
+npm run cap:android
+npm run cap:ios
+```
+
+La certificación de SQLite, permisos de cámara y scanner requiere pruebas en dispositivos Android e iOS reales antes de una fase de captura.
 
 ## Principios
 
