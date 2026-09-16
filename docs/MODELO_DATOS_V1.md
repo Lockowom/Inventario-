@@ -30,3 +30,5 @@ erDiagram
 - `inventory_cut_items.count_record_id` es único: un conteo entra en cero o un corte, nunca en dos. El futuro RPC de corte actualizará `count_records.cut_id` y el snapshot en una transacción.
 - Revisiones, rectificaciones y auditoría son append-only para roles operacionales: no existen políticas `UPDATE` o `DELETE` para alterarlas.
 - `inventory_freeze_guards` conserva pendientes conocidos por dispositivo. `freeze_inventory` bloquea solo ante señales conocidas; la sincronización futura será responsable de publicar y resolver esas señales.
+- Fase 2 agrega `inventory_master_metadata` por inventario (`master_version`, `row_count`, `fingerprint`, `cached_at`) e `inventory_master_exceptions` append-only. La metadata usa SHA-256 determinista del snapshot ordenado; una importación o excepción incrementa la versión.
+- Las relaciones de maestro siguen siendo restrictivas. El reemplazo físico de filas existe sólo dentro de `import_inventory_master`, antes de ABIERTO y dentro de su transacción; el cliente nunca recibe privilegio de escritura directa.
