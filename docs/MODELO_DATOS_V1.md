@@ -25,7 +25,8 @@ erDiagram
 
 - `profiles.user_id` referencia `auth.users`; el rol vive en tabla protegida, no en metadata editable por cliente.
 - `inventory_assignments` y `inventory_master_items` son únicos por `(inventory_id, user_id)` y `(inventory_id, codigo)` respectivamente.
-- `count_records.client_count_id` es único globalmente; es la base de idempotencia futura. `cantidad_contada > 0`; las reglas de serial y ubicación permanecen en dominio/RPC, no en CHECKs transversales.
+- `count_records.client_count_id` es único globalmente; es la base de idempotencia futura. `received_at` es `not null default now()` y sólo representa recepción server-side; un futuro RPC nunca lo aceptará del cliente. La FK compuesta `(inventory_id, codigo)` exige un SKU maestro del mismo inventario y `(device_id, user_id)` exige que el dispositivo pertenezca al contador.
+- `cut_id` y `export_seq` son ambos nulos o ambos presentes; la secuencia es única por inventario. Las FK compuestas impiden cortes, snapshots, rectificaciones y archivos que crucen inventarios.
 - `inventory_cut_items.count_record_id` es único: un conteo entra en cero o un corte, nunca en dos. El futuro RPC de corte actualizará `count_records.cut_id` y el snapshot en una transacción.
 - Revisiones, rectificaciones y auditoría son append-only para roles operacionales: no existen políticas `UPDATE` o `DELETE` para alterarlas.
 - `inventory_freeze_guards` conserva pendientes conocidos por dispositivo. `freeze_inventory` bloquea solo ante señales conocidas; la sincronización futura será responsable de publicar y resolver esas señales.

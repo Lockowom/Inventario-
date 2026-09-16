@@ -47,3 +47,11 @@
 - **Alternativas:** actualizaciones directas de estado desde frontend; roles en metadata de Auth; borrado operacional. Todas descartadas por seguridad y trazabilidad.
 - **Consecuencias:** un Supabase local es necesario para ejecutar pgTAP y generar tipos. Ninguna migración ha sido aplicada a un proyecto remoto.
 - **Estado:** aceptada.
+
+## ADR-007 — Integridad compuesta, helpers privados y certificación local
+
+- **Decisión:** las relaciones que pueden cruzar inventarios se protegen con claves foráneas compuestas; los helpers de autorización viven en `app_private`; y CI arranca Supabase local para resetear migraciones, cargar el seed, ejecutar pgTAP y los asesores de seguridad.
+- **Motivo:** una FK simple puede aceptar combinaciones válidas de forma aislada pero pertenecientes a inventarios distintos. Los helpers `SECURITY DEFINER` no deben ser una API pública ni heredarse por `anon`.
+- **Alternativas:** validar estas combinaciones solo en TypeScript; ubicar helpers en `public`; omitir la prueba de base de datos en CI. Descartadas porque no certifican integridad ni privilegios reales de PostgreSQL.
+- **Consecuencias:** `count_records`, cortes, rectificaciones y archivos deben conservar sus relaciones compuestas; las funciones públicas de ciclo de vida son las únicas RPC concedidas a `authenticated`. CI no enlaza ni aplica cambios a Supabase remoto.
+- **Estado:** aceptada.
