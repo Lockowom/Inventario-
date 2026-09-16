@@ -4,7 +4,7 @@ Sistema de captura para Inventario General físico, offline-first, con soporte A
 
 ## Estado
 
-**Fase actual:** Fase 2 — maestro SKU, preparación y distribución offline.
+**Fase actual:** Fase 3 — captura física offline local (sin sincronización productiva).
 
 ## Inicio rápido
 
@@ -57,6 +57,9 @@ La certificación de SQLite, permisos de cámara y scanner requiere pruebas en d
 - [`docs/AUTH_Y_ROLES_V1.md`](docs/AUTH_Y_ROLES_V1.md) — cliente Auth y modelo de roles.
 - [`docs/MAESTRO_SKU_V1.md`](docs/MAESTRO_SKU_V1.md) — contrato, preview e importación del maestro SKU.
 - [`docs/OFFLINE_MASTER_V1.md`](docs/OFFLINE_MASTER_V1.md) — snapshot local, versión y refresco offline.
+- [`docs/CONTEO_FISICO_V1.md`](docs/CONTEO_FISICO_V1.md) — contrato y reglas de la captura física local.
+- [`docs/SCANNER_V1.md`](docs/SCANNER_V1.md) — permisos, formatos y límites del escáner nativo.
+- [`docs/OFFLINE_COUNT_STORAGE_V1.md`](docs/OFFLINE_COUNT_STORAGE_V1.md) — esquema local v3 y garantía de persistencia.
 
 ## Regla de gobierno
 

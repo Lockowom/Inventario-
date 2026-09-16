@@ -1,14 +1,15 @@
-# Arquitectura técnica — Fase 0
+# Arquitectura técnica — Fases 0 a 3
 
 INVEN3 es una aplicación React/TypeScript construida con Vite. El bundle estático `dist/` sirve la web en Cloudflare Pages y es el bundle local que Capacitor incorpora a Android e iOS; la app instalada no carga una URL externa al iniciar.
 
 ## Capas y responsabilidades
 
 - `src/domain`: contratos Zod, tipos y puertos semánticos de negocio compartibles. No importa React, Capacitor, SQL, Dexie ni Supabase.
-- `src/features`: casos de uso y UI por capacidad. Se mantienen vacíos hasta que exista una necesidad de Fase 1+.
+- `src/features`: UI por capacidad. `counting` consume contratos y puertos semánticos; nunca SQL, Dexie ni el plugin nativo.
 - `src/storage`: adaptadores de infraestructura. `mobile-sqlite` contiene el puerto técnico `SqliteDatabase` y el adaptador de `@capacitor-community/sqlite`; `web-indexeddb` aloja Dexie. Ninguno es un contrato de dominio.
 - `src/services`: adaptadores de infraestructura remota, incluido Supabase con variables públicas de Vite.
-- `src/sync` y `src/scanner`: reservados para motores y adaptadores futuros, sin reglas de captura implementadas en esta fase.
+- `src/scanner`: adaptador de cámara para QR y Code 128. Sólo devuelve un valor al formulario; no busca SKU, valida ni guarda.
+- `src/sync`: reservado. Fase 3 no llama RPC ni sincroniza conteos.
 
 ## Persistencia y flujo de datos
 
@@ -28,6 +29,12 @@ Los repositorios del dominio son el contrato compartido real: expresan operacion
 
 SQLite se implementa mediante `CapacitorSqliteDatabase`; `runSqliteProofOfConcept` cubre creación de base y tabla, escritura, actualización, lectura, transacción, cierre, reapertura y persistencia. En una prueba real Android/iOS debe ejecutarse contra la misma base nativa antes de promoverla a la capa de conteos.
 
+## Conteo físico local
+
+`savePhysicalCount` requiere un contexto ya autenticado y de inventario `ABIERTO`, consulta únicamente `MasterSkuRepository` local y persiste a través de `CountRepository`. El contrato central Zod valida ubicación, tipo de control, cantidad, fecha y texto antes de construir un UUID `client_count_id`; `captured_at` se toma en el instante físico y la identidad lógica del dispositivo se conserva localmente. La UI sólo anuncia éxito tras completar la transacción SQLite/Dexie y conserva el borrador si hay un error.
+
+La migración SQLite v3 agrega `local_device_identity` y `local_count_records`, con unicidad de `client_count_id`, cantidad positiva, control y estado de sincronización restringidos e índices de inventario, usuario, código, captura y estado. Dexie tiene la misma representación semántica, no una capa que interprete SQL. El límite local es 50 registros `PENDING` por dispositivo; los estados preventivos son normal 0–39, advertencia 40–44 y crítico 45–49. Fase 3 no elimina registros para eludir ese límite.
+
 ## Seguridad
 
 El cliente usa solo `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. La clave `service_role` no tiene lugar en web, Android o iOS. Supabase será RLS-first; los cortes, rectificaciones, ciclo de vida y sincronización se implementarán mediante RPC/Functions autorizadas y auditables en fases posteriores.
@@ -36,8 +43,8 @@ El cliente usa solo `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. La clave `se
 
 Los tokens CSS centralizan spacing, tipografía, radios, alturas de controles, objetivos táctiles y safe areas. El lenguaje base es oscuro y de alto contraste, sin azul ni naranja como colores dominantes; success, warning y error conservan tokens diferenciados y accesibles. El layout parte de una columna, no permite overflow horizontal y agrega una segunda columna desde 600px. Capacitor usa el identificador `com.lockowom.inven3`.
 
-### SQLite y iOS
+### SQLite, escáner e iOS
 
 La base móvil usa `@capacitor-community/sqlite` 8.1.1, cuya peer dependency declara Capacitor Core `>=8.0.0`; está alineada con Capacitor 8.5.2 del proyecto. La distribución del plugin incluye tanto `CapacitorCommunitySqlite.podspec` (CocoaPods) como `Package.swift` (Swift Package Manager). Por lo tanto, CocoaPods no es un requisito técnico del plugin.
 
-El proyecto iOS generado por Capacitor 8 utiliza Swift Package Manager (`ios/App/CapApp-SPM`). Después de `npx cap sync ios`, el paquete del plugin se incluye desde esa integración. El deployment target efectivo es iOS 15.0: coincide con `Package.swift`, el podspec del plugin y el proyecto Xcode generado. No se adoptan dependencias CocoaPods para INVEN3 en Fase 0.
+El plugin SQLite 8.1.1 puede utilizar CocoaPods o Swift Package Manager. Sin embargo, el escáner seleccionado `@capacitor-mlkit/barcode-scanning` 8.2.1 soporta Capacitor 8 y requiere CocoaPods en iOS para ML Kit; no ofrece `Package.swift`. Por decisión de proyecto, `ios/App/Podfile` usa CocoaPods y el deployment target es iOS 15.5. El manifiesto declara cámara y modelo de barras Android; iOS declara `NSCameraUsageDescription`. `cap sync ios` verifica la configuración, mientras que `pod install` y la prueba de cámara real se ejecutan en macOS/Xcode.
