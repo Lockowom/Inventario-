@@ -1,5 +1,5 @@
 begin;
-select plan(26);
+select plan(30);
 
 insert into auth.users (id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
@@ -54,10 +54,14 @@ select is((select count(*) from public.inventory_assignments where inventory_id 
 select is((select jsonb_array_length(public.get_inventory_supervision('82000000-0000-0000-0000-000000000001')->'counters')), 49, 'supervision includes all assigned observational rows without a per-counter client query');
 select is((select (public.get_inventory_supervision('82000000-0000-0000-0000-000000000001')->'possible_duplicate_serials'->0->>'observations')::integer), 2, 'repeated serial is an alert only');
 select is((select count(*) from public.search_inventory_counts('82000000-0000-0000-0000-000000000001', 50, null, null, null, 'SER-5')), 2::bigint, 'code filter is evaluated on the server');
+select is((select count(*) from public.search_inventory_counts('82000000-0000-0000-0000-000000000001', 50, null, null, null, null, 'S-5')), 2::bigint, 'serial filter is evaluated on the server');
+select is((select count(*) from public.search_inventory_counts('82000000-0000-0000-0000-000000000001', 50, null, null, null, null, null, 'P-5')), 1::bigint, 'batch filter is evaluated on the server');
+select is((select count(*) from public.search_inventory_counts('82000000-0000-0000-0000-000000000001', 50, null, null, '81000000-0000-0000-0000-000000000003')), 3::bigint, 'counter filter is evaluated on the server');
 select is((select count(*) from public.search_inventory_counts('82000000-0000-0000-0000-000000000001', 50, null, null, null, 'SER%')), 0::bigint, 'wildcard characters are escaped in server search');
 select is((select count(*) from public.search_inventory_counts('82000000-0000-0000-0000-000000000001', 50, null, null, null, null, null, null, 'A-01-01')), 1::bigint, 'location filter is evaluated on the server');
-select is((select count(*) from public.search_inventory_counts('82000000-0000-0000-0000-000000000001', 50, null, null, null, null, null, null, null, '2026-09-17'::date, '2026-09-17'::date)), 3::bigint, 'date range is evaluated on the server');
+select is((select count(*) from public.search_inventory_counts('82000000-0000-0000-0000-000000000001', 50, null, null, null, null, null, null, null, '2026-09-17T00:00:00Z'::timestamptz, '2026-09-18T00:00:00Z'::timestamptz)), 3::bigint, 'timestamp range is evaluated on the server');
 select is((select count(*) from public.search_inventory_counts('82000000-0000-0000-0000-000000000001', 1, '2026-09-17T10:02:00Z', '84000000-0000-0000-0000-000000000003')), 1::bigint, 'cursor returns the next deterministic page');
+select throws_ok($$select * from public.search_inventory_counts('82000000-0000-0000-0000-000000000001', 50, '2026-09-17T10:02:00Z', null)$$, '23514', 'Cursor requires captured_at and id together', 'partial cursor is rejected');
 select throws_ok($$select * from public.search_inventory_counts('82000000-0000-0000-0000-000000000001', 101)$$, '23514', 'Limit must be between 1 and 100', 'search limit is bounded');
 reset role;
 

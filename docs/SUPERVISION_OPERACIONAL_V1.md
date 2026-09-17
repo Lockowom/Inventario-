@@ -22,7 +22,9 @@ La autorización se valida en cada RPC. No se infiere de metadata editable del c
 
 ## Dispositivos y pendientes
 
-`last_seen_at` y `last_sync_at` describen la última observación conocida, no conectividad. La interfaz usa sólo `ACTIVO RECIENTEMENTE`, `SIN ACTIVIDAD RECIENTE` o `SIN DATOS`. “Pendientes conocidos” se deriva de `inventory_freeze_guards` sin resolver y no cubre instalaciones completamente offline. No hay heartbeat nuevo ni Realtime.
+`last_seen_at` y `last_sync_at` del panel salen de `inventory_device_activity`: son evidencia del dispositivo en el inventario seleccionado, no actividad global de otro inventario. La interfaz usa sólo `ACTIVO RECIENTEMENTE`, `SIN ACTIVIDAD RECIENTE` o `SIN DATOS`. “Pendientes conocidos” tampoco cubre instalaciones completamente offline. No hay heartbeat nuevo ni Realtime.
+
+Los filtros se mantienen como borrador hasta pulsar **BUSCAR**. Esa acción toma un snapshot inmutable que usan las páginas posteriores; cambiar inputs no mezcla resultados ni cursor. El refresco manual y el polling de 60 segundos sólo actualizan el resumen y no borran filtros, filas ni cursor. Fechas son días locales: el cliente envía el inicio local inclusivo y el inicio local del día siguiente exclusivo como timestamps absolutos.
 
 ## Alertas y estados
 

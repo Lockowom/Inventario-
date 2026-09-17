@@ -1,4 +1,4 @@
-import type { SupervisionCursor, SupervisionFilters } from '../domain/supervision/contracts'
+import { localDateRangeToUtc, type SupervisionCursor, type SupervisionFilters } from '../domain/supervision/contracts'
 import { getSupabaseClient } from './supabase'
 
 function clientOrThrow() { const client = getSupabaseClient(); if (!client) throw new Error('Supervisión no configurada.') ; return client }
@@ -26,10 +26,11 @@ export class SupabaseSupervisionRepository {
     return data as Record<string, unknown>
   }
   public async search(inventoryId: string, filters: SupervisionFilters, cursor?: SupervisionCursor) {
+    const range = localDateRangeToUtc(filters)
     const { data, error } = await clientOrThrow().rpc('search_inventory_counts', {
       p_inventory_id: inventoryId, p_limit: 50, p_cursor_captured_at: cursor?.capturedAt ?? null, p_cursor_id: cursor?.id ?? null,
       p_user_id: filters.userId || null, p_codigo: filters.codigo || null, p_serie: filters.serie || null, p_partida: filters.partida || null, p_ubicacion: filters.ubicacion || null,
-      p_captured_from: filters.capturedFrom || null, p_captured_to: filters.capturedTo || null,
+      p_captured_from: range.capturedFrom, p_captured_to_exclusive: range.capturedToExclusive,
     })
     if (error) throw new Error('Búsqueda no disponible para este inventario.')
     return data ?? []

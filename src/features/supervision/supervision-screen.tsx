@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { activityState, type SupervisionCursor, type SupervisionFilters } from '../../domain/supervision/contracts'
+import { activityState, snapshotFilters, type SupervisionCursor, type SupervisionFilters } from '../../domain/supervision/contracts'
 import { SupabaseSupervisionRepository } from '../../services/supabase-supervision-repository'
 import { isSupabaseConfigured } from '../../services/supabase'
 
@@ -14,7 +14,8 @@ export function SupervisionScreen() {
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null)
   const [rows, setRows] = useState<Record<string, unknown>[]>([])
   const [nextCursor, setNextCursor] = useState<SupervisionCursor | null>(null)
-  const [filters, setFilters] = useState<SupervisionFilters>({})
+  const [draftFilters, setDraftFilters] = useState<SupervisionFilters>({})
+  const [appliedFilters, setAppliedFilters] = useState<SupervisionFilters | null>(null)
   const [message, setMessage] = useState(isSupabaseConfigured ? 'Cargando supervisión autorizada…' : 'Supervisión no configurada.')
 
   const isManager = profile?.role === 'ANALISTA' || profile?.role === 'ADMIN'
@@ -23,26 +24,40 @@ export function SupervisionScreen() {
     if (!isSupabaseConfigured) return
     void Promise.all([repository.inventories(), repository.myProfile()]).then(([items, actor]) => { setInventories(items); setInventoryId(items[0]?.id ?? ''); setProfile(actor as Profile); setMessage(items.length ? '' : 'No existen inventarios autorizados.') }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : 'Supervisión no disponible.'))
   }, [])
-  useEffect(() => { if (!inventoryId || !profile) return; void refresh() // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!inventoryId || !profile) return; void refreshSummary() // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inventoryId, profile?.role])
   useEffect(() => {
     if (!inventoryId || !profile) return
-    const refreshTimer = window.setInterval(() => { void refresh() }, 60_000)
+    const refreshTimer = window.setInterval(() => { void refreshSummary() }, 60_000)
     return () => window.clearInterval(refreshTimer)
     // The moderate timer exists only while this panel is mounted; it is not a presence heartbeat.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inventoryId, profile?.role])
 
-  async function refresh() {
+  async function refreshSummary() {
     try {
       const data = isManager ? await repository.supervision(inventoryId) : await repository.mine(inventoryId)
-      setSummary(data); setRows([]); setNextCursor(null); setMessage('')
+      setSummary(data); setMessage('')
     } catch (error: unknown) { setMessage(error instanceof Error ? error.message : 'Supervisión no disponible.') }
   }
-  async function search(reset = true) {
+  function selectInventory(nextInventoryId: string) {
+    setInventoryId(nextInventoryId); setRows([]); setNextCursor(null); setAppliedFilters(null)
+  }
+  async function beginSearch() {
     try {
-      const found = await repository.search(inventoryId, filters, reset ? undefined : nextCursor ?? undefined) as Record<string, unknown>[]
-      setRows(reset ? found : (current) => [...current, ...found])
+      const nextApplied = snapshotFilters(draftFilters)
+      const found = await repository.search(inventoryId, nextApplied) as Record<string, unknown>[]
+      setAppliedFilters(nextApplied); setRows(found)
+      const last = found.at(-1)
+      setNextCursor(found.length === 50 && last ? { capturedAt: String(last.captured_at), id: String(last.id) } : null)
+      setMessage('')
+    } catch (error: unknown) { setMessage(error instanceof Error ? error.message : 'Búsqueda no disponible.') }
+  }
+  async function loadMore() {
+    if (!appliedFilters || !nextCursor) return
+    try {
+      const found = await repository.search(inventoryId, appliedFilters, nextCursor) as Record<string, unknown>[]
+      setRows((current) => [...current, ...found])
       const last = found.at(-1)
       setNextCursor(found.length === 50 && last ? { capturedAt: String(last.captured_at), id: String(last.id) } : null)
       setMessage('')
@@ -56,14 +71,14 @@ export function SupervisionScreen() {
 
   return <section className="supervision-screen" aria-labelledby="supervision-title">
     <header><p className="eyebrow">Fase 5 · observación operacional</p><h1 id="supervision-title">SUPERVISIÓN</h1><p>Actividad recibida por servidor; “pendientes conocidos” no cubre dispositivos totalmente offline.</p></header>
-    <div className="supervision-actions"><label className="field"><span>Inventario</span><select value={inventoryId} onChange={(event) => setInventoryId(event.target.value)}>{inventories.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.status}</option>)}</select></label><button className="button-secondary" type="button" onClick={() => void refresh()}>ACTUALIZAR</button></div>
+    <div className="supervision-actions"><label className="field"><span>Inventario</span><select value={inventoryId} onChange={(event) => selectInventory(event.target.value)}>{inventories.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.status}</option>)}</select></label><button className="button-secondary" type="button" onClick={() => void refreshSummary()}>ACTUALIZAR</button></div>
     {message && <p className="form-warning" role="status">{message}</p>}
     {profile?.role === 'CONTADOR' ? <OwnSummary summary={mine} /> : <>
       <section className="supervision-summary" aria-label="Resumen de inventario"><Metric label="Conteos recibidos" value={data?.received_counts} /><Metric label="Unidades contadas" value={data?.counted_units} /><Metric label="Contadores asignados" value={data?.assigned_counters} /><Metric label="Dispositivos conocidos" value={data?.known_devices} /><Metric label="Pendientes conocidos" value={data?.known_pending} /><Metric label="Última recepción" value={formatDate(data?.last_received_at)} /></section>
       <h2>Estado de contadores</h2><div className="supervision-cards">{counters.map((counter) => <article key={String(counter.user_id)}><strong>{String(counter.display_name)}</strong><span>{String(counter.role)} · {counter.active ? 'ACTIVO' : 'INACTIVO'}</span><span>{activityState(stringOrNull(counter.last_seen_at))}</span><span>{String(counter.received_counts)} conteos · {String(counter.counted_units)} unidades</span><span>Última captura: {formatDate(counter.last_captured_at)}</span><span>Última recepción: {formatDate(counter.last_received_at)}</span><span>Pendientes conocidos: {String(counter.known_pending)}</span></article>)}</div>
       <h2>Dispositivos conocidos</h2><div className="supervision-cards">{devices.map((device) => <article key={String(device.id)}><strong>{String(device.platform)} · {String(device.app_version)}</strong><span>{activityState(stringOrNull(device.last_seen_at))}</span><span>Último sync: {formatDate(device.last_sync_at)}</span><span>Pendientes conocidos: {String(device.known_pending)}</span></article>)}</div>
       {duplicates.length > 0 && <section className="form-warning"><h2>Posible serie repetida</h2>{duplicates.map((item) => <p key={`${item.codigo}-${item.serie}`}>{String(item.codigo)} · {String(item.serie)} · {String(item.observations)} observaciones. Alerta no bloqueante.</p>)}</section>}
-      <Search filters={filters} setFilters={setFilters} counters={counters} onSearch={() => search(true)} /><SearchResults rows={rows} onMore={nextCursor ? () => search(false) : undefined} />
+      <Search filters={draftFilters} setFilters={setDraftFilters} counters={counters} onSearch={beginSearch} /><SearchResults rows={rows} onMore={nextCursor && appliedFilters ? loadMore : undefined} />
     </>}
     {selected && <p className="supervision-note">Inventario {selected.status}: consulta de solo lectura.</p>}
   </section>
