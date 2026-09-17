@@ -170,8 +170,8 @@ begin
       v_client_count_id, p_inventory_id, v_actor_id, p_device_id, v_ubicacion, v_codigo, v_serie, v_partida, v_pieza_producto,
       v_fecha_vencimiento, v_talla, v_color, v_cantidad, v_master.descripcion, v_captured_at, v_now,
       v_inventory.status, case when v_inventory.status = 'CERRADO' then v_captured_at > v_inventory.closed_at else null end
-    ) on conflict (client_count_id) do nothing
-      returning id, count_records.received_at into v_new_id, received_at;
+    ) on conflict on constraint count_records_client_count_id_key do nothing
+      returning count_records.id, count_records.received_at into v_new_id, received_at;
 
     if v_new_id is null then
       select * into v_existing from public.count_records where count_records.client_count_id = v_client_count_id;
