@@ -138,7 +138,7 @@ begin
       result_status := 'REJECTED'; reason := 'INVALID_RECORD'; return next; continue;
     end;
 
-    select * into v_existing from public.count_records where client_count_id = v_client_count_id;
+    select * into v_existing from public.count_records where count_records.client_count_id = v_client_count_id;
     if found then
       if v_existing.inventory_id = p_inventory_id and v_existing.user_id = v_actor_id and v_existing.device_id = p_device_id
          and v_existing.ubicacion = v_ubicacion and v_existing.codigo = v_codigo
@@ -174,7 +174,7 @@ begin
       returning id, count_records.received_at into v_new_id, received_at;
 
     if v_new_id is null then
-      select * into v_existing from public.count_records where client_count_id = v_client_count_id;
+      select * into v_existing from public.count_records where count_records.client_count_id = v_client_count_id;
       if v_existing.inventory_id = p_inventory_id and v_existing.user_id = v_actor_id and v_existing.device_id = p_device_id
          and v_existing.ubicacion = v_ubicacion and v_existing.codigo = v_codigo
          and v_existing.serie is not distinct from v_serie and v_existing.partida is not distinct from v_partida
