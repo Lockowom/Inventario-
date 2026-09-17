@@ -42,7 +42,9 @@ select lives_ok($$select public.correct_uncut_count('a6300000-0000-0000-0000-000
 select is((select cantidad_contada from public.count_records where id = 'a6300000-0000-0000-0000-000000000001'), 7, 'correction updates only physical content');
 select is((select old_values->>'cantidad_contada' from public.count_revisions where count_record_id = 'a6300000-0000-0000-0000-000000000001'), '3', 'revision stores old values');
 select is((select new_values->>'cantidad_contada' from public.count_revisions where count_record_id = 'a6300000-0000-0000-0000-000000000001'), '7', 'revision stores new values');
+reset role;
 select is((select count(*) from public.audit_events where entity_id = 'a6300000-0000-0000-0000-000000000001' and event_type = 'COUNT_CORRECTED'), 1::bigint, 'one COUNT_CORRECTED audit is written');
+set local role authenticated;
 select throws_ok($$select public.correct_uncut_count('a6300000-0000-0000-0000-000000000001', '{"ubicacion":"A-01-01","codigo":"SERIALS","cantidad_contada":1}'::jsonb, 'missing serial')$$, '23514', 'INVALID_SERIAL', 'correction revalidates SERIAL');
 select throws_ok($$select public.correct_uncut_count('a6300000-0000-0000-0000-000000000001', '{"ubicacion":"A-01-01","codigo":"BATCHP","serie":"x","cantidad_contada":1}'::jsonb, 'invalid batch')$$, '23514', 'INVALID_BATCH', 'correction revalidates PARTIDA');
 select throws_ok($$select public.correct_uncut_count('a6300000-0000-0000-0000-000000000001', '{"ubicacion":"A-01-01","codigo":"LEGACY","cantidad_contada":1}'::jsonb, '   ')$$, '23514', 'Correction reason is required and must be at most 500 characters', 'empty reason is rejected');
@@ -78,7 +80,7 @@ values ('a6300000-0000-0000-0000-000000000003', 'a6310000-0000-0000-0000-0000000
 select set_config('request.jwt.claim.sub', 'a6000000-0000-0000-0000-000000000001', true); set local role authenticated;
 select lives_ok($$select public.create_cut('a6100000-0000-0000-0000-000000000001', 'a6400000-0000-0000-0000-000000000005')$$, 'ADMIN creates later cut');
 select is((select export_seq from public.count_records where id = 'a6300000-0000-0000-0000-000000000003'), 3::bigint, 'late arrival enters only the next cut with continuous sequence');
-select is((select count(*) from public.inventory_cut_items group by count_record_id having count(*) > 1), 0::bigint, 'no count record can appear in two cut snapshots');
+select is((select coalesce(count(*), 0) from (select count_record_id from public.inventory_cut_items group by count_record_id having count(*) > 1) duplicate_items), 0::bigint, 'no count record can appear in two cut snapshots');
 select throws_ok($$insert into public.count_records (client_count_id, inventory_id, user_id, device_id, ubicacion, codigo, cantidad_contada, descripcion, captured_at) values (gen_random_uuid(), 'a6100000-0000-0000-0000-000000000001', 'a6000000-0000-0000-0000-000000000003', 'a6200000-0000-0000-0000-000000000001', 'A-01-01', 'LEGACY', 1, 'x', now())$$, '42501', 'permission denied for table count_records', 'authenticated direct count writes remain forbidden');
 reset role;
 
