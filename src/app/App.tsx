@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core'
 import { useEffect, useState } from 'react'
 import { isSupabaseConfigured } from '../services/supabase'
 import { MasterSkuScreen } from '../features/master/master-sku-screen'
+import { SupervisionScreen } from '../features/supervision/supervision-screen'
 import { CountingScreen } from '../features/counting/counting-screen'
 import { createCountingRuntime, createSyncCoordinator, getCountingContextRepository } from '../features/counting/counting-runtime'
 import { getLocalSessionUserId, verifyServerCountingContext } from '../features/counting/authorized-counting-context'
@@ -45,5 +46,5 @@ export function App() {
     ['Supabase', isSupabaseConfigured ? 'CONFIGURED' : 'NOT CONFIGURED'],
     ['Versión', version],
   ] as const
-  return <main className="app-shell"><section className="diagnostic" aria-labelledby="app-title"><h1 id="app-title">INVEN3</h1><p className="diagnostic__subtitle">Entorno: {import.meta.env.DEV ? 'Development' : 'Production'}</p><dl className="status-grid">{status.map(([label, value]) => <div className="status-card" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section><MasterSkuScreen /><CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} /></main>
+  return <main className="app-shell"><section className="diagnostic" aria-labelledby="app-title"><h1 id="app-title">INVEN3</h1><p className="diagnostic__subtitle">Entorno: {import.meta.env.DEV ? 'Development' : 'Production'}</p><dl className="status-grid">{status.map(([label, value]) => <div className="status-card" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section><SupervisionScreen /><MasterSkuScreen /><CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} /></main>
 }

@@ -1,4 +1,4 @@
-# Arquitectura técnica — Fases 0 a 4
+# Arquitectura técnica — Fases 0 a 5
 
 INVEN3 es una aplicación React/TypeScript construida con Vite. El bundle estático `dist/` sirve la web en Cloudflare Pages y es el bundle local que Capacitor incorpora a Android e iOS; la app instalada no carga una URL externa al iniciar.
 
@@ -53,6 +53,18 @@ Los tokens CSS centralizan spacing, tipografía, radios, alturas de controles, o
 La base móvil usa `@capacitor-community/sqlite` 8.1.1, cuya peer dependency declara Capacitor Core `>=8.0.0`; está alineada con Capacitor 8.5.2 del proyecto. La distribución del plugin incluye tanto `CapacitorCommunitySqlite.podspec` (CocoaPods) como `Package.swift` (Swift Package Manager). Por lo tanto, CocoaPods no es un requisito técnico del plugin.
 
 El plugin SQLite 8.1.1 puede utilizar CocoaPods o Swift Package Manager. Sin embargo, el escáner seleccionado `@capacitor-mlkit/barcode-scanning` 8.2.1 soporta Capacitor 8 y requiere CocoaPods en iOS para ML Kit; no ofrece `Package.swift`. Por decisión de proyecto, `ios/App/Podfile` usa CocoaPods y el deployment target es iOS 15.5. El manifiesto declara cámara y modelo de barras Android; iOS declara `NSCameraUsageDescription`. `cap sync ios` verifica la configuración, mientras que `pod install` y la prueba de cámara real se ejecutan en macOS/Xcode.
+
+## Supervisión operacional — Fase 5
+
+La supervisión es una capacidad de lectura y no es el origen de datos del conteo. `SupabaseSupervisionRepository` llama sólo a `get_inventory_supervision`, `search_inventory_counts` y `get_my_count_summary`; ningún componente React consulta directamente `count_records`, `sync_devices` o guardas de freeze. Las funciones fijan el `search_path`, exigen perfil activo y aplican el helper de autorización antes de retornar un modelo mínimo.
+
+`get_inventory_supervision` y `search_inventory_counts` son exclusivos de ADMIN o ANALISTA asignado. El CONTADOR sólo invoca `get_my_count_summary`, limitado a sus propios conteos recibidos y pendientes conocidos. El panel usa `received_at` para “conteos recibidos” y `cantidad_contada` para “unidades contadas”; no calcula stock ni progreso, ni presenta diferencias.
+
+El buscador pagina por `(captured_at DESC, id DESC)`, limita cada RPC a 1–100 resultados y filtra en PostgreSQL por contador, código, serie, partida, ubicación y fecha. La pantalla ofrece 50 por página con cursor opaco. Los índices de Fase 5 corresponden a esos predicados y ordenación. La actualización es manual y cada 60 segundos mientras el panel está visible; ese polling consulta el servidor, no registra heartbeats ni declara presencia.
+
+`sync_devices.last_seen_at` y `last_sync_at` son observaciones globales históricas y no se usan para decidir el estado del panel. `app_private.inventory_device_activity` conserva la evidencia mínima por `(inventory_id, device_id, user_id)` y es actualizada solamente por inserciones aceptadas de `sync_counts` y por `report_device_sync_state`. La UI sólo etiqueta `ACTIVO RECIENTEMENTE`, `SIN ACTIVIDAD RECIENTE` o `SIN DATOS`; nunca “online”. “Pendientes conocidos” es inventory-scoped y no representa dispositivos completamente offline. Series repetidas de ítems SERIAL aparecen como alerta no bloqueante; PARTIDA no usa esa alerta.
+
+Los campos HTML `type=date` se interpretan como días locales del operador. El cliente convierte inicio local inclusivo e inicio local del día siguiente exclusivo a `timestamptz` absolutos antes del RPC; PostgreSQL sólo compara instantes y no asume una zona horaria humana.
 ## Sincronización de outbox — Fase 4
 
 `CaptureRuntime` y `SyncCoordinator` son composiciones separadas. La primera exige contexto autorizado `ABIERTO`; la segunda se inicia con sesión válida, descubre scopes persistentes por usuario y usa un worker single-flight por inventario. Por ello el cierre del inventario bloquea captura, no la reconciliación de registros ya guardados. Los puertos locales contienen operaciones semánticas de outbox, no detalles SQL/Dexie; el gateway traduce Supabase a errores de dominio tipados y seguros.

@@ -112,3 +112,22 @@
 ## Fase 4 — Outbox independiente de captura
 
 Se decide que el outbox es propiedad durable del usuario/dispositivo y no de la pantalla de conteo. `SyncCoordinator` se ejecuta al inicio con sesión local válida y descubre inventarios con trabajo pendiente; `CaptureRuntime` permanece restringido a `ABIERTO`. Los fallos de sync se clasifican en transitorios o terminales fail-closed: sólo los transitorios programan retry. Las señales de freeze se calculan por `(inventory_id, device_id)`.
+
+## ADR-013 — Supervisión mediante read models protegidos
+
+- **Decisión:** Fase 5 expone modelos de lectura mínimos por RPC y mantiene las tablas de conteos/dispositivos detrás de RLS. ADMIN supervisa globalmente, ANALISTA sólo inventarios asignados y CONTADOR recibe exclusivamente su resumen propio.
+- **Motivo:** una vista cliente sobre tablas operacionales puede ampliar accidentalmente la superficie de datos y convertir telemetría histórica en una afirmación de presencia. El servidor es quien distingue captura física de recepción.
+- **Alternativas:** consultas directas desde React; un dashboard con datos sintéticos; una tabla de presencia o heartbeat frecuente; una restricción única para series. Descartadas por exposición, semántica incorrecta, costo operativo o bloqueo indebido.
+- **Consecuencias:** los resultados se ordenan por cursor determinista y los filtros se ejecutan en PostgreSQL. `last_seen_at`, `last_sync_at` y guardas pendientes se etiquetan como observaciones conocidas. La serie repetida es una alerta no bloqueante y las partidas repetidas no se alertan. El refresco de 60 segundos visible no escribe datos ni usa Realtime.
+- **Estado:** aceptada.
+
+## ADR-014 — Actividad de dispositivo acotada por inventario
+
+- **Decisión:** conservar `sync_devices` como observación global y usar `app_private.inventory_device_activity` exclusivamente para el panel por inventario.
+- **Motivo:** un usuario puede trabajar con dispositivos distintos en inventarios A y B; deducir estado de A desde todos sus dispositivos mezcla evidencia y puede marcar actividad falsa.
+- **Consecuencias:** el modelo se actualiza sólo en operaciones protegidas de Fase 4, no hay heartbeat nuevo, `known_devices` cuenta sólo evidencia del inventario y los filtros de fecha llevan límites absolutos derivados del día local del operador. La búsqueda usa borrador/aplicado, por lo que un cursor nunca combina filtros distintos.
+- **Estado:** aceptada.
+
+## Riesgo conocido — dependencias moderadas de desarrollo
+
+`npm audit` identifica cinco avisos moderados: `@capacitor/cli` directo a través de `xcode` y `uuid`; y `vitest` directo a través de `@vitest/mocker`. La actualización de Vitest disponible es `5.0.1`, un major incompatible que no se aplica durante esta corrección. La ruta de `uuid` depende de `xcode`, transitiva de Capacitor CLI; existe fix, pero se evaluará al alinear de forma conjunta el conjunto Capacitor 8, no aislando CLI/Core. Son dependencias de herramientas de build/test, no claves ni código de ejecución de la app; se mantiene seguimiento sin usar `--force`.
