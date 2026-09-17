@@ -1,4 +1,4 @@
-# Arquitectura técnica — Fases 0 a 3
+# Arquitectura técnica — Fases 0 a 4
 
 INVEN3 es una aplicación React/TypeScript construida con Vite. El bundle estático `dist/` sirve la web en Cloudflare Pages y es el bundle local que Capacitor incorpora a Android e iOS; la app instalada no carga una URL externa al iniciar.
 
@@ -9,7 +9,8 @@ INVEN3 es una aplicación React/TypeScript construida con Vite. El bundle estát
 - `src/storage`: adaptadores de infraestructura. `mobile-sqlite` contiene el puerto técnico `SqliteDatabase` y el adaptador de `@capacitor-community/sqlite`; `web-indexeddb` aloja Dexie. Ninguno es un contrato de dominio.
 - `src/services`: adaptadores de infraestructura remota, incluido Supabase con variables públicas de Vite.
 - `src/scanner`: adaptador de cámara para QR y Code 128. Sólo devuelve un valor al formulario; no busca SKU, valida ni guarda.
-- `src/sync`: reservado. Fase 3 no llama RPC ni sincroniza conteos.
+- `src/domain/sync`: orquesta el outbox contra un puerto `CountSyncGateway`; no importa Supabase, Capacitor, SQL ni Dexie.
+- `src/services/supabase-sync-gateway.ts`: adaptador remoto que llama solamente RPC protegidas.
 
 ## Persistencia y flujo de datos
 
@@ -35,11 +36,13 @@ SQLite se implementa mediante `CapacitorSqliteDatabase`; `runSqliteProofOfConcep
 
 `savePhysicalCount` después opera offline: consulta únicamente `MasterSkuRepository` local y persiste a través de `CountRepository`. El contexto cacheado no sustituye el maestro: sin maestro local la pantalla continúa bloqueada. El contrato central Zod valida ubicación, tipo de control, cantidad, fecha y texto antes de construir un UUID `client_count_id`; `captured_at` se toma en el instante físico y la identidad lógica del dispositivo se conserva localmente. La UI sólo anuncia éxito tras completar la transacción SQLite/Dexie y conserva el borrador si hay un error.
 
-La migración SQLite v3 agrega `local_device_identity` y `local_count_records`, con unicidad de `client_count_id`, cantidad positiva, control y estado de sincronización restringidos e índices de inventario, usuario, código, captura y estado. V4 agrega `local_counting_context`, de una sola fila activa y sin tokens. Dexie v4 tiene la misma representación semántica, no una capa que interprete SQL. El límite local es 50 registros `PENDING` por dispositivo; `savePendingWithCapacity` cuenta e inserta de forma atómica (`BEGIN IMMEDIATE` en SQLite, read-write en Dexie), por lo que no puede llegar a 51 por carrera. La UI muestra normal 0–39, advertencia 40–44, crítico 45–49 y bloqueo explícito en 50. Fase 3 no elimina registros para eludir ese límite.
+SQLite v5 agrega el outbox (`sync_started_at`, `next_retry_at`, `confirmed_at`, `server_count_id`, `last_sync_at`) y registros locales de dispositivo por usuario. Dexie v5 tiene el mismo significado, no una capa que interprete SQL. El límite de 50 cuenta todo registro local aún no terminal (`PENDING`, `SYNCING`, `FAILED`), así que un envío en curso o fallido no abre capacidad artificialmente. Sólo `CONFIRMED`/`REJECTED` liberan capacidad.
+
+`SyncManager` recupera `SYNCING` abandonados, reclama atómicamente hasta 20 registros, ejecuta un único envío concurrente y cambia a `CONFIRMED` únicamente tras un ACK válido con UUID servidor y `received_at`. Un ACK parcial, inválido o un transporte fallido deja los restantes `FAILED` con backoff exponencial limitado y jitter; el contenido físico jamás se borra ni se reemplaza. El adaptador deriva `ANDROID`/`IOS`/`WEB` de Capacitor y el servidor revalida Auth, RLS, asignación, inventario, maestro y reglas de control.
 
 ## Seguridad
 
-El cliente usa solo `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. La clave `service_role` no tiene lugar en web, Android o iOS. Supabase será RLS-first; los cortes, rectificaciones, ciclo de vida y sincronización se implementarán mediante RPC/Functions autorizadas y auditables en fases posteriores.
+El cliente usa solo `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`. La clave `service_role` no tiene lugar en web, Android o iOS. `register_sync_device`, `report_device_sync_state` y `sync_counts` son las únicas mutaciones de Fase 4; no hay INSERT/UPDATE directo de dispositivos ni conteos. La integración local de CI usa una credencial de servicio únicamente dentro de los contenedores efímeros para preparar el harness, nunca en el bundle ni contra un proyecto remoto.
 
 ## Diseño y plataformas
 

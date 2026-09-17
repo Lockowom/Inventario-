@@ -10,6 +10,9 @@ import { SqliteCountingContextRepository } from '../../storage/mobile-sqlite/sql
 import { DexieCountingContextRepository } from '../../storage/web-indexeddb/dexie-counting-context-repository'
 import type { CountingContextRepository } from '../../domain/ports/counting-context-repository'
 import type { CountingRuntime } from './counting-screen'
+import { SyncManager } from '../../domain/sync/sync-manager'
+import { SupabaseSyncGateway } from '../../services/supabase-sync-gateway'
+import { isSupabaseConfigured } from '../../services/supabase'
 
 /**
  * Infrastructure composition only. Auth/inventory selection must supply the
@@ -28,8 +31,10 @@ export function getCountingContextRepository(): CountingContextRepository {
 export function createCountingRuntime(context: ActiveCountingContext): CountingRuntime {
   if (Capacitor.getPlatform() === 'web') {
     const database = getWebDatabase()
-    return { context, masters: new DexieMasterSkuRepository(database), counts: new DexieCountRepository(database) }
+    const counts = new DexieCountRepository(database)
+    return { context, masters: new DexieMasterSkuRepository(database), counts, sync: new SyncManager(context, counts, isSupabaseConfigured ? new SupabaseSyncGateway() : null) }
   }
   const database = getMobileDatabase()
-  return { context, masters: new SqliteMasterSkuRepository(database), counts: new SqliteCountRepository(database) }
+  const counts = new SqliteCountRepository(database)
+  return { context, masters: new SqliteMasterSkuRepository(database), counts, sync: new SyncManager(context, counts, isSupabaseConfigured ? new SupabaseSyncGateway() : null) }
 }

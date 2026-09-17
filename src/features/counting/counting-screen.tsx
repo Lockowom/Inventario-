@@ -7,8 +7,9 @@ import { scanBarcodeField, type ScanField } from '../../scanner/barcode-scanner'
 import { consumeRestoredScannerResult, subscribeToScannerRestoration } from '../../scanner/scanner-restoration'
 import { emptyPhysicalCountDraft, resetAfterSuccessfulSave } from './form-state'
 import { getCapacityStatus } from './capacity-status'
+import type { SyncManager } from '../../domain/sync/sync-manager'
 
-export interface CountingRuntime extends SavePhysicalCountDependencies { context: ActiveCountingContext }
+export interface CountingRuntime extends SavePhysicalCountDependencies { context: ActiveCountingContext; sync?: SyncManager }
 
 export function CountingScreen({ runtime }: { runtime: CountingRuntime | null }) {
   const [draft, setDraft] = useState<PhysicalCountDraft>(emptyPhysicalCountDraft)
@@ -18,6 +19,8 @@ export function CountingScreen({ runtime }: { runtime: CountingRuntime | null })
   const [saving, setSaving] = useState(false)
   const [refreshCounts, setRefreshCounts] = useState(0)
   const [pending, setPending] = useState<number | null>(null)
+  const [syncMessage, setSyncMessage] = useState('')
+  const [syncing, setSyncing] = useState(false)
   const codeInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -28,12 +31,19 @@ export function CountingScreen({ runtime }: { runtime: CountingRuntime | null })
   useEffect(() => {
     if (!runtime) return
     let active = true
-    void runtime.counts.getOrCreateDeviceId()
+    void runtime.counts.getOrCreateDeviceId(runtime.context.userId)
       .then((deviceId) => runtime.counts.countPendingByDevice(deviceId))
       .then((total) => { if (active) setPending(total) })
       .catch(() => { if (active) setMessage('No fue posible leer la capacidad local. El guardado permanece bloqueado.') })
     return () => { active = false }
   }, [runtime, refreshCounts])
+
+  useEffect(() => {
+    if (!runtime?.sync) return
+    void runSync(runtime)
+  // Sync is best-effort on startup; capture remains independent of transport.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runtime])
 
   useEffect(() => {
     let active = true
@@ -91,16 +101,28 @@ export function CountingScreen({ runtime }: { runtime: CountingRuntime | null })
       setDraft((current) => resetAfterSuccessfulSave(current))
       setMaster(null)
       setRefreshCounts((value) => value + 1)
+      void runSync(activeRuntime)
       requestAnimationFrame(() => codeInput.current?.focus())
     } catch (error: unknown) {
       setMessage(error instanceof PhysicalCountValidationError || error instanceof Error ? error.message : 'No fue posible guardar localmente. Sus datos siguen en el formulario.')
     } finally { setSaving(false) }
   }
 
+  async function runSync(syncRuntime: CountingRuntime) {
+    if (!syncRuntime.sync || syncing) return
+    setSyncing(true)
+    try {
+      const summary = await syncRuntime.sync.run()
+      setSyncMessage(summary.claimed === 0 ? 'No hay conteos elegibles para sincronizar.' : `Sincronización: ${summary.confirmed} confirmados, ${summary.rejected} rechazados, ${summary.failed} para reintentar.`)
+      setRefreshCounts((value) => value + 1)
+    } catch { setSyncMessage('No fue posible sincronizar ahora. Sus conteos locales siguen protegidos.') } finally { setSyncing(false) }
+  }
+
   return <section className="counting-screen" aria-labelledby="counting-title">
     <p className="eyebrow">Offline-first · Inventario ABIERTO</p><h1 id="counting-title">CONTEO FÍSICO</h1>
     {masterAvailable === false && <p className="form-error" role="alert">No existe un maestro SKU disponible en este dispositivo. Actualice el maestro antes de iniciar el conteo.</p>}
     <CapacityStatus pending={pending} capacity={capacity} />
+    <section className="sync-status" aria-label="Estado de sincronización"><p role="status">{syncMessage || 'Sincronización preparada. Los conteos locales permanecen disponibles sin conexión.'}</p><button className="button-secondary" type="button" disabled={!activeRuntime.sync || syncing} onClick={() => void runSync(activeRuntime)}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section>
     {message && <p className={message === 'CONTEO GUARDADO' ? 'form-success' : 'form-error'} role="status">{message}</p>}
     <div className="counting-form" aria-disabled={disabled}>
       <Field label="UBICACION"><TextInput value={draft.ubicacion} onChange={(value) => setDraft((current) => ({ ...current, ubicacion: value }))} disabled={disabled} /><ScanButton field="ubicacion" onScan={scan} disabled={disabled} /></Field>
@@ -127,7 +149,15 @@ function MyCounts({ runtime, refreshKey }: { runtime: CountingRuntime; refreshKe
   const [search, setSearch] = useState('')
   const [counts, setCounts] = useState<LocalCountRecord[]>([])
   useEffect(() => { void runtime.counts.listOwnCounts({ inventoryId: runtime.context.inventoryId, userId: runtime.context.userId, search }).then(setCounts) }, [runtime, search, refreshKey])
-  return <section className="my-counts" aria-labelledby="my-counts-title"><h2 id="my-counts-title">MIS CONTEOS</h2><label className="field"><span>Buscar por código, serie, partida o ubicación</span><input value={search} onChange={(event) => setSearch(event.target.value)} /></label><ul>{counts.map((count) => <li key={count.clientCountId}><time>{new Date(count.capturedAt).toLocaleTimeString()}</time><strong>{count.ubicacion}</strong><span>{count.codigo} · {count.descripcion}</span><span>{count.serie ?? count.partida ?? 'Sin serie/partida'} · {count.cantidadContada}</span><em>Pendiente de sincronización</em></li>)}</ul>{counts.length === 0 && <p>No hay conteos locales para este inventario.</p>}</section>
+  return <section className="my-counts" aria-labelledby="my-counts-title"><h2 id="my-counts-title">MIS CONTEOS</h2><label className="field"><span>Buscar por código, serie, partida o ubicación</span><input value={search} onChange={(event) => setSearch(event.target.value)} /></label><ul>{counts.map((count) => <li key={count.clientCountId}><time>{new Date(count.capturedAt).toLocaleTimeString()}</time><strong>{count.ubicacion}</strong><span>{count.codigo} · {count.descripcion}</span><span>{count.serie ?? count.partida ?? 'Sin serie/partida'} · {count.cantidadContada}</span><em>{syncLabel(count)}</em>{count.lastSyncError && <small>{count.lastSyncError}</small>}</li>)}</ul>{counts.length === 0 && <p>No hay conteos locales para este inventario.</p>}</section>
+}
+
+function syncLabel(count: LocalCountRecord): string {
+  if (count.syncStatus === 'CONFIRMED') return 'Confirmado en servidor'
+  if (count.syncStatus === 'REJECTED') return `Rechazado: ${count.lastSyncError ?? 'requiere revisión'}`
+  if (count.syncStatus === 'FAILED') return 'Pendiente de reintento'
+  if (count.syncStatus === 'SYNCING') return 'Sincronizando…'
+  return 'Pendiente de sincronización'
 }
 
 function CapacityStatus({ pending, capacity }: { pending: number | null; capacity: PendingCapacity | null }) {

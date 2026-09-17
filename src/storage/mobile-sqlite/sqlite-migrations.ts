@@ -41,6 +41,18 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = [
       await database.execute("create table if not exists local_counting_context (context_key text primary key check (context_key = 'active'), user_id text not null, inventory_id text not null, inventory_status text not null check (inventory_status = 'ABIERTO'), verified_at text not null)")
     },
   },
+  {
+    version: 5,
+    up: async (database) => {
+      await database.execute('alter table local_count_records add column sync_started_at text')
+      await database.execute('alter table local_count_records add column next_retry_at text')
+      await database.execute('alter table local_count_records add column confirmed_at text')
+      await database.execute('alter table local_count_records add column server_count_id text')
+      await database.execute('alter table local_count_records add column last_sync_at text')
+      await database.execute('create table if not exists local_device_registrations (user_id text primary key, device_id text not null unique, created_at text not null)')
+      await database.execute('create index if not exists local_count_records_sync_eligible_idx on local_count_records (user_id, sync_status, next_retry_at, captured_at)')
+    },
+  },
 ]
 
 export async function applySqliteMigrations(database: SqliteDatabase, migrations: readonly SqliteMigration[] = SQLITE_MIGRATIONS): Promise<void> {

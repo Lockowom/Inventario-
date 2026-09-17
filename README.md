@@ -4,7 +4,7 @@ Sistema de captura para Inventario General físico, offline-first, con soporte A
 
 ## Estado
 
-**Fase actual:** Fase 3 — captura física offline local (sin sincronización productiva).
+**Fase actual:** Fase 4 — motor de sincronización offline-first certificable localmente.
 
 ## Inicio rápido
 
@@ -60,6 +60,9 @@ La certificación de SQLite, permisos de cámara y scanner requiere pruebas en d
 - [`docs/CONTEO_FISICO_V1.md`](docs/CONTEO_FISICO_V1.md) — contrato y reglas de la captura física local.
 - [`docs/SCANNER_V1.md`](docs/SCANNER_V1.md) — permisos, formatos y límites del escáner nativo.
 - [`docs/OFFLINE_COUNT_STORAGE_V1.md`](docs/OFFLINE_COUNT_STORAGE_V1.md) — esquema local v3 y garantía de persistencia.
+- [`docs/SYNC_ENGINE_V1.md`](docs/SYNC_ENGINE_V1.md) — outbox local, lotes, ACK y reintentos.
+- [`docs/IDEMPOTENCIA_V1.md`](docs/IDEMPOTENCIA_V1.md) — contrato `client_count_id` y conflictos.
+- [`docs/DEVICE_SYNC_V1.md`](docs/DEVICE_SYNC_V1.md) — registro de dispositivo y guardas de freeze.
 
 ## Regla de gobierno
 

@@ -9,7 +9,7 @@ export interface SavedPhysicalCount { record: LocalCountRecord; pending: number;
 export async function savePhysicalCount(context: ActiveCountingContext, draft: PhysicalCountDraft, dependencies: SavePhysicalCountDependencies): Promise<SavedPhysicalCount> {
   const master = await dependencies.masters.findByCode(context.inventoryId, draft.codigo)
   const validated = validatePhysicalCountDraft(draft, master)
-  const deviceId = await dependencies.counts.getOrCreateDeviceId()
+  const deviceId = await dependencies.counts.getOrCreateDeviceId(context.userId)
   const now = (dependencies.now ?? (() => new Date()))().toISOString()
   const createUuid = dependencies.createUuid ?? (() => crypto.randomUUID())
   const record = localCountRecordSchema.parse({
@@ -24,6 +24,11 @@ export async function savePhysicalCount(context: ActiveCountingContext, draft: P
     syncStatus: 'PENDING',
     syncAttempts: 0,
     lastSyncError: null,
+    syncStartedAt: null,
+    nextRetryAt: null,
+    confirmedAt: null,
+    serverCountId: null,
+    lastSyncAt: null,
   })
   const persisted = await dependencies.counts.savePendingWithCapacity(record, 50)
   return { record: persisted.record, pending: persisted.pending, capacity: pendingCapacity(persisted.pending) }

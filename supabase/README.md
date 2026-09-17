@@ -1,4 +1,4 @@
-# Supabase local — Fases 1 y 2
+# Supabase local — Fases 1 a 4
 
 Este directorio contiene únicamente infraestructura versionada. No hay proyecto remoto enlazado ni estas instrucciones aplican cambios a producción.
 
@@ -13,4 +13,4 @@ npm run db:types
 
 Las migraciones son forward-only. No se edita una migración ya aplicada. El seed contiene exclusivamente UUIDs, correos `.invalid`, nombres y SKUs ficticios de desarrollo; no crea una credencial de acceso.
 
-GitHub Actions ejecuta obligatoriamente `supabase start`, `supabase db reset`, pgTAP y `supabase db advisors --local`; un fallo de base hace fallar CI. Fase 2 añade las RPC `import_inventory_master` y `add_master_exception`, metadata de versiones y pruebas de permisos/ciclo de vida del maestro.
+GitHub Actions ejecuta obligatoriamente `supabase start`, `supabase db reset`, pgTAP, el harness REST local de Fase 4 (47×50 conteos y replay idempotente) y `supabase db advisors --local`; un fallo de base hace fallar CI. No se enlaza, aplica ni consulta un proyecto Supabase remoto.
