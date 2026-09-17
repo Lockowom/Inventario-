@@ -27,9 +27,11 @@ export function classifySupabaseSyncError(error: unknown, status?: number): Sync
   const message = typeof property(error, 'message') === 'string' ? property(error, 'message') as string : ''
   let kind: SyncTransportErrorKind = 'UNKNOWN_FAIL_CLOSED'
   let safeCode = 'SYNC_UNKNOWN_ERROR'
-  if (responseStatus === 401 || responseStatus === 403 || stableCode === '42501') { kind = 'TERMINAL_AUTHORIZATION'; safeCode = 'SYNC_AUTHORIZATION_BLOCKED' }
-  else if (stableCode === '42P01' || stableCode === '42703' || stableCode?.startsWith('PGRST')) { kind = 'TERMINAL_CONTRACT'; safeCode = 'SYNC_CONTRACT_ERROR' }
-  else if (responseStatus === 502 || responseStatus === 503 || responseStatus === 504 || /^(TypeError: )?(Failed to fetch|Load failed|Network request failed|fetch failed)$/i.test(message) || /timeout/i.test(message)) { kind = 'TRANSIENT'; safeCode = 'SYNC_TRANSIENT_UNAVAILABLE' }
+  // Authorization takes precedence, then explicit connection failures. Do not
+  // collapse all PGRST codes: 000–003 are documented as 503/504 connection errors.
+  if (responseStatus === 401 || responseStatus === 403 || stableCode === '42501' || stableCode === 'PGRST301' || stableCode === 'PGRST302' || stableCode === 'PGRST303') { kind = 'TERMINAL_AUTHORIZATION'; safeCode = 'SYNC_AUTHORIZATION_BLOCKED' }
+  else if (responseStatus === 502 || responseStatus === 503 || responseStatus === 504 || stableCode === 'PGRST000' || stableCode === 'PGRST001' || stableCode === 'PGRST002' || stableCode === 'PGRST003' || /^(TypeError: )?(Failed to fetch|Load failed|Network request failed|fetch failed)$/i.test(message) || /timeout/i.test(message)) { kind = 'TRANSIENT'; safeCode = 'SYNC_TRANSIENT_UNAVAILABLE' }
+  else if (stableCode === '42P01' || stableCode === '42703' || /^PGRST[12]\d{2}$/.test(stableCode ?? '')) { kind = 'TERMINAL_CONTRACT'; safeCode = 'SYNC_CONTRACT_ERROR' }
   return new SyncTransportError(kind, safeCode)
 }
 
@@ -40,21 +42,25 @@ const deviceLabel = `INVEN3 ${platform()}`
 export class SupabaseSyncGateway implements CountSyncGateway {
   public async registerDevice(input: { deviceId: string }): Promise<void> {
     try {
-      const { error } = await clientOrThrow().rpc('register_sync_device', { p_device_id: input.deviceId, p_platform: platform(), p_app_version: appVersion, p_device_label: deviceLabel })
-      if (error) throw classifySupabaseSyncError(error)
+      const response = await clientOrThrow().rpc('register_sync_device', { p_device_id: input.deviceId, p_platform: platform(), p_app_version: appVersion, p_device_label: deviceLabel })
+      const { error, status, statusText } = response
+      void statusText
+      if (error) throw classifySupabaseSyncError(error, status)
     } catch (error: unknown) { throw error instanceof SyncTransportError ? error : classifySupabaseSyncError(error) }
   }
 
   public async reportPending(input: { inventoryId: string; deviceId: string; pendingCount: number }): Promise<void> {
     try {
-      const { error } = await clientOrThrow().rpc('report_device_sync_state', { p_inventory_id: input.inventoryId, p_device_id: input.deviceId, p_pending_count: input.pendingCount })
-      if (error) throw classifySupabaseSyncError(error)
+      const response = await clientOrThrow().rpc('report_device_sync_state', { p_inventory_id: input.inventoryId, p_device_id: input.deviceId, p_pending_count: input.pendingCount })
+      const { error, status, statusText } = response
+      void statusText
+      if (error) throw classifySupabaseSyncError(error, status)
     } catch (error: unknown) { throw error instanceof SyncTransportError ? error : classifySupabaseSyncError(error) }
   }
 
   public async syncBatch(input: { inventoryId: string; deviceId: string; records: LocalCountRecord[] }): Promise<unknown> {
     try {
-      const { data, error } = await clientOrThrow().rpc('sync_counts', {
+      const response = await clientOrThrow().rpc('sync_counts', {
       p_inventory_id: input.inventoryId,
       p_device_id: input.deviceId,
       p_platform: platform(),
@@ -66,7 +72,9 @@ export class SupabaseSyncGateway implements CountSyncGateway {
         cantidad_contada: record.cantidadContada, captured_at: record.capturedAt,
       })),
       })
-      if (error) throw classifySupabaseSyncError(error)
+      const { data, error, status, statusText } = response
+      void statusText
+      if (error) throw classifySupabaseSyncError(error, status)
       return data
     } catch (error: unknown) { throw error instanceof SyncTransportError ? error : classifySupabaseSyncError(error) }
   }
