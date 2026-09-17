@@ -35,7 +35,7 @@
 
 - **Decisión:** persistir únicamente la última autorización de captura que el servidor verificó correctamente (`user_id`, `inventory_id`, `ABIERTO`, `verified_at`) mediante el puerto `CountingContextRepository`, con adaptadores SQLite v4 y Dexie v4.
 - **Motivo:** permitir que un reinicio sin conectividad recupere una operación previamente autorizada, sin convertir almacenamiento local en una nueva decisión de autorización.
-- **Regla de autoridad:** el arranque es server-first. `AUTHORIZED` reemplaza la copia; `NOT_AUTHORIZED` o `AMBIGUOUS` bloquean y la limpian; sólo `UNAVAILABLE` puede usar una copia para el mismo usuario de sesión local. Logout siempre la borra.
+- **Regla de autoridad:** el arranque es server-first. `AUTHORIZED` reemplaza la copia; `NOT_AUTHORIZED` o `AMBIGUOUS` bloquean y la limpian; sólo `UNAVAILABLE` puede usar una copia para el mismo usuario de sesión local. Auth se clasifica con su propio estado/código y PostgREST con el `status` de respuesta más `error.code`; los fallos no reconocidos son `AMBIGUOUS`, nunca offline. Logout siempre la borra.
 - **Consecuencias:** no se persisten tokens ni secretos y un maestro local sigue siendo requisito de captura. Durante una desconexión total se opera con el último `ABIERTO` confirmado, por lo que un cierre remoto concurrente sólo se conocerá al recuperar conectividad. La Fase 4 deberá resolver los pendientes frente a la autoridad actual del servidor.
 - **Estado:** aceptada.
 
