@@ -93,3 +93,22 @@
 - **Alternativas:** SQL en componentes React; emulador SQL sobre Dexie; guardar directamente desde el escáner. Descartadas por acoplamiento, fragilidad y pérdida de trazabilidad.
 - **Consecuencias:** Fase 3 no incluye RPC de conteos, reintentos remotos ni eliminación. El siguiente motor de sincronización deberá consumir los `client_count_id` persistidos y respetar los estados existentes.
 - **Estado:** aceptada.
+
+## ADR-011 — Outbox local con ACK explícito e idempotencia de servidor
+
+- **Decisión:** Fase 4 usa `PENDING → SYNCING → CONFIRMED|FAILED|REJECTED`, reclama lotes de máximo 20 dentro de la transacción local y confirma sólo un ACK validado de `sync_counts`.
+- **Motivo:** un timeout puede ocurrir después de que PostgreSQL insertó. El `client_count_id` único y la comparación inmutable permiten reintentar sin duplicar ni sobrescribir.
+- **Alternativas:** marcar confirmado antes de la respuesta; confiar en un booleano cliente; reintentar con un UUID nuevo. Descartadas por pérdida o duplicación de conteos.
+- **Consecuencias:** se conserva historial local de error e intento, se recuperan reclamos `SYNCING` abandonados y una respuesta parcial deja registros en `FAILED` con backoff y jitter.
+- **Estado:** aceptada.
+
+## ADR-012 — Registro opaco de dispositivo por usuario e instalación
+
+- **Decisión:** almacenar una inscripción UUID local por usuario, derivar plataforma desde Capacitor y registrar/actualizar exclusivamente por RPC protegida.
+- **Motivo:** la correlación de pendientes y auditoría necesita un origen estable sin reutilizar la propiedad de otro usuario ni recolectar identificadores físicos.
+- **Alternativas:** una identidad única de instalación compartida entre usuarios; serial/IMEI; campos de plataforma editables en UI. Descartadas por seguridad y privacidad.
+- **Consecuencias:** las guardas de freeze se actualizan por estado conocido del dispositivo; `CONGELADO` sigue siendo autoridad final y rechaza el registro entrante.
+- **Estado:** aceptada.
+## Fase 4 — Outbox independiente de captura
+
+Se decide que el outbox es propiedad durable del usuario/dispositivo y no de la pantalla de conteo. `SyncCoordinator` se ejecuta al inicio con sesión local válida y descubre inventarios con trabajo pendiente; `CaptureRuntime` permanece restringido a `ABIERTO`. Los fallos de sync se clasifican en transitorios o terminales fail-closed: sólo los transitorios programan retry. Las señales de freeze se calculan por `(inventory_id, device_id)`.

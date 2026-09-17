@@ -75,11 +75,11 @@ describe('last known authorized counting context', () => {
 })
 
 describe('adaptadores persistentes del contexto', () => {
-  it('SQLite v4 conserva el contexto a través de una nueva instancia', async () => {
+  it('SQLite v5 conserva el contexto a través de una nueva instancia', async () => {
     const database = new ContextSqliteDatabase()
     await new SqliteCountingContextRepository(database).save(cached)
     await expect(new SqliteCountingContextRepository(database).get()).resolves.toEqual(cached)
-    expect(database.userVersion).toBe(4)
+    expect(database.userVersion).toBe(5)
   })
 
   it('Dexie v4 conserva el contexto después de simular un reinicio de app', async () => {
@@ -127,10 +127,16 @@ class ContextSqliteDatabase implements SqliteDatabase {
 
 class MemoryCountRepository implements CountRepository {
   public records: LocalCountRecord[] = []
-  public async getOrCreateDeviceId() { return '77777777-7777-4777-8777-777777777777' }
+  public async getOrCreateDeviceId(userId: string) { void userId; return '77777777-7777-4777-8777-777777777777' }
   public async save(record: LocalCountRecord) { this.records.push(record); return record }
   public async savePendingWithCapacity(record: LocalCountRecord) { this.records.push(record); return { record, pending: this.records.length } }
   public async findByClientId(id: string) { return this.records.find((record) => record.clientCountId === id) ?? null }
   public async listOwnCounts(filter: CountListFilter) { void filter; return this.records }
   public async countPendingByDevice() { return this.records.length }
+  public async listOutstandingSyncScopes(userId: string) { return [...new Set(this.records.filter((record) => record.userId === userId && record.syncStatus !== 'CONFIRMED' && record.syncStatus !== 'REJECTED').map((record) => record.inventoryId))].map((inventoryId) => ({ inventoryId, userId })) }
+  public async countOutstandingByInventoryDevice(inventoryId: string, deviceId: string) { return this.records.filter((record) => record.inventoryId === inventoryId && record.deviceId === deviceId && record.syncStatus !== 'CONFIRMED' && record.syncStatus !== 'REJECTED').length }
+  public async claimNextSyncBatch() { return [] }
+  public async recoverStaleSyncing() { return 0 }
+  public async applySyncAcknowledgements() { return undefined }
+  public async markSyncFailed() { return undefined }
 }

@@ -50,6 +50,13 @@ export const localCountRecordSchema = validatedPhysicalCountSchema.extend({
   syncStatus: countSyncStatusSchema,
   syncAttempts: z.number().int().nonnegative(),
   lastSyncError: z.string().nullable(),
+  // Defaults keep records created by the v4 local stores readable during the
+  // forward-only v5 upgrade. New writes always persist these fields explicitly.
+  syncStartedAt: z.string().datetime().nullable().default(null),
+  nextRetryAt: z.string().datetime().nullable().default(null),
+  confirmedAt: z.string().datetime().nullable().default(null),
+  serverCountId: z.uuid().nullable().default(null),
+  lastSyncAt: z.string().datetime().nullable().default(null),
 })
 
 // Alias de compatibilidad para consumidores de contratos ya existentes. El

@@ -10,6 +10,10 @@ import { SqliteCountingContextRepository } from '../../storage/mobile-sqlite/sql
 import { DexieCountingContextRepository } from '../../storage/web-indexeddb/dexie-counting-context-repository'
 import type { CountingContextRepository } from '../../domain/ports/counting-context-repository'
 import type { CountingRuntime } from './counting-screen'
+import type { CountRepository } from '../../domain/ports/count-repository'
+import { SyncCoordinator } from '../../domain/sync/sync-coordinator'
+import { SupabaseSyncGateway } from '../../services/supabase-sync-gateway'
+import { isSupabaseConfigured } from '../../services/supabase'
 
 /**
  * Infrastructure composition only. Auth/inventory selection must supply the
@@ -23,6 +27,16 @@ function getMobileDatabase(): CapacitorSqliteDatabase { mobileDatabase ??= new C
 
 export function getCountingContextRepository(): CountingContextRepository {
   return Capacitor.getPlatform() === 'web' ? new DexieCountingContextRepository(getWebDatabase()) : new SqliteCountingContextRepository(getMobileDatabase())
+}
+
+/** Shared durable outbox repository, available even when capture is unavailable. */
+export function getCountRepository(): CountRepository {
+  return Capacitor.getPlatform() === 'web' ? new DexieCountRepository(getWebDatabase()) : new SqliteCountRepository(getMobileDatabase())
+}
+
+/** App composition for sync; it has no dependency on an ABIERTO CaptureRuntime. */
+export function createSyncCoordinator(userId: string): SyncCoordinator {
+  return new SyncCoordinator(userId, getCountRepository(), isSupabaseConfigured ? new SupabaseSyncGateway() : null)
 }
 
 export function createCountingRuntime(context: ActiveCountingContext): CountingRuntime {
