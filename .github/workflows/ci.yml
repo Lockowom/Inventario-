@@ -35,5 +35,5 @@ jobs:
       - run: npx supabase start -x storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
       - run: npx supabase db reset
       - run: npx supabase test db --local supabase/tests
-      - run: eval "$(npx supabase status -o env)" && node scripts/supabase-sync-integration.mjs
+      - run: set -a && eval "$(npx supabase status -o env)" && set +a && node scripts/supabase-sync-integration.mjs
       - run: npx supabase db advisors --local --type security --level warn --fail-on error
