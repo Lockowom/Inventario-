@@ -202,3 +202,7 @@ drop policy if exists devices_update_own on public.sync_devices;
 revoke insert, update on public.sync_devices from authenticated;
 revoke all on function public.register_sync_device(uuid, public.device_platform, text, text), public.report_device_sync_state(uuid, uuid, integer), public.sync_counts(uuid, uuid, public.device_platform, text, text, jsonb) from public, anon;
 grant execute on function public.register_sync_device(uuid, public.device_platform, text, text), public.report_device_sync_state(uuid, uuid, integer), public.sync_counts(uuid, uuid, public.device_platform, text, text, jsonb) to authenticated;
+
+-- The service role is never shipped to clients. Local CI uses it only to
+-- provision isolated REST-harness fixtures; authenticated remains RPC-only.
+grant select, insert, update on public.profiles, public.inventories, public.inventory_assignments, public.inventory_master_items, public.count_records to service_role;
