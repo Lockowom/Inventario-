@@ -60,6 +60,24 @@ describe('capacidad atómica de Dexie', () => {
   })
 })
 
+describe('scope de freeze guard', () => {
+  it('no mezcla pendientes de dos inventarios del mismo dispositivo', async () => {
+    const database = new Inven3WebDatabase(`inven3-sync-scope-${crypto.randomUUID()}`)
+    const repository = new DexieCountRepository(database)
+    const inventoryB = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    await repository.save({ ...record, syncStatus: 'CONFIRMED' })
+    await Promise.all(Array.from({ length: 5 }, (_, index) => repository.save({
+      ...record, inventoryId: inventoryB,
+      id: `bbbbbbbb-bbbb-4bbb-8bbb-${String(index).padStart(12, '0')}`,
+      clientCountId: `cccccccc-cccc-4ccc-8ccc-${String(index).padStart(12, '0')}`,
+    })))
+    expect(await repository.countOutstandingByInventoryDevice(inventoryId, record.deviceId)).toBe(0)
+    expect(await repository.countOutstandingByInventoryDevice(inventoryB, record.deviceId)).toBe(5)
+    expect(await repository.listOutstandingSyncScopes(userId)).toEqual([{ inventoryId: inventoryB, userId }])
+    database.close()
+  })
+})
+
 class FakeCountSqlite implements SqliteDatabase {
   public userVersion = 0
   private deviceId: string | null = null

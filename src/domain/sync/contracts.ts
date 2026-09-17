@@ -28,4 +28,6 @@ export interface SyncRunSummary {
   rejected: number
   failed: number
   conflicts: number
+  /** Safe diagnostic for a terminal transport condition; no raw backend error. */
+  diagnostic: string | null
 }

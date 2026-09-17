@@ -7,11 +7,11 @@ import { scanBarcodeField, type ScanField } from '../../scanner/barcode-scanner'
 import { consumeRestoredScannerResult, subscribeToScannerRestoration } from '../../scanner/scanner-restoration'
 import { emptyPhysicalCountDraft, resetAfterSuccessfulSave } from './form-state'
 import { getCapacityStatus } from './capacity-status'
-import type { SyncManager } from '../../domain/sync/sync-manager'
+import type { SyncCoordinator } from '../../domain/sync/sync-coordinator'
 
-export interface CountingRuntime extends SavePhysicalCountDependencies { context: ActiveCountingContext; sync?: SyncManager }
+export interface CountingRuntime extends SavePhysicalCountDependencies { context: ActiveCountingContext }
 
-export function CountingScreen({ runtime }: { runtime: CountingRuntime | null }) {
+export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage }: { runtime: CountingRuntime | null; syncCoordinator?: SyncCoordinator | null; startupSyncMessage?: string }) {
   const [draft, setDraft] = useState<PhysicalCountDraft>(emptyPhysicalCountDraft)
   const [master, setMaster] = useState<MasterSku | null>(null)
   const [masterAvailable, setMasterAvailable] = useState<boolean | null>(null)
@@ -39,13 +39,6 @@ export function CountingScreen({ runtime }: { runtime: CountingRuntime | null })
   }, [runtime, refreshCounts])
 
   useEffect(() => {
-    if (!runtime?.sync) return
-    void runSync(runtime)
-  // Sync is best-effort on startup; capture remains independent of transport.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runtime])
-
-  useEffect(() => {
     let active = true
     let unsubscribe: (() => Promise<void>) | undefined
     const applyRestoredResult = (result: { field: ScanField | null; value: string | null; error: string | null }) => {
@@ -68,7 +61,7 @@ export function CountingScreen({ runtime }: { runtime: CountingRuntime | null })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runtime])
 
-  if (!runtime) return <section className="counting-screen" aria-labelledby="counting-title"><p className="eyebrow">Fase 3</p><h1 id="counting-title">CONTEO FÍSICO</h1><p role="status">Seleccione un inventario ABIERTO desde el contexto autenticado para iniciar la captura offline.</p></section>
+  if (!runtime) return <section className="counting-screen" aria-labelledby="counting-title"><p className="eyebrow">Fase 4 · Captura bloqueada</p><h1 id="counting-title">CONTEO FÍSICO</h1><p role="status">Captura no disponible: seleccione un inventario ABIERTO desde el contexto autenticado.</p>{startupSyncMessage && <section className="sync-status" aria-label="Estado de sincronización pendiente"><p role="status">{startupSyncMessage}</p></section>}</section>
   const activeRuntime = runtime
   const capacity = pending === null ? null : pendingCapacity(pending)
   const disabled = masterAvailable !== true || saving || pending === null || capacity === 'BLOCKED'
@@ -101,19 +94,19 @@ export function CountingScreen({ runtime }: { runtime: CountingRuntime | null })
       setDraft((current) => resetAfterSuccessfulSave(current))
       setMaster(null)
       setRefreshCounts((value) => value + 1)
-      void runSync(activeRuntime)
+      void runSync()
       requestAnimationFrame(() => codeInput.current?.focus())
     } catch (error: unknown) {
       setMessage(error instanceof PhysicalCountValidationError || error instanceof Error ? error.message : 'No fue posible guardar localmente. Sus datos siguen en el formulario.')
     } finally { setSaving(false) }
   }
 
-  async function runSync(syncRuntime: CountingRuntime) {
-    if (!syncRuntime.sync || syncing) return
+  async function runSync() {
+    if (!syncCoordinator || syncing) return
     setSyncing(true)
     try {
-      const summary = await syncRuntime.sync.run()
-      setSyncMessage(summary.claimed === 0 ? 'No hay conteos elegibles para sincronizar.' : `Sincronización: ${summary.confirmed} confirmados, ${summary.rejected} rechazados, ${summary.failed} para reintentar.`)
+      const summary = await syncCoordinator.runInventorySync(activeRuntime.context.inventoryId)
+      setSyncMessage(summary.claimed === 0 ? (summary.diagnostic ? `Sincronización requiere revisión: ${summary.diagnostic}.` : 'No hay conteos elegibles para sincronizar.') : `Sincronización: ${summary.confirmed} confirmados, ${summary.rejected} requieren revisión, ${summary.failed} para reintentar.`)
       setRefreshCounts((value) => value + 1)
     } catch { setSyncMessage('No fue posible sincronizar ahora. Sus conteos locales siguen protegidos.') } finally { setSyncing(false) }
   }
@@ -122,7 +115,7 @@ export function CountingScreen({ runtime }: { runtime: CountingRuntime | null })
     <p className="eyebrow">Offline-first · Inventario ABIERTO</p><h1 id="counting-title">CONTEO FÍSICO</h1>
     {masterAvailable === false && <p className="form-error" role="alert">No existe un maestro SKU disponible en este dispositivo. Actualice el maestro antes de iniciar el conteo.</p>}
     <CapacityStatus pending={pending} capacity={capacity} />
-    <section className="sync-status" aria-label="Estado de sincronización"><p role="status">{syncMessage || 'Sincronización preparada. Los conteos locales permanecen disponibles sin conexión.'}</p><button className="button-secondary" type="button" disabled={!activeRuntime.sync || syncing} onClick={() => void runSync(activeRuntime)}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section>
+    <section className="sync-status" aria-label="Estado de sincronización"><p role="status">{syncMessage || 'Sincronización preparada. Los conteos locales permanecen disponibles sin conexión.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runSync()}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section>
     {message && <p className={message === 'CONTEO GUARDADO' ? 'form-success' : 'form-error'} role="status">{message}</p>}
     <div className="counting-form" aria-disabled={disabled}>
       <Field label="UBICACION"><TextInput value={draft.ubicacion} onChange={(value) => setDraft((current) => ({ ...current, ubicacion: value }))} disabled={disabled} /><ScanButton field="ubicacion" onScan={scan} disabled={disabled} /></Field>

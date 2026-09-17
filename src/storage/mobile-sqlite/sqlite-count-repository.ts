@@ -1,5 +1,5 @@
 import { localCountRecordSchema, type LocalCountRecord } from '../../domain/count/contracts'
-import { PendingCountCapacityError, type CountListFilter, type CountRepository, type SavedPendingCount } from '../../domain/ports/count-repository'
+import { PendingCountCapacityError, type CountListFilter, type CountRepository, type OutstandingSyncScope, type SavedPendingCount } from '../../domain/ports/count-repository'
 import type { LocalSyncAcknowledgement } from '../../domain/sync/contracts'
 import type { SqliteDatabase } from './sqlite-database'
 import { applySqliteMigrations } from './sqlite-migrations'
@@ -9,6 +9,7 @@ interface CountRow extends Record<string, unknown> {
 }
 interface DeviceRow extends Record<string, unknown> { device_id: string }
 interface TotalRow extends Record<string, unknown> { total: number }
+interface ScopeRow extends Record<string, unknown> { inventory_id: string }
 
 const INSERT_COUNT = 'insert into local_count_records (id, client_count_id, inventory_id, user_id, device_id, ubicacion, codigo, serie, partida, pieza_producto, fecha_vencimiento, talla, color, cantidad_contada, descripcion, control_type, captured_at, created_at, sync_status, sync_attempts, last_sync_error, sync_started_at, next_retry_at, confirmed_at, server_count_id, last_sync_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 const OUTSTANDING_STATUSES = "('PENDING', 'SYNCING', 'FAILED')"
@@ -72,6 +73,18 @@ export class SqliteCountRepository implements CountRepository {
   public async countPendingByDevice(deviceId: string): Promise<number> {
     await this.initialize()
     const result = await this.database.query<TotalRow>(`select count(*) as total from local_count_records where device_id = ? and sync_status in ${OUTSTANDING_STATUSES}`, [deviceId])
+    return Number(result.values[0]?.total ?? 0)
+  }
+
+  public async listOutstandingSyncScopes(userId: string): Promise<OutstandingSyncScope[]> {
+    await this.initialize()
+    const result = await this.database.query<ScopeRow>(`select distinct inventory_id from local_count_records where user_id = ? and sync_status in ${OUTSTANDING_STATUSES} order by inventory_id`, [userId])
+    return result.values.map((row) => ({ inventoryId: row.inventory_id, userId }))
+  }
+
+  public async countOutstandingByInventoryDevice(inventoryId: string, deviceId: string): Promise<number> {
+    await this.initialize()
+    const result = await this.database.query<TotalRow>(`select count(*) as total from local_count_records where inventory_id = ? and device_id = ? and sync_status in ${OUTSTANDING_STATUSES}`, [inventoryId, deviceId])
     return Number(result.values[0]?.total ?? 0)
   }
 

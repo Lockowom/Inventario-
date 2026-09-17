@@ -32,35 +32,28 @@ await must(await service.from('inventory_assignments').insert({ inventory_id: in
 await must(await service.from('inventory_master_items').insert({ inventory_id: inventoryId, codigo: 'SKU001', descripcion: 'Harness SKU', control_type: 'LEGACY', source: 'TEST', created_by: userId }), 'create master')
 
 const client = createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${signUp.data.session.access_token}` } } })
-const allBatches = []
-for (let deviceIndex = 0; deviceIndex < 47; deviceIndex += 1) {
+const deviceWorkers = Array.from({ length: 47 }, async (_, deviceIndex) => {
   const deviceId = randomUUID()
   await must(await client.rpc('register_sync_device', { p_device_id: deviceId, p_platform: 'WEB', p_app_version: 'phase4-ci', p_device_label: 'INVEN3 WEB CI' }), `register device ${deviceIndex}`)
   const records = Array.from({ length: 50 }, (_, recordIndex) => ({
     client_count_id: randomUUID(), ubicacion: `F-32-${String((recordIndex % 50) + 1).padStart(2, '0')}`,
     codigo: 'SKU001', cantidad_contada: 1, captured_at: '2026-09-17T12:00:00.000Z',
   }))
-  for (let start = 0; start < records.length; start += 20) allBatches.push({ deviceId, records: records.slice(start, start + 20) })
-}
-
-async function concurrently(items, limit, operation) {
-  let cursor = 0
-  await Promise.all(Array.from({ length: limit }, async () => {
-    while (cursor < items.length) {
-      const index = cursor++
-      await operation(items[index], index)
-    }
-  }))
-}
-
-await concurrently(allBatches, 8, async (batch, index) => {
-  const data = await must(await client.rpc('sync_counts', { p_inventory_id: inventoryId, p_device_id: batch.deviceId, p_platform: 'WEB', p_app_version: 'phase4-ci', p_device_label: 'INVEN3 WEB CI', p_records: batch.records }), `accept batch ${index}`)
-  if (data.length !== batch.records.length || data.some((row) => row.result_status !== 'ACCEPTED' || !row.server_count_id || !row.received_at)) throw new Error(`Batch ${index} did not receive exactly one complete ACCEPTED acknowledgement per record.`)
+  const batches = [records.slice(0, 20), records.slice(20, 40), records.slice(40, 50)]
+  // Every worker is concurrent; each device preserves its operational 20/20/10 order.
+  for (const [batchIndex, recordsBatch] of batches.entries()) {
+    const data = await must(await client.rpc('sync_counts', { p_inventory_id: inventoryId, p_device_id: deviceId, p_platform: 'WEB', p_app_version: 'phase4-ci', p_device_label: 'INVEN3 WEB CI', p_records: recordsBatch }), `accept device ${deviceIndex} batch ${batchIndex}`)
+    if (data.length !== recordsBatch.length || data.some((row) => row.result_status !== 'ACCEPTED' || !row.server_count_id || !row.received_at)) throw new Error(`Device ${deviceIndex} batch ${batchIndex} did not receive exactly one complete ACCEPTED acknowledgement per record.`)
+  }
+  return { deviceId, batches }
 })
-await concurrently(allBatches, 8, async (batch, index) => {
-  const data = await must(await client.rpc('sync_counts', { p_inventory_id: inventoryId, p_device_id: batch.deviceId, p_platform: 'WEB', p_app_version: 'phase4-ci', p_device_label: 'INVEN3 WEB CI', p_records: batch.records }), `replay batch ${index}`)
-  if (data.length !== batch.records.length || data.some((row) => row.result_status !== 'ALREADY_ACCEPTED')) throw new Error(`Replay ${index} was not idempotent.`)
-})
+const devices = await Promise.all(deviceWorkers)
+await Promise.all(devices.map(async ({ deviceId, batches }, deviceIndex) => {
+  for (const [batchIndex, recordsBatch] of batches.entries()) {
+    const data = await must(await client.rpc('sync_counts', { p_inventory_id: inventoryId, p_device_id: deviceId, p_platform: 'WEB', p_app_version: 'phase4-ci', p_device_label: 'INVEN3 WEB CI', p_records: recordsBatch }), `replay device ${deviceIndex} batch ${batchIndex}`)
+    if (data.length !== recordsBatch.length || data.some((row) => row.result_status !== 'ALREADY_ACCEPTED')) throw new Error(`Replay device ${deviceIndex} batch ${batchIndex} was not idempotent.`)
+  }
+}))
 
 const expected = 47 * 50
 const countResult = await service.from('count_records').select('*', { count: 'exact', head: true }).eq('inventory_id', inventoryId)

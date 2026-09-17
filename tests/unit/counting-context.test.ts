@@ -133,6 +133,8 @@ class MemoryCountRepository implements CountRepository {
   public async findByClientId(id: string) { return this.records.find((record) => record.clientCountId === id) ?? null }
   public async listOwnCounts(filter: CountListFilter) { void filter; return this.records }
   public async countPendingByDevice() { return this.records.length }
+  public async listOutstandingSyncScopes(userId: string) { return [...new Set(this.records.filter((record) => record.userId === userId && record.syncStatus !== 'CONFIRMED' && record.syncStatus !== 'REJECTED').map((record) => record.inventoryId))].map((inventoryId) => ({ inventoryId, userId })) }
+  public async countOutstandingByInventoryDevice(inventoryId: string, deviceId: string) { return this.records.filter((record) => record.inventoryId === inventoryId && record.deviceId === deviceId && record.syncStatus !== 'CONFIRMED' && record.syncStatus !== 'REJECTED').length }
   public async claimNextSyncBatch() { return [] }
   public async recoverStaleSyncing() { return 0 }
   public async applySyncAcknowledgements() { return undefined }

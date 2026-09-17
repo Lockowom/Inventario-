@@ -1,5 +1,5 @@
 begin;
-select plan(25);
+select plan(26);
 
 insert into auth.users (id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
@@ -65,6 +65,9 @@ reset role;
 select set_config('request.jwt.claim.sub', '71000000-0000-0000-0000-000000000002', true); set local role authenticated;
 select is((select result_status from public.sync_counts('72000000-0000-0000-0000-000000000001', '73000000-0000-0000-0000-000000000001', 'ANDROID', '0.1.0', 'INVEN3 ANDROID', '[{"client_count_id":"74000000-0000-0000-0000-000000000004","ubicacion":"F-32-05","codigo":"00001","cantidad_contada":1,"captured_at":"2026-09-17T12:00:00Z"}]'::jsonb)), 'REJECTED', 'CONGELADO rejects new synchronization records');
 select throws_ok($$insert into public.count_records (client_count_id, inventory_id, user_id, device_id, ubicacion, codigo, cantidad_contada, descripcion, captured_at) values ('74000000-0000-0000-0000-000000000005', '72000000-0000-0000-0000-000000000001', '71000000-0000-0000-0000-000000000002', '73000000-0000-0000-0000-000000000001', 'F-32-06', '00001', 1, 'forbidden', now())$$, '42501', 'permission denied for table count_records', 'direct count inserts remain forbidden');
+reset role;
+set local role anon;
+select throws_ok($$select * from public.sync_counts('72000000-0000-0000-0000-000000000001', '73000000-0000-0000-0000-000000000001', 'ANDROID', '0.1.0', 'INVEN3 ANDROID', '[{"client_count_id":"74000000-0000-0000-0000-000000000008","ubicacion":"F-32-07","codigo":"00001","cantidad_contada":1,"captured_at":"2026-09-17T12:00:00Z"}]'::jsonb)$$, '42501', 'permission denied for function sync_counts', 'anon cannot execute sync_counts');
 reset role;
 
 select * from finish();

@@ -3,6 +3,8 @@ import type { LocalCountRecord } from '../../src/domain/count/contracts'
 import type { CountListFilter, CountRepository } from '../../src/domain/ports/count-repository'
 import type { LocalSyncAcknowledgement } from '../../src/domain/sync/contracts'
 import { SyncManager, type CountSyncGateway } from '../../src/domain/sync/sync-manager'
+import { SyncCoordinator } from '../../src/domain/sync/sync-coordinator'
+import { SyncTransportError } from '../../src/domain/sync/transport-error'
 
 const inventoryId = '11111111-1111-4111-8111-111111111111'
 const userId = '22222222-2222-4222-8222-222222222222'
@@ -21,7 +23,9 @@ class MemoryOutbox implements CountRepository {
   public async savePendingWithCapacity(item: LocalCountRecord) { this.records.push(item); return { record: item, pending: this.records.length } }
   public async findByClientId(id: string) { return this.records.find((item) => item.clientCountId === id) ?? null }
   public async listOwnCounts(filter: CountListFilter) { void filter; return this.records }
+  public async listOutstandingSyncScopes(scopeUserId: string) { return [...new Set(this.records.filter((item) => item.userId === scopeUserId && item.syncStatus !== 'CONFIRMED' && item.syncStatus !== 'REJECTED').map((item) => item.inventoryId))].map((inventoryId) => ({ inventoryId, userId: scopeUserId })) }
   public async countPendingByDevice(id: string) { void id; return this.records.filter((item) => item.syncStatus !== 'CONFIRMED' && item.syncStatus !== 'REJECTED').length }
+  public async countOutstandingByInventoryDevice(scopeInventoryId: string, id: string) { return this.records.filter((item) => item.inventoryId === scopeInventoryId && item.deviceId === id && item.syncStatus !== 'CONFIRMED' && item.syncStatus !== 'REJECTED').length }
   public async claimNextSyncBatch(input: { inventoryId: string; userId: string; max: number; now: string }) {
     const claimed = this.records.filter((item) => item.inventoryId === input.inventoryId && item.userId === input.userId && (item.syncStatus === 'PENDING' || (item.syncStatus === 'FAILED' && (!item.nextRetryAt || item.nextRetryAt <= input.now)))).slice(0, input.max)
     for (const item of claimed) { item.syncStatus = 'SYNCING'; item.syncStartedAt = input.now; item.lastSyncError = null }
@@ -55,11 +59,11 @@ describe('SyncManager', () => {
     expect(outbox.records.every((item) => item.syncStatus === 'CONFIRMED' && item.confirmedAt !== null)).toBe(true)
   })
 
-  it('no confirma una respuesta parcial: deja el faltante FAILED para reintentar', async () => {
+  it('no confirma una respuesta parcial: deja el faltante REJECTED para revisión de contrato', async () => {
     const outbox = new MemoryOutbox([record(1), record(2)])
     gatewayInstance = gateway((records) => [{ client_count_id: records[0]!.clientCountId, result_status: 'ACCEPTED', server_count_id: serverId, received_at: '2026-09-17T13:00:00.000Z', reason: null }])
     await new SyncManager({ inventoryId, userId }, outbox, gatewayInstance, () => new Date('2026-09-17T12:00:00.000Z')).run()
-    expect(outbox.records.map((item) => item.syncStatus)).toEqual(['CONFIRMED', 'FAILED'])
+    expect(outbox.records.map((item) => item.syncStatus)).toEqual(['CONFIRMED', 'REJECTED'])
   })
 
   it('convierte un CONFLICT de client_count_id en REJECTED local sin reescribirlo', async () => {
@@ -76,5 +80,56 @@ describe('SyncManager', () => {
     const manager = new SyncManager({ inventoryId, userId }, outbox, gatewayInstance)
     await Promise.all([manager.run(), manager.run()])
     expect(gatewayInstance.calls).toBe(1)
+  })
+
+  it('reconcilia CERRADO desde el outbox sin CaptureRuntime', async () => {
+    const outbox = new MemoryOutbox(Array.from({ length: 20 }, (_, index) => record(index)))
+    gatewayInstance = gateway((records) => records.map((item) => ({ client_count_id: item.clientCountId, result_status: 'ACCEPTED', server_count_id: serverId, received_at: '2026-09-17T13:00:00.000Z', reason: null })))
+    const coordinator = new SyncCoordinator(userId, outbox, gatewayInstance)
+    const result = await coordinator.runOutstanding()
+    expect(result).toMatchObject({ scopes: 1, confirmed: 20, rejected: 0 })
+    expect(outbox.records.every((item) => item.syncStatus === 'CONFIRMED')).toBe(true)
+  })
+
+  it('42501 se vuelve REJECTED visible, sin borrar el payload ni reintentar', async () => {
+    const outbox = new MemoryOutbox([record(1)])
+    gatewayInstance = gateway(() => { throw new SyncTransportError('TERMINAL_AUTHORIZATION', 'SYNC_AUTHORIZATION_BLOCKED') })
+    const result = await new SyncManager({ inventoryId, userId }, outbox, gatewayInstance).run()
+    expect(result).toMatchObject({ rejected: 1, failed: 0, diagnostic: 'SYNC_AUTHORIZATION_BLOCKED' })
+    expect(outbox.records[0]).toMatchObject({ syncStatus: 'REJECTED', lastSyncError: 'SYNC_AUTHORIZATION_BLOCKED', codigo: '00001', cantidadContada: 1 })
+  })
+
+  it('CONGELADO conserva el payload y expone el rechazo terminal del servidor', async () => {
+    const outbox = new MemoryOutbox([record(1)])
+    gatewayInstance = gateway((records) => records.map((item) => ({ client_count_id: item.clientCountId, result_status: 'REJECTED', server_count_id: null, received_at: null, reason: 'INVENTORY_FROZEN' })))
+    const result = await new SyncManager({ inventoryId, userId }, outbox, gatewayInstance).run()
+    expect(result).toMatchObject({ rejected: 1, failed: 0 })
+    expect(outbox.records[0]).toMatchObject({ syncStatus: 'REJECTED', lastSyncError: 'INVENTORY_FROZEN', codigo: '00001' })
+  })
+
+  it('503 deja FAILED con próximo reintento futuro', async () => {
+    const outbox = new MemoryOutbox([record(1)])
+    const now = new Date('2026-09-17T12:00:00.000Z')
+    gatewayInstance = gateway(() => { throw new SyncTransportError('TRANSIENT', 'SYNC_TRANSIENT_UNAVAILABLE') })
+    const result = await new SyncManager({ inventoryId, userId }, outbox, gatewayInstance, () => now, () => 0.5).run()
+    expect(result).toMatchObject({ failed: 1, rejected: 0, diagnostic: 'SYNC_TRANSIENT_UNAVAILABLE' })
+    expect(outbox.records[0]).toMatchObject({ syncStatus: 'FAILED', syncAttempts: 1, lastSyncError: 'SYNC_TRANSIENT_UNAVAILABLE' })
+    const retryAt = outbox.records[0]?.nextRetryAt
+    expect(retryAt).toBeDefined()
+    expect(retryAt !== null && retryAt !== undefined && retryAt > now.toISOString()).toBe(true)
+  })
+
+  it('reporta freeze guards sólo con pendientes de su inventario', async () => {
+    const inventoryB = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
+    const outbox = new MemoryOutbox([{ ...record(1), syncStatus: 'CONFIRMED' }, ...Array.from({ length: 5 }, (_, index) => ({ ...record(index + 2), inventoryId: inventoryB }))])
+    const reports: Array<{ inventoryId: string; pendingCount: number }> = []
+    const reportingGateway: CountSyncGateway = {
+      registerDevice: async () => undefined,
+      reportPending: async (input) => { reports.push({ inventoryId: input.inventoryId, pendingCount: input.pendingCount }) },
+      syncBatch: async () => [],
+    }
+    await new SyncManager({ inventoryId, userId }, outbox, reportingGateway).announcePending()
+    await new SyncManager({ inventoryId: inventoryB, userId }, outbox, reportingGateway).announcePending()
+    expect(reports).toEqual([{ inventoryId, pendingCount: 0 }, { inventoryId: inventoryB, pendingCount: 5 }])
   })
 })

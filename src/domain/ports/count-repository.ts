@@ -9,6 +9,9 @@ export class PendingCountCapacityError extends Error {
 
 export interface SavedPendingCount { record: LocalCountRecord; pending: number }
 
+/** A durable outbox scope. It deliberately does not depend on capture being enabled. */
+export interface OutstandingSyncScope { inventoryId: string; userId: string }
+
 /** Semantic boundary: app/use cases never import SQL, SQLite or Dexie. */
 export interface CountRepository {
   /** A registration identifier is scoped to the signed-in user and this installation. */
@@ -18,7 +21,11 @@ export interface CountRepository {
   save(record: LocalCountRecord): Promise<LocalCountRecord>
   findByClientId(clientCountId: string): Promise<LocalCountRecord | null>
   listOwnCounts(filter: CountListFilter): Promise<LocalCountRecord[]>
+  /** Finds every inventory for which this user still owns durable outbox work. */
+  listOutstandingSyncScopes(userId: string): Promise<OutstandingSyncScope[]>
   countPendingByDevice(deviceId: string): Promise<number>
+  /** Freeze guards are scoped to this inventory and this installation only. */
+  countOutstandingByInventoryDevice(inventoryId: string, deviceId: string): Promise<number>
   /** Claims at most one sync batch. Claiming is atomic with the state transition. */
   claimNextSyncBatch(input: { inventoryId: string; userId: string; max: number; now: string }): Promise<LocalCountRecord[]>
   /** Returns abandoned in-flight records to retryable state after a restart/crash. */

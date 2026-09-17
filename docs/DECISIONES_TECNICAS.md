@@ -109,3 +109,6 @@
 - **Alternativas:** una identidad única de instalación compartida entre usuarios; serial/IMEI; campos de plataforma editables en UI. Descartadas por seguridad y privacidad.
 - **Consecuencias:** las guardas de freeze se actualizan por estado conocido del dispositivo; `CONGELADO` sigue siendo autoridad final y rechaza el registro entrante.
 - **Estado:** aceptada.
+## Fase 4 — Outbox independiente de captura
+
+Se decide que el outbox es propiedad durable del usuario/dispositivo y no de la pantalla de conteo. `SyncCoordinator` se ejecuta al inicio con sesión local válida y descubre inventarios con trabajo pendiente; `CaptureRuntime` permanece restringido a `ABIERTO`. Los fallos de sync se clasifican en transitorios o terminales fail-closed: sólo los transitorios programan retry. Las señales de freeze se calculan por `(inventory_id, device_id)`.

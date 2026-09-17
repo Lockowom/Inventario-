@@ -1,5 +1,5 @@
 import { localCountRecordSchema, type LocalCountRecord } from '../../domain/count/contracts'
-import { PendingCountCapacityError, type CountListFilter, type CountRepository, type SavedPendingCount } from '../../domain/ports/count-repository'
+import { PendingCountCapacityError, type CountListFilter, type CountRepository, type OutstandingSyncScope, type SavedPendingCount } from '../../domain/ports/count-repository'
 import type { LocalSyncAcknowledgement } from '../../domain/sync/contracts'
 import { Inven3WebDatabase } from './inven3-web-database'
 
@@ -53,6 +53,17 @@ export class DexieCountRepository implements CountRepository {
 
   public async countPendingByDevice(deviceId: string): Promise<number> {
     return (await this.database.localCountRecords.where('deviceId').equals(deviceId).toArray()).filter((record) => isOutstanding(record.syncStatus)).length
+  }
+
+  public async listOutstandingSyncScopes(userId: string): Promise<OutstandingSyncScope[]> {
+    const inventoryIds = new Set((await this.database.localCountRecords.where('userId').equals(userId).toArray())
+      .filter((record) => isOutstanding(record.syncStatus)).map((record) => record.inventoryId))
+    return [...inventoryIds].sort().map((inventoryId) => ({ inventoryId, userId }))
+  }
+
+  public async countOutstandingByInventoryDevice(inventoryId: string, deviceId: string): Promise<number> {
+    return (await this.database.localCountRecords.where('deviceId').equals(deviceId).toArray())
+      .filter((record) => record.inventoryId === inventoryId && isOutstanding(record.syncStatus)).length
   }
 
   public async claimNextSyncBatch(input: { inventoryId: string; userId: string; max: number; now: string }): Promise<LocalCountRecord[]> {
