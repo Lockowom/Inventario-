@@ -76,7 +76,7 @@ select ok(not exists (select 1 from jsonb_array_elements(public.get_inventory_su
 select ok(not exists (select 1 from jsonb_array_elements(public.get_inventory_supervision('92000000-0000-0000-0000-000000000002')->'devices') x where x->>'id' = '93000000-0000-0000-0000-000000000001'), 'B never includes D1 activity exclusive to A');
 select is((select x->>'last_seen_at' from jsonb_array_elements(public.get_inventory_supervision('92000000-0000-0000-0000-000000000001')->'counters') x where x->>'user_id' = '91000000-0000-0000-0000-000000000003'), null, 'recent activity from B does not label the counter active in A');
 select ok((select x->>'last_seen_at' is not null from jsonb_array_elements(public.get_inventory_supervision('92000000-0000-0000-0000-000000000002')->'counters') x where x->>'user_id' = '91000000-0000-0000-0000-000000000003'), 'B exposes the counter activity observed in B');
-select is((select count(*) from public.search_inventory_counts('92000000-0000-0000-0000-000000000001', 50, null, null, null, null, null, null, null, '2026-09-17T03:00:00Z'::timestamptz, '2026-09-18T03:00:00Z'::timestamptz) where id = '94000000-0000-0000-0000-000000000001'), 1::bigint, '23:30 local capture remains in local calendar day 17 via absolute bounds');
+select is((select count(*) from public.search_inventory_counts('92000000-0000-0000-0000-000000000001', 50, null, null, null, null, null, null, null, '2026-09-17T03:00:00Z'::timestamptz, '2026-09-18T03:00:00Z'::timestamptz) where captured_at = '2026-09-18T02:30:00Z'::timestamptz), 1::bigint, '23:30 local capture remains in local calendar day 17 via absolute bounds');
 reset role;
 
 select * from finish();
