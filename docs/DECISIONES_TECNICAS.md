@@ -16,12 +16,27 @@
 - **Consecuencias:** cada agregado tendrá un repositorio de dominio en su fase correspondiente y adaptadores SQLite/Dexie que preserven sus invariantes. La PoC nativa debe certificarse en Android e iOS reales antes de implementar conteos.
 - **Estado:** aceptada.
 
-## ADR-005 — Gestor de paquetes iOS: Swift Package Manager
+## ADR-005 — Gestor de paquetes iOS: CocoaPods para ML Kit
 
-- **Decisión:** usar Swift Package Manager, que Capacitor 8 genera para el proyecto iOS (`CapApp-SPM`).
-- **Motivo:** SQLite 8.1.1 distribuye `Package.swift` y Capacitor 8 puede incorporar el plugin mediante SPM. Se evita introducir CocoaPods sin necesidad técnica.
-- **Alternativas:** CocoaPods, también soportado por el podspec del plugin.
-- **Consecuencias:** el target mínimo de INVEN3 iOS es 15.0, consistente con el manifiesto SPM, podspec y Xcode project generados. Cualquier migración futura a CocoaPods requerirá un ADR propio, no una suposición de incompatibilidad.
+- **Decisión:** usar CocoaPods en `ios/App/Podfile` y eliminar la integración `CapApp-SPM`; el target de proyecto y Pods es iOS 15.5.
+- **Motivo:** SQLite 8.1.1 admite tanto CocoaPods como SPM, pero el adaptador oficial ML Kit `@capacitor-mlkit/barcode-scanning` 8.2.1 para Capacitor 8 sólo admite CocoaPods en iOS. Esta es una decisión de integración del proyecto, no una limitación de SQLite.
+- **Alternativas:** conservar SPM y elegir un escáner distinto basado en AVFoundation/Vision; descartada en Fase 3 para mantener el adaptador ML Kit requerido.
+- **Consecuencias:** `cap sync ios` actualiza el Podfile; en macOS se debe ejecutar `pod install` y abrir `App.xcworkspace`. La certificación física de cámara no se suplanta desde Windows.
+- **Estado:** aceptada.
+
+## ADR-011 — Capacidad local atómica y contexto de captura autorizado
+
+- **Decisión:** la reserva de un conteo `PENDING` se realiza únicamente mediante `savePendingWithCapacity` dentro de una transacción del adaptador. El runtime de captura se crea sólo desde Auth, perfil activo y una respuesta RLS que contenga exactamente un inventario asignado `ABIERTO`.
+- **Motivo:** separar `count` de `save` permitía superar 50 con llamadas concurrentes; un literal TypeScript no demuestra que el inventario siga autorizado y abierto.
+- **Consecuencias:** los umbrales 40/45/50 son visibles y textuales; en 50 se bloquea guardar sin borrar datos. La verificación de contexto ocurre al entrar y la escritura física no depende de red. La selección explícita entre múltiples inventarios pertenece a la navegación posterior.
+- **Estado:** aceptada.
+
+## ADR-012 — Last-known authorized counting context
+
+- **Decisión:** persistir únicamente la última autorización de captura que el servidor verificó correctamente (`user_id`, `inventory_id`, `ABIERTO`, `verified_at`) mediante el puerto `CountingContextRepository`, con adaptadores SQLite v4 y Dexie v4.
+- **Motivo:** permitir que un reinicio sin conectividad recupere una operación previamente autorizada, sin convertir almacenamiento local en una nueva decisión de autorización.
+- **Regla de autoridad:** el arranque es server-first. `AUTHORIZED` reemplaza la copia; `NOT_AUTHORIZED` o `AMBIGUOUS` bloquean y la limpian; sólo `UNAVAILABLE` puede usar una copia para el mismo usuario de sesión local. Auth se clasifica con su propio estado/código y PostgREST con el `status` de respuesta más `error.code`; los fallos no reconocidos son `AMBIGUOUS`, nunca offline. Logout siempre la borra.
+- **Consecuencias:** no se persisten tokens ni secretos y un maestro local sigue siendo requisito de captura. Durante una desconexión total se opera con el último `ABIERTO` confirmado, por lo que un cierre remoto concurrente sólo se conocerá al recuperar conectividad. La Fase 4 deberá resolver los pendientes frente a la autoridad actual del servidor.
 - **Estado:** aceptada.
 
 ## ADR-003 — Validaciones compartibles Zod
@@ -69,4 +84,12 @@
 - **Decisión:** las migraciones locales se declaran como una secuencia versionada y se aplican una por una en transacciones, con `PRAGMA user_version` como cursor.
 - **Motivo:** asignar una versión tras `CREATE TABLE IF NOT EXISTS` no demuestra que el schema llegó íntegro ni permite evolucionar con seguridad hacia conteos y sincronización.
 - **Consecuencias:** una migración fallida conserva la versión previa; una base creada por una app más nueva se rechaza de forma controlada. Las versiones futuras se agregan sin reescribir las anteriores.
+- **Estado:** aceptada.
+
+## ADR-010 — Conteo offline detrás de un puerto semántico
+
+- **Decisión:** `CountRepository` expresa identidad local de dispositivo, guardado idempotente por UUID, búsqueda, listado propio y capacidad pendiente. `savePhysicalCount` es el único caso de uso de captura; SQLite y Dexie lo implementan sin exponer SQL/Dexie al dominio.
+- **Motivo:** preservar registros offline y mantener una frontera común antes de implementar la sincronización. El éxito de UI sólo puede seguir a una escritura local transaccional.
+- **Alternativas:** SQL en componentes React; emulador SQL sobre Dexie; guardar directamente desde el escáner. Descartadas por acoplamiento, fragilidad y pérdida de trazabilidad.
+- **Consecuencias:** Fase 3 no incluye RPC de conteos, reintentos remotos ni eliminación. El siguiente motor de sincronización deberá consumir los `client_count_id` persistidos y respetar los estados existentes.
 - **Estado:** aceptada.
