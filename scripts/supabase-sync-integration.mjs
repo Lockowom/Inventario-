@@ -59,4 +59,34 @@ const expected = 47 * 50
 const countResult = await service.from('count_records').select('*', { count: 'exact', head: true }).eq('inventory_id', inventoryId)
 if (countResult.error) throw new Error(`count server records: ${countResult.error.message}`)
 if (countResult.count !== expected) throw new Error(`Expected ${expected} exactly-once server records, got ${countResult.count}.`)
-console.log(`Phase 4 REST sync harness passed: ${expected} records accepted and replayed idempotently across 47 devices in ${Date.now() - startedAt}ms.`)
+
+// Fase 6 remains a local REST integration: an assigned analyst snapshots the
+// 47-device workload while a late batch is accepted. The server's inventory
+// lock decides which snapshot owns the late rows; no client-side ordering is
+// assumed.
+const analystEmail = `phase6-analyst-${randomUUID()}@example.invalid`
+const analystPassword = `P6-${randomUUID()}-safe`
+const analystCreated = await service.auth.admin.createUser({ email: analystEmail, password: analystPassword, email_confirm: true })
+if (analystCreated.error || !analystCreated.data.user) throw new Error(`create Fase 6 analyst: ${analystCreated.error?.message ?? 'missing user'}`)
+const analystId = analystCreated.data.user.id
+await must(await service.from('profiles').insert({ user_id: analystId, display_name: 'Phase 6 REST analyst', role: 'ANALISTA', active: true }), 'create analyst profile')
+await must(await service.from('inventory_assignments').insert({ inventory_id: inventoryId, user_id: analystId, assigned_by: userId, active: true }), 'assign analyst')
+const analystAnon = createClient(url, anonKey)
+const analystLogin = await analystAnon.auth.signInWithPassword({ email: analystEmail, password: analystPassword })
+if (analystLogin.error || !analystLogin.data.session) throw new Error(`sign in Fase 6 analyst: ${analystLogin.error?.message ?? 'missing session'}`)
+const analyst = createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${analystLogin.data.session.access_token}` } } })
+const firstRequest = randomUUID()
+const cutResult = await must(await analyst.rpc('create_cut', { p_inventory_id: inventoryId, p_request_id: firstRequest }), 'create first cut')
+if (cutResult.record_count !== expected || cutResult.status !== 'SNAPSHOT_CREATED') throw new Error(`First cut must snapshot ${expected} records exactly once.`)
+const replay = await must(await analyst.rpc('create_cut', { p_inventory_id: inventoryId, p_request_id: firstRequest }), 'replay first cut')
+if (replay.id !== cutResult.id || replay.cut_number !== cutResult.cut_number) throw new Error('Cut request_id replay did not return the original cut.')
+const lateDevice = devices[0]?.deviceId
+if (!lateDevice) throw new Error('Missing first device')
+const lateRecords = Array.from({ length: 20 }, (_, index) => ({ client_count_id: randomUUID(), ubicacion: `F-33-${String(index + 1).padStart(2, '0')}`, codigo: 'SKU001', cantidad_contada: 1, captured_at: '2026-09-17T13:00:00.000Z' }))
+const lateAccepted = await must(await client.rpc('sync_counts', { p_inventory_id: inventoryId, p_device_id: lateDevice, p_platform: 'WEB', p_app_version: 'phase6-ci', p_device_label: 'INVEN3 WEB CI', p_records: lateRecords }), 'accept late records')
+if (lateAccepted.some((row) => row.result_status !== 'ACCEPTED')) throw new Error('Late records were not accepted.')
+const secondCut = await must(await analyst.rpc('create_cut', { p_inventory_id: inventoryId, p_request_id: randomUUID() }), 'create late-arrival cut')
+if (secondCut.record_count !== lateRecords.length || secondCut.first_export_seq !== expected + 1 || secondCut.last_export_seq !== expected + lateRecords.length) throw new Error('Late arrival cut has an invalid record count or export sequence range.')
+const itemResult = await service.from('inventory_cut_items').select('*', { count: 'exact', head: true }).eq('inventory_id', inventoryId)
+if (itemResult.error || itemResult.count !== expected + lateRecords.length) throw new Error(`Expected ${expected + lateRecords.length} immutable snapshots with no loss or duplicate.`)
+console.log(`Phase 4+6 REST harness passed: ${expected} replayed records across 47 devices, then a ${cutResult.record_count}-row cut and ${secondCut.record_count}-row late-arrival cut in ${Date.now() - startedAt}ms.`)

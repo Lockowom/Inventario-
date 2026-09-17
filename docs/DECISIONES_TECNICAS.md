@@ -131,3 +131,18 @@ Se decide que el outbox es propiedad durable del usuario/dispositivo y no de la 
 ## Riesgo conocido — dependencias moderadas de desarrollo
 
 `npm audit` identifica cinco avisos moderados: `@capacitor/cli` directo a través de `xcode` y `uuid`; y `vitest` directo a través de `@vitest/mocker`. La actualización de Vitest disponible es `5.0.1`, un major incompatible que no se aplica durante esta corrección. La ruta de `uuid` depende de `xcode`, transitiva de Capacitor CLI; existe fix, pero se evaluará al alinear de forma conjunta el conjunto Capacitor 8, no aislando CLI/Core. Son dependencias de herramientas de build/test, no claves ni código de ejecución de la app; se mantiene seguimiento sin usar `--force`.
+
+## ADR-015 — Corte idempotente como snapshot inmutable antes de archivo
+
+- **Decisión:** `create_cut` recibe un `request_id` UUID único por inventario, se serializa con `app_private.lock_inventory`, asigna `export_seq` determinista por `(received_at, id)` e inserta los snapshots en una misma transacción antes de marcar `SNAPSHOT_CREATED`.
+- **Motivo:** doble clic, timeout posterior al commit y sincronización tardía no pueden producir cortes solapados ni reconstrucciones ambiguas. Un archivo futuro debe leer exactamente la evidencia que fue cortada, no filas vivas.
+- **Alternativas:** cortar desde React por lote; exigir cero pendientes offline; reordenar por orden físico; recalcular exportación desde `count_records`; generar XLSX en esta fase. Descartadas por pérdida, acoplamiento, no determinismo o adelanto de Fase 7.
+- **Consecuencias:** ABIERTO y CERRADO permiten cortes parciales; las llegadas tardías quedan sin corte para el siguiente. El conteo con `cut_id`/`export_seq` ya no acepta corrección normal. Fase 6 no tiene Storage, hash final, descarga ni rectificación post-corte.
+- **Estado:** aceptada.
+
+## ADR-016 — Corrección canónica preservando idempotencia local
+
+- **Decisión:** los cambios físicos posteriores a recepción se hacen sólo por `correct_uncut_count`, validado contra el maestro y registrado en `count_revisions`/`audit_events`.
+- **Motivo:** mutar el payload local después de comenzar sync puede reutilizar el mismo UUID con contenido distinto y producir un conflicto ambiguo.
+- **Consecuencias:** el outbox conserva identidad y contenido originales; corrección y corte comparten bloqueo de inventario, por lo que un snapshot ve una versión completa o bloquea la corrección. Las series duplicadas siguen siendo alerta no bloqueante.
+- **Estado:** aceptada.
