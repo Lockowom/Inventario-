@@ -87,6 +87,6 @@ const lateAccepted = await must(await client.rpc('sync_counts', { p_inventory_id
 if (lateAccepted.some((row) => row.result_status !== 'ACCEPTED')) throw new Error('Late records were not accepted.')
 const secondCut = await must(await analyst.rpc('create_cut', { p_inventory_id: inventoryId, p_request_id: randomUUID() }), 'create late-arrival cut')
 if (secondCut.record_count !== lateRecords.length || secondCut.first_export_seq !== expected + 1 || secondCut.last_export_seq !== expected + lateRecords.length) throw new Error('Late arrival cut has an invalid record count or export sequence range.')
-const itemResult = await service.from('inventory_cut_items').select('*', { count: 'exact', head: true }).eq('inventory_id', inventoryId)
+const itemResult = await analyst.from('inventory_cut_items').select('*', { count: 'exact', head: true }).eq('inventory_id', inventoryId)
 if (itemResult.error || itemResult.count !== expected + lateRecords.length) throw new Error(`Expected ${expected + lateRecords.length} immutable snapshots with no loss or duplicate.`)
 console.log(`Phase 4+6 REST harness passed: ${expected} replayed records across 47 devices, then a ${cutResult.record_count}-row cut and ${secondCut.record_count}-row late-arrival cut in ${Date.now() - startedAt}ms.`)
