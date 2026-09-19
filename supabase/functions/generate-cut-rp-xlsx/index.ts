@@ -6,17 +6,17 @@
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { withSupabase } from "@supabase/server";
 import * as XLSX from 'npm:@e965/xlsx@0.20.3'
+import { RP_HEADERS, rpRow } from '../_shared/rp-contract.ts'
 
 const mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-const headers = ['CODIGO', 'SERIE', 'PARTIDA', 'PIEZA DEL PRODUCTO', 'FECHA DE VENCIMIENTO', 'Talla del producto', 'Color del Producto', 'Cantidad Contada', 'DESCRIPCION']
-const value = (input: unknown) => input ?? ''
+const headers = RP_HEADERS
 function create(rows: Record<string, unknown>[]) {
-  const sheet = XLSX.utils.aoa_to_sheet([headers, ...rows.map((r) => [r.codigo,value(r.serie),value(r.partida),value(r.pieza_producto),r.fecha_vencimiento ? new Date(`${r.fecha_vencimiento}T00:00:00.000Z`) : '',value(r.talla),value(r.color),r.cantidad_contada,r.descripcion])], { cellDates: true })
+  const sheet = XLSX.utils.aoa_to_sheet([[...headers], ...rows.map((r) => rpRow(r as never))], { cellDates: true })
   sheet['!ref'] = `A1:I${rows.length + 1}`
   for (let n=2;n<=rows.length+1;n+=1) { for (const c of ['A','B','C','D','F','G','I']) { const cell=sheet[`${c}${n}`]; if(cell) cell.z='@' }; const d=sheet[`E${n}`]; if(d?.v) d.z='dd-mm-yyyy'; const q=sheet[`H${n}`]; if(q) q.z='0' }
   const workbook=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook,sheet,'INVENTARIO'); return new Uint8Array(XLSX.write(workbook,{bookType:'xlsx',type:'array',cellDates:true}))
 }
-function validate(bytes: Uint8Array, count: number) { const book=XLSX.read(bytes,{type:'array',cellDates:true,cellFormula:true}); const sheet=book.Sheets.INVENTARIO; if(book.SheetNames.length!==1 || book.SheetNames[0]!=='INVENTARIO' || !sheet || sheet['!ref']!==`A1:I${count+1}` || JSON.stringify(XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:''})[0])!==JSON.stringify(headers)) throw new Error('Invalid RP XLSX contract'); for(const cell of Object.values(sheet)) if(typeof cell==='object' && cell && 'f' in cell) throw new Error('XLSX formulas are forbidden') }
+function validate(bytes: Uint8Array, expected: Record<string, unknown>[]) { const book=XLSX.read(bytes,{type:'array',cellDates:true,cellFormula:true}); const sheet=book.Sheets.INVENTARIO; if(book.SheetNames.length!==1 || book.SheetNames[0]!=='INVENTARIO' || !sheet || sheet['!ref']!==`A1:I${expected.length+1}` || JSON.stringify(XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:null})[0])!==JSON.stringify(headers)) throw new Error('Invalid RP XLSX contract'); for(const cell of Object.values(sheet)) if(typeof cell==='object' && cell && 'f' in cell) throw new Error('XLSX formulas are forbidden'); const values=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:null}); expected.forEach((row,index)=>{const actual=values[index+1] as unknown[];const want=rpRow(row as never);if(!actual||actual.length!==9||actual.some((v,n)=>n===4?false:v!==want[n]))throw new Error(`XLSX row ${index+1} mismatches snapshot`);const d=sheet[`E${index+2}`];if(row.fecha_vencimiento?(!d||!['n','d'].includes(d.t??'')):actual[4]!==null)throw new Error(`XLSX date ${index+1} mismatches snapshot`) }) }
 
 // This endpoint uses 'publishable' | 'secret' access, apiKey is required.
 // Use publishable for Client-facing, key-validated endpoints
@@ -30,15 +30,13 @@ export default {
     if (claim.data.action === 'READY') return Response.json(claim.data)
     try {
       const source = await ctx.supabaseAdmin.rpc('get_cut_export_source', { p_cut_id: cutId }); if (source.error) throw source.error
-      const bytes = create(source.data.rows); validate(bytes, source.data.record_count)
+      const canonicalRequestId = claim.data.request_id as string
+      if (source.data.status === 'VALIDATED') { const ready=await ctx.supabaseAdmin.rpc('finalize_cut_file',{p_cut_id:cutId,p_request_id:canonicalRequestId});if(ready.error)throw ready.error;return Response.json(ready.data) }
       const name=`INVEN3_${String(source.data.inventory_id).replaceAll('-','').toUpperCase()}_CORTE_${String(source.data.cut_number).padStart(3,'0')}.xlsx`, path=`inventory/${source.data.inventory_id}/cuts/${cutId}/${name}`
-      const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map((n)=>n.toString(16).padStart(2,'0')).join('')
-      const uploaded=await ctx.supabaseAdmin.storage.from('inventory-rp').upload(path,bytes,{contentType:mime,upsert:true}); if(uploaded.error) throw uploaded.error
-      const generated=await ctx.supabaseAdmin.rpc('record_cut_file_generated',{p_cut_id:cutId,p_request_id:requestId,p_file_name:name,p_storage_path:path,p_sha256:hash,p_size_bytes:bytes.byteLength,p_generator_version:'phase-7.0.0'}); if(generated.error) throw generated.error
-      const stored=await ctx.supabaseAdmin.storage.from('inventory-rp').download(path); if(stored.error) throw stored.error; validate(new Uint8Array(await stored.data.arrayBuffer()),source.data.record_count)
-      const checked=await ctx.supabaseAdmin.rpc('mark_cut_file_validated',{p_cut_id:cutId,p_request_id:requestId}); if(checked.error) throw checked.error
-      const ready=await ctx.supabaseAdmin.rpc('finalize_cut_file',{p_cut_id:cutId,p_request_id:requestId}); if(ready.error) throw ready.error; return Response.json(ready.data)
-    } catch (error) { return Response.json({ error: error instanceof Error ? error.message : 'Generation failed safely.' }, { status: 500 }) }
+      let bytes:Uint8Array;let hash:string;let size:number
+      if(claim.data.action==='RECOVER'){const existing=await ctx.supabaseAdmin.storage.from('inventory-rp').download(source.data.storage_path);if(existing.error)throw existing.error;bytes=new Uint8Array(await existing.data.arrayBuffer());hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(n=>n.toString(16).padStart(2,'0')).join('');size=bytes.byteLength;if(hash!==source.data.sha256||size!==source.data.size_bytes)throw new Error('Stored artifact hash or size does not match official metadata')}else{bytes=create(source.data.rows);validate(bytes,source.data.rows);hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(n=>n.toString(16).padStart(2,'0')).join('');size=bytes.byteLength;const uploaded=await ctx.supabaseAdmin.storage.from('inventory-rp').upload(path,bytes,{contentType:mime,upsert:false});if(uploaded.error)throw uploaded.error;const generated=await ctx.supabaseAdmin.rpc('record_cut_file_generated',{p_cut_id:cutId,p_request_id:canonicalRequestId,p_file_name:name,p_storage_path:path,p_sha256:hash,p_size_bytes:size,p_generator_version:'phase-7.0.0'});if(generated.error)throw generated.error}
+      validate(bytes,source.data.rows); const checked=await ctx.supabaseAdmin.rpc('mark_cut_file_validated',{p_cut_id:cutId,p_request_id:canonicalRequestId});if(checked.error)throw checked.error;const ready=await ctx.supabaseAdmin.rpc('finalize_cut_file',{p_cut_id:cutId,p_request_id:canonicalRequestId});if(ready.error)throw ready.error;return Response.json(ready.data)
+    } catch (error) { const safe=error instanceof Error?error.message:'Generation failed safely.'; await ctx.supabaseAdmin.rpc('mark_cut_file_error',{p_cut_id:cutId,p_request_id:claim.data.request_id??requestId,p_message:safe.slice(0,500)}); return Response.json({ error: safe }, { status: 500 }) }
   }),
 };
 
