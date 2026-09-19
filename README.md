@@ -4,7 +4,7 @@ Sistema de captura para Inventario General físico, offline-first, con soporte A
 
 ## Estado
 
-**Fase actual:** Fase 4 — motor de sincronización offline-first certificable localmente.
+**Fase actual:** Fase 6 — corrección pre-corte y snapshots inmutables certificables localmente.
 
 ## Inicio rápido
 
@@ -63,6 +63,8 @@ La certificación de SQLite, permisos de cámara y scanner requiere pruebas en d
 - [`docs/SYNC_ENGINE_V1.md`](docs/SYNC_ENGINE_V1.md) — outbox local, lotes, ACK y reintentos.
 - [`docs/IDEMPOTENCIA_V1.md`](docs/IDEMPOTENCIA_V1.md) — contrato `client_count_id` y conflictos.
 - [`docs/DEVICE_SYNC_V1.md`](docs/DEVICE_SYNC_V1.md) — registro de dispositivo y guardas de freeze.
+- [`docs/CORRECCIONES_PRE_CORTE_V1.md`](docs/CORRECCIONES_PRE_CORTE_V1.md) — corrección auditada antes del corte.
+- [`docs/CORTES_V1.md`](docs/CORTES_V1.md) — corte idempotente y snapshot inmutable, sin XLSX.
 
 ## Regla de gobierno
 

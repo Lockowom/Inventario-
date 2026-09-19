@@ -1,4 +1,4 @@
-# Arquitectura técnica — Fases 0 a 5
+# Arquitectura técnica — Fases 0 a 6
 
 INVEN3 es una aplicación React/TypeScript construida con Vite. El bundle estático `dist/` sirve la web en Cloudflare Pages y es el bundle local que Capacitor incorpora a Android e iOS; la app instalada no carga una URL externa al iniciar.
 
@@ -68,3 +68,9 @@ Los campos HTML `type=date` se interpretan como días locales del operador. El c
 ## Sincronización de outbox — Fase 4
 
 `CaptureRuntime` y `SyncCoordinator` son composiciones separadas. La primera exige contexto autorizado `ABIERTO`; la segunda se inicia con sesión válida, descubre scopes persistentes por usuario y usa un worker single-flight por inventario. Por ello el cierre del inventario bloquea captura, no la reconciliación de registros ya guardados. Los puertos locales contienen operaciones semánticas de outbox, no detalles SQL/Dexie; el gateway traduce Supabase a errores de dominio tipados y seguros.
+
+## Correcciones y cortes — Fase 6
+
+La corrección pre-corte y el corte son mutaciones canónicas PostgreSQL, no secuencias de escrituras desde React. Ambas toman `app_private.lock_inventory`; la corrección también bloquea la fila de conteo. Así se serializa con `sync_counts`: un registro aceptado antes de la selección entra una vez al snapshot y uno recibido después queda disponible para el siguiente corte.
+
+`create_cut` resuelve `request_id` bajo el bloqueo, asigna secuencias mediante una operación set-based ordenada por `(received_at ASC, id ASC)` e inserta snapshots inmutables en la misma transacción. La interfaz llama sólo read models y RPC protegidas. La pantalla CORTES no ofrece acción a CONTADOR, deshabilita el doble clic y explica explícitamente que no hay XLSX ni stock ERP. La corrección carga un contexto autorizado, solicita motivo y muestra las revisiones; no ofrece rectificación post-corte.
