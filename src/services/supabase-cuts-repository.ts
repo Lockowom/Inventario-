@@ -63,4 +63,16 @@ export class SupabaseCutsRepository {
     if (error) throw new Error(error.message)
     return data as Record<string, unknown>
   }
+
+  public async generateRpXlsx(cutId: string, requestId: string) {
+    const { data, error } = await clientOrThrow().functions.invoke('generate-cut-rp-xlsx', { body: { cutId, requestId } })
+    if (error || data?.error) throw new Error(data?.error ?? error?.message ?? 'No fue posible generar el archivo RP.')
+    return data as Record<string, unknown>
+  }
+
+  public async downloadRpXlsx(cutId: string) {
+    const { data, error } = await clientOrThrow().functions.invoke('download-cut-rp-xlsx', { body: { cutId } })
+    if (error || data?.error || !data?.signedUrl) throw new Error(data?.error ?? error?.message ?? 'No fue posible preparar la descarga RP.')
+    return data as { signedUrl: string; fileName: string }
+  }
 }

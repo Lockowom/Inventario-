@@ -137,6 +137,11 @@ Se decide que el outbox es propiedad durable del usuario/dispositivo y no de la 
 - **Decisión:** `create_cut` recibe un `request_id` UUID único por inventario, se serializa con `app_private.lock_inventory`, asigna `export_seq` determinista por `(received_at, id)` e inserta los snapshots en una misma transacción antes de marcar `SNAPSHOT_CREATED`.
 - **Motivo:** doble clic, timeout posterior al commit y sincronización tardía no pueden producir cortes solapados ni reconstrucciones ambiguas. Un archivo futuro debe leer exactamente la evidencia que fue cortada, no filas vivas.
 - **Alternativas:** cortar desde React por lote; exigir cero pendientes offline; reordenar por orden físico; recalcular exportación desde `count_records`; generar XLSX en esta fase. Descartadas por pérdida, acoplamiento, no determinismo o adelanto de Fase 7.
+
+## Fase 7 — RP XLSX servidor y Storage privado
+
+- **Decisión:** generar `CUT_XLSX` en Edge Function con `@e965/xlsx`, persistirlo en `inventory-rp` privado y finalizar sólo con una función PostgreSQL reservada a `service_role`.
+- **Motivo:** evita que el cliente manipule hashes, estados o datos congelados; una validación independiente del XLSX y SHA-256 permiten recuperación segura.
 - **Consecuencias:** ABIERTO y CERRADO permiten cortes parciales; las llegadas tardías quedan sin corte para el siguiente. El conteo con `cut_id`/`export_seq` ya no acepta corrección normal. Fase 6 no tiene Storage, hash final, descarga ni rectificación post-corte.
 - **Estado:** aceptada.
 
