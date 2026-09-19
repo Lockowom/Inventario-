@@ -1,16 +1,7 @@
 import * as XLSX from '@e965/xlsx'
-import { rpRow } from '../../../supabase/functions/_shared/rp-contract'
+import { assertRpSnapshot, isoDateUtc, RP_HEADERS, rpRow, type RpSnapshot } from '../../../supabase/functions/_shared/rp-contract'
 
-export const RP_HEADERS = ['CODIGO', 'SERIE', 'PARTIDA', 'PIEZA DEL PRODUCTO', 'FECHA DE VENCIMIENTO', 'Talla del producto', 'Color del Producto', 'Cantidad Contada', 'DESCRIPCION'] as const
-export type RpSnapshot = { export_seq: number; codigo: string; serie?: string | null; partida?: string | null; pieza_producto?: string | null; fecha_vencimiento?: string | null; talla?: string | null; color?: string | null; cantidad_contada: number; descripcion: string }
-
-export function assertRpSnapshot(rows: RpSnapshot[]) {
-  if (!rows.length) throw new Error('A cut requires at least one immutable snapshot.')
-  rows.forEach((row, index) => {
-    if (!Number.isInteger(row.export_seq) || row.export_seq !== rows[0]!.export_seq + index) throw new Error('Snapshot export_seq must be contiguous and ordered.')
-    if (!Number.isInteger(row.cantidad_contada) || row.cantidad_contada <= 0) throw new Error('Snapshot quantity must be a positive integer.')
-  })
-}
+export { assertRpSnapshot, RP_HEADERS, type RpSnapshot }
 
 export function generateRpXlsx(rows: RpSnapshot[]) {
   assertRpSnapshot(rows)
@@ -37,6 +28,7 @@ export function validateRpXlsx(bytes: Uint8Array, expected: RpSnapshot[]) {
   expected.forEach((item, index) => {
     const row = rows[index + 1] as unknown[] | undefined; const expectedRow=rpRow(item)
     if (!row || row.length !== 9 || row.some((value,column) => column === 4 ? false : value !== expectedRow[column])) throw new Error(`RP round-trip mismatch at export_seq ${item.export_seq}.`)
-    const cell = sheet[`E${index + 2}`]; if (item.fecha_vencimiento ? !cell || !['n', 'd'].includes(cell.t ?? '') : row[4] !== null) throw new Error(`RP date mismatch at export_seq ${item.export_seq}.`)
+    const cell = sheet[`E${index + 2}`]; const parsed = cell?.t === 'n' ? XLSX.SSF.parse_date_code(Number(cell.v)) : null; const dateValue = cell?.v instanceof Date ? cell.v : parsed ? new Date(parsed.y, parsed.m - 1, parsed.d) : null
+    if (item.fecha_vencimiento ? !cell || !['n', 'd'].includes(cell.t ?? '') || isoDateUtc(dateValue) !== item.fecha_vencimiento : row[4] !== null) throw new Error(`RP date mismatch at export_seq ${item.export_seq}.`)
   })
 }

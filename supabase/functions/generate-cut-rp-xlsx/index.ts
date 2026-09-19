@@ -6,7 +6,7 @@
 import "@supabase/functions-js/edge-runtime.d.ts";
 import { withSupabase } from "@supabase/server";
 import * as XLSX from 'npm:@e965/xlsx@0.20.3'
-import { RP_HEADERS, rpRow } from '../_shared/rp-contract.ts'
+import { isoDateUtc, RP_HEADERS, rpRow } from '../_shared/rp-contract.ts'
 
 const mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 const headers = RP_HEADERS
@@ -16,7 +16,7 @@ function create(rows: Record<string, unknown>[]) {
   for (let n=2;n<=rows.length+1;n+=1) { for (const c of ['A','B','C','D','F','G','I']) { const cell=sheet[`${c}${n}`]; if(cell) cell.z='@' }; const d=sheet[`E${n}`]; if(d?.v) d.z='dd-mm-yyyy'; const q=sheet[`H${n}`]; if(q) q.z='0' }
   const workbook=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook,sheet,'INVENTARIO'); return new Uint8Array(XLSX.write(workbook,{bookType:'xlsx',type:'array',cellDates:true}))
 }
-function validate(bytes: Uint8Array, expected: Record<string, unknown>[]) { const book=XLSX.read(bytes,{type:'array',cellDates:true,cellFormula:true}); const sheet=book.Sheets.INVENTARIO; if(book.SheetNames.length!==1 || book.SheetNames[0]!=='INVENTARIO' || !sheet || sheet['!ref']!==`A1:I${expected.length+1}` || JSON.stringify(XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:null})[0])!==JSON.stringify(headers)) throw new Error('Invalid RP XLSX contract'); for(const cell of Object.values(sheet)) if(typeof cell==='object' && cell && 'f' in cell) throw new Error('XLSX formulas are forbidden'); const values=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:null}); expected.forEach((row,index)=>{const actual=values[index+1] as unknown[];const want=rpRow(row as never);if(!actual||actual.length!==9||actual.some((v,n)=>n===4?false:v!==want[n]))throw new Error(`XLSX row ${index+1} mismatches snapshot`);const d=sheet[`E${index+2}`];if(row.fecha_vencimiento?(!d||!['n','d'].includes(d.t??'')):actual[4]!==null)throw new Error(`XLSX date ${index+1} mismatches snapshot`) }) }
+function validate(bytes: Uint8Array, expected: Record<string, unknown>[]) { const book=XLSX.read(bytes,{type:'array',cellDates:true,cellFormula:true}); const sheet=book.Sheets.INVENTARIO; if(book.SheetNames.length!==1 || book.SheetNames[0]!=='INVENTARIO' || !sheet || sheet['!ref']!==`A1:I${expected.length+1}` || JSON.stringify(XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:null})[0])!==JSON.stringify(headers)) throw new Error('Invalid RP XLSX contract'); for(const cell of Object.values(sheet)) if(typeof cell==='object' && cell && 'f' in cell) throw new Error('XLSX formulas are forbidden'); const values=XLSX.utils.sheet_to_json(sheet,{header:1,raw:true,defval:null}); expected.forEach((row,index)=>{const actual=values[index+1] as unknown[];const want=rpRow(row as never);if(!actual||actual.length!==9||actual.some((v,n)=>n===4?false:v!==want[n]))throw new Error(`XLSX row ${index+1} mismatches snapshot`);const d=sheet[`E${index+2}`];const p=d?.t==='n'?XLSX.SSF.parse_date_code(Number(d.v)):null;const date=d?.v instanceof Date?d.v:p?new Date(p.y,p.m-1,p.d):null;if(row.fecha_vencimiento?(!d||!['n','d'].includes(d.t??'')||isoDateUtc(date)!==row.fecha_vencimiento):actual[4]!==null)throw new Error(`XLSX date ${index+1} mismatches snapshot`) }) }
 
 // This endpoint uses 'publishable' | 'secret' access, apiKey is required.
 // Use publishable for Client-facing, key-validated endpoints
