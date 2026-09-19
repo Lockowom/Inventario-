@@ -146,3 +146,7 @@ Se decide que el outbox es propiedad durable del usuario/dispositivo y no de la 
 - **Motivo:** mutar el payload local después de comenzar sync puede reutilizar el mismo UUID con contenido distinto y producir un conflicto ambiguo.
 - **Consecuencias:** el outbox conserva identidad y contenido originales; corrección y corte comparten bloqueo de inventario, por lo que un snapshot ve una versión completa o bloquea la corrección. Las series duplicadas siguen siendo alerta no bloqueante.
 - **Estado:** aceptada.
+
+### Aclaración Fase 6 — payload original de ingesta
+
+La corrección canónica no redefine el contenido asociado a `client_count_id`. Se decide reconstruir el payload original desde `count_revisions.old_values` de la primera revisión, con fallback a `count_records` cuando aún no hay revisiones. Evita una columna duplicada y permite que un ACK perdido conserve `ALREADY_ACCEPTED` sin aceptar como replay el payload corregido. Los campos de identidad/recepción continúan obteniéndose de la fila inmutable de `count_records`.

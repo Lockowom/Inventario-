@@ -87,6 +87,17 @@ const lateAccepted = await must(await client.rpc('sync_counts', { p_inventory_id
 if (lateAccepted.some((row) => row.result_status !== 'ACCEPTED')) throw new Error('Late records were not accepted.')
 const secondCut = await must(await analyst.rpc('create_cut', { p_inventory_id: inventoryId, p_request_id: randomUUID() }), 'create late-arrival cut')
 if (secondCut.record_count !== lateRecords.length || secondCut.first_export_seq !== expected + 1 || secondCut.last_export_seq !== expected + lateRecords.length) throw new Error('Late arrival cut has an invalid record count or export sequence range.')
+// Simulate a lost ACK after the server committed. A later server-side
+// correction must not turn the original immutable ingestion replay into a
+// conflict, nor must it overwrite the canonical corrected value.
+const lostAckRecord = { client_count_id: randomUUID(), ubicacion: 'F-33-49', codigo: 'SKU001', cantidad_contada: 1, captured_at: '2026-09-17T13:49:00.000Z' }
+await must(await client.rpc('sync_counts', { p_inventory_id: inventoryId, p_device_id: lateDevice, p_platform: 'WEB', p_app_version: 'phase6-ci', p_device_label: 'INVEN3 WEB CI', p_records: [lostAckRecord] }), 'accept lost ACK record')
+const lostAckCount = await must(await service.from('count_records').select('id,cantidad_contada').eq('client_count_id', lostAckRecord.client_count_id).single(), 'find lost ACK count')
+await must(await client.rpc('correct_uncut_count', { p_count_record_id: lostAckCount.id, p_physical_payload: { ubicacion: lostAckRecord.ubicacion, codigo: lostAckRecord.codigo, cantidad_contada: 9 }, p_reason: 'lost ACK replay verification' }), 'correct lost ACK count')
+const lostAckReplay = await must(await client.rpc('sync_counts', { p_inventory_id: inventoryId, p_device_id: lateDevice, p_platform: 'WEB', p_app_version: 'phase6-ci', p_device_label: 'INVEN3 WEB CI', p_records: [lostAckRecord] }), 'replay lost ACK original payload')
+if (lostAckReplay[0]?.result_status !== 'ALREADY_ACCEPTED' || lostAckReplay[0]?.server_count_id !== lostAckCount.id) throw new Error('Lost ACK replay did not resolve to the original accepted count.')
+const correctedLostAck = await must(await service.from('count_records').select('cantidad_contada', { count: 'exact' }).eq('client_count_id', lostAckRecord.client_count_id).single(), 'verify corrected lost ACK count')
+if (correctedLostAck.cantidad_contada !== 9) throw new Error('Lost ACK replay overwrote the canonical server correction.')
 // Race correction against create_cut. The shared inventory lock makes exactly
 // one ordering visible: the snapshot receives the corrected value, or the
 // correction is rejected because the cut won first.
@@ -114,5 +125,5 @@ const cutRaceResults = await Promise.all([analyst.rpc('create_cut', { p_inventor
 const successfulConcurrentCuts = cutRaceResults.filter((result) => !result.error && result.data)
 if (successfulConcurrentCuts.length !== 1 || !cutRaceResults.some((result) => result.error?.message.includes('No existen conteos nuevos'))) throw new Error('Concurrent distinct cut requests did not serialize safely.')
 const itemResult = await analyst.from('inventory_cut_items').select('*', { count: 'exact', head: true }).eq('inventory_id', inventoryId)
-if (itemResult.error || itemResult.count !== expected + lateRecords.length + 2) throw new Error(`Expected ${expected + lateRecords.length + 2} immutable snapshots with no loss or duplicate.`)
-console.log(`Phase 4+6 REST harness passed: ${expected} replayed records across 47 devices, late arrivals, correction/cut serialization and concurrent distinct-cut serialization in ${Date.now() - startedAt}ms.`)
+if (itemResult.error || itemResult.count !== expected + lateRecords.length + 3) throw new Error(`Expected ${expected + lateRecords.length + 3} immutable snapshots with no loss or duplicate.`)
+console.log(`Phase 4+6 REST harness passed: ${expected} replayed records across 47 devices, 20 late arrivals, lost-ACK replay after correction, correction/cut serialization and concurrent distinct-cut serialization in ${Date.now() - startedAt}ms.`)
