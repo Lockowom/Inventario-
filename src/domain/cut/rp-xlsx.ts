@@ -1,5 +1,5 @@
 import * as XLSX from '@e965/xlsx'
-import { assertRpSnapshot, excelSerial, isoDateUtc, RP_HEADERS, rpRow, type RpSnapshot } from '../../../supabase/functions/_shared/rp-contract'
+import { assertRpSnapshot, excelSerial, isoDateUtc, RP_HEADERS, rpRow, type RpSnapshot } from '../../../supabase/functions/_shared/rp-contract.ts'
 
 export { assertRpSnapshot, RP_HEADERS, type RpSnapshot }
 
