@@ -23,7 +23,9 @@ const invoke = async (name, body) => { const response = await fetch(`${url}/func
 const generated = await invoke('generate-cut-rp-xlsx', { cutId: cut.id, requestId: randomUUID() })
 if (generated.status !== 'READY') throw new Error('Edge generation did not reach READY.')
 const downloaded = await invoke('download-cut-rp-xlsx', { cutId: cut.id })
-const file = await fetch(downloaded.signedUrl); if (!file.ok) throw new Error('Signed download failed.')
+const signed = new URL(downloaded.signedUrl); const external = new URL(url)
+signed.protocol = external.protocol; signed.host = external.host
+const file = await fetch(signed.toString()); if (!file.ok) throw new Error('Signed download failed.')
 const bytes = new Uint8Array(await file.arrayBuffer()); const sha = createHash('sha256').update(bytes).digest('hex')
 const metadata = await must(await service.from('generated_files').select('sha256,size_bytes').eq('cut_id', cut.id).single(), 'metadata')
 if (sha !== metadata.sha256 || bytes.byteLength !== metadata.size_bytes) throw new Error('Downloaded bytes do not match official metadata.')
