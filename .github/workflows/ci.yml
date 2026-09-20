@@ -55,3 +55,5 @@ jobs:
       - run: npx supabase db reset
       - run: set -a && eval "$(npx supabase status -o env)" && set +a && node scripts/phase-7-rp-integration.mjs
       - run: npx supabase db advisors --local --type security --level warn --fail-on error
+      - if: always()
+        run: docker logs supabase_edge_runtime_inven3 || true
