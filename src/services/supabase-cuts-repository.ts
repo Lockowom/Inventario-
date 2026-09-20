@@ -35,7 +35,7 @@ export class SupabaseCutsRepository {
   }
 
   public async cuts(inventoryId: string) {
-    const { data, error } = await clientOrThrow().rpc('list_inventory_cuts', { p_inventory_id: inventoryId, p_limit: 50, p_before_cut_number: null })
+    const { data, error } = await clientOrThrow().rpc('list_inventory_cuts_v2', { p_inventory_id: inventoryId, p_limit: 50, p_before_cut_number: null })
     if (error) throw new Error('No fue posible cargar cortes autorizados.')
     return (data ?? []) as Record<string, unknown>[]
   }

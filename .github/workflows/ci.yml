@@ -42,6 +42,7 @@ jobs:
       - run: npx supabase db advisors --local --type security --level warn --fail-on error
 
   phase-7-edge-storage:
+    needs: database-checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
