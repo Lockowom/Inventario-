@@ -36,7 +36,7 @@ async function preflightActor(actor) {
   try { profiles = await response.json() } catch { profiles = null }
   const profile = Array.isArray(profiles) && profiles.length === 1 ? profiles[0] : null
   if (!response.ok || profile?.user_id !== actor.id || profile?.role !== actor.role || profile?.active !== true) {
-    throw new Error(`Harness authenticated session preflight failed: ${actor.label}; expected active ${actor.role} profile for ${actor.id}; profile status ${response.status}.`)
+    throw new Error(`Harness authenticated session preflight failed: ${actor.label}; expected active ${actor.role} profile for ${actor.id}; getUser ${returnedId}; profile visible ${profile ? 'yes' : 'no'}; profile status ${response.status}.`)
   }
 }
 
