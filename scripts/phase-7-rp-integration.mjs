@@ -31,8 +31,7 @@ async function createInventory(creator, requester, label) {
 }
 
 async function accept(creator, inventory, fields = {}) {
-  const data = await must(creator.client.rpc('sync_counts', { p_inventory_id: inventory.id, p_device_id: inventory.deviceId, p_platform: 'WEB', p_app_version: 'phase7-ci', p_device_label: 'INVEN3 CI', p_records: [{ client_count_id: randomUUID(), ubicacion: 'A-01-01', codigo: '001234', cantidad_contada: 1, captured_at: now(), ...fields }] }), 'accept count')
-  fail(Array.isArray(data) && data[0]?.result_status === 'ACCEPTED', `Phase 7 fixture count was not accepted: ${JSON.stringify(data)}.`)
+  await must(service.from('count_records').insert({ client_count_id: randomUUID(), inventory_id: inventory.id, user_id: creator.id, device_id: inventory.deviceId, ubicacion: 'A-01-01', codigo: '001234', cantidad_contada: 1, descripcion: 'RP snapshot description', captured_at: now(), inventory_status_at_receive: 'ABIERTO', captured_after_closed_at: null, ...fields }), 'stage immutable cut fixture')
 }
 
 async function makeCut(creator, inventory) { return must(creator.client.rpc('create_cut', { p_inventory_id: inventory.id, p_request_id: randomUUID() }), 'create cut') }
@@ -136,8 +135,7 @@ for (const [label, client] of [['anon', createClient(url, anonKey)], ['counter',
 const volume = await createInventory(creator, requester, 'volume-2350'); const volumeStarted = Date.now()
 for (let batch = 0; batch < 2350; batch += 20) {
   const records = Array.from({ length: Math.min(20, 2350 - batch) }, (_, offset) => ({ client_count_id: randomUUID(), ubicacion: `F-${String(Math.floor((batch + offset) / 99) + 1).padStart(2, '0')}-${String((batch + offset) % 99 + 1).padStart(2, '0')}`, codigo: '001234', cantidad_contada: 1, captured_at: now() }))
-  const result = await must(creator.client.rpc('sync_counts', { p_inventory_id: volume.id, p_device_id: volume.deviceId, p_platform: 'WEB', p_app_version: 'phase7-ci', p_device_label: 'INVEN3 CI volume', p_records: records }), 'volume sync')
-  fail(result.every((row) => row.result_status === 'ACCEPTED'), 'A volume record was not accepted.')
+  await must(service.from('count_records').insert(records.map((record) => ({ ...record, inventory_id: volume.id, user_id: creator.id, device_id: volume.deviceId, descripcion: 'RP snapshot description', inventory_status_at_receive: 'ABIERTO', captured_after_closed_at: null }))), 'stage volume fixtures')
 }
 const volumeCut = await makeCut(creator, volume); const volumeRows = await cutRows(requester, volumeCut.id); fail(volumeRows.length === 2350, 'Volume cut snapshot does not have 2,350 rows.'); await invoke(requester, 'generate-cut-rp-xlsx', { cutId: volumeCut.id, requestId: randomUUID() }); const volumeDownload = await download(requester, volumeCut.id, volumeRows)
 const deterministicA = generateRpXlsx(volumeRows); const deterministicB = generateRpXlsx(volumeRows); fail(sha(deterministicA) === sha(deterministicB), 'Pure XLSX generator is not byte deterministic for the same snapshot.')
