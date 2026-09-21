@@ -28,15 +28,10 @@ async function preflightActor(actor) {
   const identity = await actor.authClient.auth.getUser(actor.token)
   const returnedId = identity.data.user?.id ?? 'none'
   if (identity.error || returnedId !== actor.id) throw new Error(`Harness authenticated session preflight failed: ${actor.label}; expected user ${actor.id}; auth user ${returnedId}.`)
-  const profilesUrl = new URL('/rest/v1/profiles', url)
-  profilesUrl.searchParams.set('user_id', `eq.${actor.id}`)
-  profilesUrl.searchParams.set('select', 'user_id,role,active')
-  const response = await fetch(profilesUrl, { headers: { apikey: anonKey, Authorization: `Bearer ${actor.token}` } })
-  let profiles
-  try { profiles = await response.json() } catch { profiles = null }
-  const profile = Array.isArray(profiles) && profiles.length === 1 ? profiles[0] : null
-  if (!response.ok || profile?.user_id !== actor.id || profile?.role !== actor.role || profile?.active !== true) {
-    throw new Error(`Harness authenticated session preflight failed: ${actor.label}; expected active ${actor.role} profile for ${actor.id}; getUser ${returnedId}; profile visible ${profile ? 'yes' : 'no'}; profile status ${response.status}.`)
+  const { data: profiles, error } = await actor.authClient.from('profiles').select('user_id,role,active').eq('user_id', actor.id)
+  const profile = profiles?.length === 1 ? profiles[0] : null
+  if (error || profile?.user_id !== actor.id || profile?.role !== actor.role || profile?.active !== true) {
+    throw new Error(`Harness authenticated session preflight failed: ${actor.label}; expected active ${actor.role} profile for ${actor.id}; getUser ${returnedId}; profile visible ${profile ? 'yes' : 'no'}; PostgREST ${error?.code ?? '200'}.`)
   }
 }
 
@@ -59,17 +54,13 @@ async function metadata(cutId) { return must(await service.from('generated_files
 async function maybeMetadata(cutId) { return must(await service.from('generated_files').select('id').eq('cut_id', cutId).eq('file_type', 'CUT_XLSX').maybeSingle(), 'maybe file metadata') }
 
 async function invokeRaw(actor, name, body) {
-  const response = await fetch(`${url}/functions/v1/${name}`, { method: 'POST', headers: { apikey: anonKey, Authorization: `Bearer ${actor.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  const text = await response.text(); let data
-  try { data = JSON.parse(text) } catch { data = { error: text } }
-  return { response, data }
+  const result = await actor.authClient.functions.invoke(name, { body })
+  return { response: result.response ?? { ok: false, status: 0 }, data: result.data ?? { error: result.error?.message ?? 'Edge invocation failed' } }
 }
 async function authenticatedRpc(actor, name, body) {
-  const response = await fetch(`${url}/rest/v1/rpc/${name}`, { method: 'POST', headers: { apikey: anonKey, Authorization: `Bearer ${actor.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
-  const text = await response.text(); let data
-  try { data = JSON.parse(text) } catch { data = { error: text } }
-  if (!response.ok) throw new Error(`${name}: ${data.message ?? data.error ?? response.status}`)
-  return data
+  const result = await actor.authClient.rpc(name, body)
+  if (result.error) throw new Error(`${name}: ${result.error.message}`)
+  return result.data
 }
 async function invoke(actor, name, body) {
   const result = await invokeRaw(actor, name, body)
