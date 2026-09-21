@@ -15,10 +15,11 @@ const fail = (condition, message) => { if (!condition) throw new Error(message) 
 
 async function user(role, label) {
   const email = `phase7-${label}-${randomUUID()}@example.invalid`; const password = `P7-${randomUUID()}-safe`
-  const client = createClient(url, anonKey); const signed = await client.auth.signUp({ email, password })
+  const auth = createClient(url, anonKey); const signed = await auth.auth.signUp({ email, password })
   if (signed.error || !signed.data.user || !signed.data.session) throw new Error(`Cannot create ${label}: ${signed.error?.message ?? 'missing session'}`)
   await must(service.from('profiles').insert({ user_id: signed.data.user.id, display_name: `Phase 7 ${label}`, role, active: true }), `profile ${label}`)
-  return { id: signed.data.user.id, client, token: signed.data.session.access_token }
+  const token = signed.data.session.access_token
+  return { id: signed.data.user.id, client: createClient(url, anonKey, { accessToken: async () => token }), token }
 }
 
 async function createInventory(creator, requester, label) {
