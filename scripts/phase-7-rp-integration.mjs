@@ -34,10 +34,10 @@ async function accept(creator, inventory, fields = {}) {
   await must(service.from('count_records').insert({ client_count_id: randomUUID(), inventory_id: inventory.id, user_id: creator.id, device_id: inventory.deviceId, ubicacion: 'A-01-01', codigo: '001234', cantidad_contada: 1, descripcion: 'RP snapshot description', captured_at: now(), inventory_status_at_receive: 'ABIERTO', captured_after_closed_at: null, ...fields }), 'stage immutable cut fixture')
 }
 
-async function makeCut(creator, inventory) { return must(creator.client.rpc('create_cut', { p_inventory_id: inventory.id, p_request_id: randomUUID() }), 'create cut') }
-async function cutState(cutId) { return must(service.from('inventory_cuts').select('id,status,generation_error,generation_request_id,generation_requested_by,file_name,file_hash,inventory_id').eq('id', cutId).single(), 'cut state') }
-async function metadata(cutId) { return must(service.from('generated_files').select('id,cut_id,file_name,storage_path,sha256,size_bytes,created_by').eq('cut_id', cutId).eq('file_type', 'CUT_XLSX').single(), 'file metadata') }
-async function maybeMetadata(cutId) { return must(service.from('generated_files').select('id').eq('cut_id', cutId).eq('file_type', 'CUT_XLSX').maybeSingle(), 'maybe file metadata') }
+async function makeCut(creator, inventory) { return must(await creator.client.rpc('create_cut', { p_inventory_id: inventory.id, p_request_id: randomUUID() }), 'create cut') }
+async function cutState(cutId) { return must(await service.from('inventory_cuts').select('id,status,generation_error,generation_request_id,generation_requested_by,file_name,file_hash,inventory_id').eq('id', cutId).single(), 'cut state') }
+async function metadata(cutId) { return must(await service.from('generated_files').select('id,cut_id,file_name,storage_path,sha256,size_bytes,created_by').eq('cut_id', cutId).eq('file_type', 'CUT_XLSX').single(), 'file metadata') }
+async function maybeMetadata(cutId) { return must(await service.from('generated_files').select('id').eq('cut_id', cutId).eq('file_type', 'CUT_XLSX').maybeSingle(), 'maybe file metadata') }
 
 async function invokeRaw(actor, name, body) {
   const response = await fetch(`${url}/functions/v1/${name}`, { method: 'POST', headers: { apikey: anonKey, Authorization: `Bearer ${actor.token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
@@ -66,7 +66,7 @@ async function download(actor, cutId, expected) {
   validateRpXlsx(bytes, expected)
   return { bytes, fileMeta }
 }
-async function claim(actor, cutId) { return must(actor.client.rpc('request_cut_file_generation', { p_cut_id: cutId, p_request_id: randomUUID() }), 'generation claim') }
+async function claim(actor, cutId) { return must(await actor.client.rpc('request_cut_file_generation', { p_cut_id: cutId, p_request_id: randomUUID() }), 'generation claim') }
 async function stageArtifact(actor, cut, rows, target = 'FILE_GENERATED') {
   const ticket = await claim(actor, cut.id); fail(ticket.action === 'GENERATE', `Expected GENERATE, got ${ticket.action}`)
   const state = await cutState(cut.id); const name = `INVEN3_${state.inventory_id.replaceAll('-', '').toUpperCase()}_CORTE_${String(cut.cut_number).padStart(3, '0')}.xlsx`; const path = `inventory/${state.inventory_id}/cuts/${cut.id}/${name}`
