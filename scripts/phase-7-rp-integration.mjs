@@ -137,8 +137,13 @@ const officialFileCount = await service.from('generated_files').select('id', { c
 fail(!officialFileCount.error && officialFileCount.count === 1, 'READY retry created more than one CUT_XLSX artifact.')
 const retryDownload = await download(requester, ready.cut.id, ready.rows)
 fail(retryDownload.fileMeta.storage_path === beforeReady.storage_path && sha(retryDownload.bytes) === sha(ready.bytes) && retryDownload.bytes.byteLength === ready.bytes.byteLength, 'READY retry changed stored XLSX bytes.')
-const audit = await must(service.from('audit_events').select('event_type').eq('entity_id', ready.cut.id).in('event_type', ['CUT_FILE_GENERATED', 'CUT_FILE_VALIDATED', 'CUT_READY']), 'ready audit')
-for (const event of ['CUT_FILE_GENERATED', 'CUT_FILE_VALIDATED', 'CUT_READY']) fail(audit.filter((row) => row.event_type === event).length === 1, `READY audit duplicated ${event}.`)
+const readyAuditEvents = ['CUT_FILE_GENERATED', 'CUT_FILE_VALIDATED', 'CUT_READY']
+const audit = await must(requester.client.from('audit_events').select('event_type,actor_user_id').eq('inventory_id', ready.inventory.id).eq('entity_id', ready.cut.id).eq('entity_type', 'inventory_cut').in('event_type', readyAuditEvents), 'ready audit')
+for (const event of readyAuditEvents) { const events = audit.filter((row) => row.event_type === event); fail(events.length === 1 && events[0].actor_user_id === requester.id, `READY audit is invalid for ${event}.`) }
+for (const [label, client] of [['outsider', outsider.client], ['counter', counter.client]]) {
+  const hiddenAudit = await client.from('audit_events').select('id').eq('inventory_id', ready.inventory.id).eq('entity_id', ready.cut.id).eq('entity_type', 'inventory_cut').in('event_type', readyAuditEvents)
+  fail(!hiddenAudit.error && hiddenAudit.data.length === 0, `Inventory management audit was visible to ${label}.`)
+}
 const readyState = await cutState(ready.cut.id); fail(readyState.generation_requested_by === requester.id && ready.fileMeta.created_by === requester.id, 'Official artifact attribution is not the requesting analyst.')
 
 // Controlled server-side interruptions; each continuation itself re-enters through authenticated Edge.
