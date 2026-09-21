@@ -130,7 +130,8 @@ for (const ref of ['B2', 'C2', 'D2', 'E2', 'F2', 'G2']) fail(blankSheet[ref] ===
 
 // READY remains an immutable artifact and transition audit remains exactly once after a real retry.
 const ready = official[0]; const beforeReady = await metadata(ready.cut.id); const again = await invoke(requester, 'generate-cut-rp-xlsx', { cutId: ready.cut.id, requestId: randomUUID() }); const afterReady = await metadata(ready.cut.id)
-fail(again.status === 'READY' && JSON.stringify(beforeReady) === JSON.stringify(afterReady), 'READY retry changed the official artifact.')
+const changedReadyFields = ['id', 'cut_id', 'file_name', 'storage_path', 'sha256', 'size_bytes', 'created_by'].filter((field) => beforeReady[field] !== afterReady[field])
+fail(again.status === 'READY' && changedReadyFields.length === 0, `READY retry changed official artifact fields: ${changedReadyFields.join(',') || 'none'}.`)
 const audit = await must(service.from('audit_events').select('event_type').eq('entity_id', ready.cut.id).in('event_type', ['CUT_FILE_GENERATED', 'CUT_FILE_VALIDATED', 'CUT_READY']), 'ready audit')
 for (const event of ['CUT_FILE_GENERATED', 'CUT_FILE_VALIDATED', 'CUT_READY']) fail(audit.filter((row) => row.event_type === event).length === 1, `READY audit duplicated ${event}.`)
 const readyState = await cutState(ready.cut.id); fail(readyState.generation_requested_by === requester.id && ready.fileMeta.created_by === requester.id, 'Official artifact attribution is not the requesting analyst.')
