@@ -121,6 +121,11 @@ const corruptGenerated = await scenario(creator, requester, 'corrupt-file-genera
 // Roles use real JWTs. Direct object writes must be denied; only signed Edge downloads cross the boundary.
 for (const actor of [counter, outsider]) { const denied = await invokeRaw(actor, 'download-cut-rp-xlsx', { cutId: ready.cut.id }); fail(!denied.response.ok, 'Unauthorized role received a signed URL.') }
 await download(admin, ready.cut.id, ready.rows)
+for (const [label, client] of [['anon', createClient(url, anonKey)], ['analyst', requester.client]]) {
+  const directFile = await client.from('generated_files').select('id').eq('cut_id', ready.cut.id); const directCut = await client.from('inventory_cuts').select('id').eq('id', ready.cut.id)
+  fail(Boolean(directFile.error) || directFile.data.length === 0, `Direct generated_files metadata was visible to ${label}.`)
+  fail(Boolean(directCut.error) || directCut.data.length === 0, `Direct inventory_cuts metadata was visible to ${label}.`)
+}
 for (const [label, client] of [['anon', createClient(url, anonKey)], ['counter', counter.client], ['analyst', requester.client], ['admin', admin.client]]) {
   const directPath = `direct-denied/${label}-${randomUUID()}.xlsx`; const inserted = await client.storage.from('inventory-rp').upload(directPath, new Uint8Array([1]), { upsert: false }); const updated = await client.storage.from('inventory-rp').upload(ready.fileMeta.storage_path, new Uint8Array([2]), { upsert: true }); const deleted = await client.storage.from('inventory-rp').remove([ready.fileMeta.storage_path])
   fail(Boolean(inserted.error) && Boolean(updated.error) && Boolean(deleted.error), `Direct Storage write was allowed for ${label}.`)
