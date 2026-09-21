@@ -10,7 +10,7 @@ if (!url || !anonKey || !serviceKey) throw new Error('Local Supabase status vari
 const service = createClient(url, serviceKey)
 const now = () => new Date().toISOString()
 const sha = (bytes) => createHash('sha256').update(bytes).digest('hex')
-const must = async (result, name) => { if (result.error) throw new Error(`${name}: ${result.error.message}`); return result.data }
+const must = async (result, name) => { const resolved = await result; if (resolved.error) throw new Error(`${name}: ${resolved.error.message}`); return resolved.data }
 const fail = (condition, message) => { if (!condition) throw new Error(message) }
 
 async function user(role, label) {
