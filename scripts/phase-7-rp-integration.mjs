@@ -129,9 +129,14 @@ fail(expirationDate?.toISOString().slice(0, 10) === '2027-05-15', 'Official XLSX
 for (const ref of ['B2', 'C2', 'D2', 'E2', 'F2', 'G2']) fail(blankSheet[ref] === undefined, `Official XLSX optional field ${ref} is not a true blank.`)
 
 // READY remains an immutable artifact and transition audit remains exactly once after a real retry.
-const ready = official[0]; const beforeReady = await metadata(ready.cut.id); const again = await invoke(requester, 'generate-cut-rp-xlsx', { cutId: ready.cut.id, requestId: randomUUID() }); const afterReady = await metadata(ready.cut.id)
+const ready = official[0]; const beforeReady = await metadata(ready.cut.id); const beforeReadyState = await cutState(ready.cut.id); const again = await invoke(requester, 'generate-cut-rp-xlsx', { cutId: ready.cut.id, requestId: randomUUID() }); const afterReady = await metadata(ready.cut.id); const afterReadyState = await cutState(ready.cut.id)
 const changedReadyFields = ['id', 'cut_id', 'file_name', 'storage_path', 'sha256', 'size_bytes', 'created_by'].filter((field) => beforeReady[field] !== afterReady[field])
-fail(again.status === 'READY' && changedReadyFields.length === 0, `READY retry changed official artifact fields: ${changedReadyFields.join(',') || 'none'}.`)
+fail(again.action === 'READY' && again.cut_id === ready.cut.id && again.request_id === beforeReadyState.generation_request_id && changedReadyFields.length === 0, `READY retry changed official artifact fields: ${changedReadyFields.join(',') || 'none'}.`)
+fail(afterReadyState.status === 'READY' && afterReadyState.generation_request_id === beforeReadyState.generation_request_id && afterReadyState.generation_requested_by === beforeReadyState.generation_requested_by && afterReadyState.file_hash === beforeReadyState.file_hash && afterReadyState.file_name === beforeReadyState.file_name, 'READY retry changed canonical cut state.')
+const officialFileCount = await service.from('generated_files').select('id', { count: 'exact', head: true }).eq('cut_id', ready.cut.id).eq('file_type', 'CUT_XLSX')
+fail(!officialFileCount.error && officialFileCount.count === 1, 'READY retry created more than one CUT_XLSX artifact.')
+const retryDownload = await download(requester, ready.cut.id, ready.rows)
+fail(retryDownload.fileMeta.storage_path === beforeReady.storage_path && sha(retryDownload.bytes) === sha(ready.bytes) && retryDownload.bytes.byteLength === ready.bytes.byteLength, 'READY retry changed stored XLSX bytes.')
 const audit = await must(service.from('audit_events').select('event_type').eq('entity_id', ready.cut.id).in('event_type', ['CUT_FILE_GENERATED', 'CUT_FILE_VALIDATED', 'CUT_READY']), 'ready audit')
 for (const event of ['CUT_FILE_GENERATED', 'CUT_FILE_VALIDATED', 'CUT_READY']) fail(audit.filter((row) => row.event_type === event).length === 1, `READY audit duplicated ${event}.`)
 const readyState = await cutState(ready.cut.id); fail(readyState.generation_requested_by === requester.id && ready.fileMeta.created_by === requester.id, 'Official artifact attribution is not the requesting analyst.')
