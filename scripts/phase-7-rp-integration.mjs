@@ -32,7 +32,7 @@ async function createInventory(creator, requester, label) {
 
 async function accept(creator, inventory, fields = {}) {
   const data = await must(creator.client.rpc('sync_counts', { p_inventory_id: inventory.id, p_device_id: inventory.deviceId, p_platform: 'WEB', p_app_version: 'phase7-ci', p_device_label: 'INVEN3 CI', p_records: [{ client_count_id: randomUUID(), ubicacion: 'A-01-01', codigo: '001234', cantidad_contada: 1, captured_at: now(), ...fields }] }), 'accept count')
-  fail(data[0]?.result_status === 'ACCEPTED', 'Phase 7 fixture count was not accepted.')
+  fail(Array.isArray(data) && data[0]?.result_status === 'ACCEPTED', `Phase 7 fixture count was not accepted: ${JSON.stringify(data)}.`)
 }
 
 async function makeCut(creator, inventory) { return must(creator.client.rpc('create_cut', { p_inventory_id: inventory.id, p_request_id: randomUUID() }), 'create cut') }
@@ -134,8 +134,8 @@ for (const [label, client] of [['anon', createClient(url, anonKey)], ['counter',
 
 // A real 2,350-row cut runs through Edge, Storage, READY and signed download.
 const volume = await createInventory(creator, requester, 'volume-2350'); const volumeStarted = Date.now()
-for (let batch = 0; batch < 2350; batch += 200) {
-  const records = Array.from({ length: Math.min(200, 2350 - batch) }, (_, offset) => ({ client_count_id: randomUUID(), ubicacion: `F-${String(Math.floor((batch + offset) / 99) + 1).padStart(2, '0')}-${String((batch + offset) % 99 + 1).padStart(2, '0')}`, codigo: '001234', cantidad_contada: 1, captured_at: now() }))
+for (let batch = 0; batch < 2350; batch += 20) {
+  const records = Array.from({ length: Math.min(20, 2350 - batch) }, (_, offset) => ({ client_count_id: randomUUID(), ubicacion: `F-${String(Math.floor((batch + offset) / 99) + 1).padStart(2, '0')}-${String((batch + offset) % 99 + 1).padStart(2, '0')}`, codigo: '001234', cantidad_contada: 1, captured_at: now() }))
   const result = await must(creator.client.rpc('sync_counts', { p_inventory_id: volume.id, p_device_id: volume.deviceId, p_platform: 'WEB', p_app_version: 'phase7-ci', p_device_label: 'INVEN3 CI volume', p_records: records }), 'volume sync')
   fail(result.every((row) => row.result_status === 'ACCEPTED'), 'A volume record was not accepted.')
 }
