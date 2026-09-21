@@ -18,14 +18,23 @@ async function user(role, label) {
   const created = await service.auth.admin.createUser({ email, password, email_confirm: true })
   if (created.error || !created.data.user) throw new Error(`Cannot create ${label}: ${created.error?.message ?? 'missing user'}`)
   await must(service.from('profiles').insert({ user_id: created.data.user.id, display_name: `Phase 7 ${label}`, role, active: true }), `profile ${label}`)
-  const authClient = createClient(url, anonKey)
+  const authClient = createClient(url, anonKey, { auth: { storageKey: `phase7-${label}-${randomUUID()}` } })
   const login = await authClient.auth.signInWithPassword({ email, password })
   if (login.error || !login.data.user || !login.data.session) throw new Error(`Cannot authenticate ${label}: ${login.error?.message ?? 'missing session'}`)
-  return { id: created.data.user.id, label, role, client: authClient, authClient, session: login.data.session, token: login.data.session.access_token }
+  const persisted = await authClient.auth.getSession()
+  if (persisted.error || !persisted.data.session || persisted.data.session.user.id !== created.data.user.id) throw new Error(`Cannot retain authenticated session for ${label}.`)
+  return { id: created.data.user.id, label, role, client: authClient, authClient, session: persisted.data.session, token: persisted.data.session.access_token }
+}
+
+async function actorToken(actor) {
+  const current = await actor.authClient.auth.getSession()
+  if (current.error || !current.data.session) throw new Error(`Harness authenticated session preflight failed: ${actor.label}; current session unavailable.`)
+  return current.data.session.access_token
 }
 
 async function preflightActor(actor) {
-  const identity = await actor.authClient.auth.getUser(actor.token)
+  const token = await actorToken(actor)
+  const identity = await actor.authClient.auth.getUser(token)
   const returnedId = identity.data.user?.id ?? 'none'
   if (identity.error || returnedId !== actor.id) throw new Error(`Harness authenticated session preflight failed: ${actor.label}; expected user ${actor.id}; auth user ${returnedId}.`)
   const { data: profiles, error } = await actor.authClient.from('profiles').select('user_id,role,active').eq('user_id', actor.id)
