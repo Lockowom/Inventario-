@@ -23,7 +23,8 @@ async function user(role, label) {
   if (login.error || !login.data.user || !login.data.session) throw new Error(`Cannot authenticate ${label}: ${login.error?.message ?? 'missing session'}`)
   const persisted = await authClient.auth.getSession()
   if (persisted.error || !persisted.data.session || persisted.data.session.user.id !== created.data.user.id) throw new Error(`Cannot retain authenticated session for ${label}.`)
-  return { id: created.data.user.id, label, role, client: authClient, authClient, session: persisted.data.session, token: persisted.data.session.access_token }
+  const client = createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${persisted.data.session.access_token}` } } })
+  return { id: created.data.user.id, label, role, client, authClient, session: persisted.data.session, token: persisted.data.session.access_token }
 }
 
 async function actorToken(actor) {
@@ -37,7 +38,7 @@ async function preflightActor(actor) {
   const identity = await actor.authClient.auth.getUser(token)
   const returnedId = identity.data.user?.id ?? 'none'
   if (identity.error || returnedId !== actor.id) throw new Error(`Harness authenticated session preflight failed: ${actor.label}; expected user ${actor.id}; auth user ${returnedId}.`)
-  const { data: profiles, error } = await actor.authClient.from('profiles').select('user_id,role,active').eq('user_id', actor.id)
+  const { data: profiles, error } = await actor.client.from('profiles').select('user_id,role,active').eq('user_id', actor.id)
   const profile = profiles?.length === 1 ? profiles[0] : null
   if (error || profile?.user_id !== actor.id || profile?.role !== actor.role || profile?.active !== true) {
     throw new Error(`Harness authenticated session preflight failed: ${actor.label}; expected active ${actor.role} profile for ${actor.id}; getUser ${returnedId}; profile visible ${profile ? 'yes' : 'no'}; PostgREST ${error?.code ?? '200'}.`)
@@ -63,11 +64,11 @@ async function metadata(cutId) { return must(await service.from('generated_files
 async function maybeMetadata(cutId) { return must(await service.from('generated_files').select('id').eq('cut_id', cutId).eq('file_type', 'CUT_XLSX').maybeSingle(), 'maybe file metadata') }
 
 async function invokeRaw(actor, name, body) {
-  const result = await actor.authClient.functions.invoke(name, { body })
+  const result = await actor.client.functions.invoke(name, { body })
   return { response: result.response ?? { ok: false, status: 0 }, data: result.data ?? { error: result.error?.message ?? 'Edge invocation failed' } }
 }
 async function authenticatedRpc(actor, name, body) {
-  const result = await actor.authClient.rpc(name, body)
+  const result = await actor.client.rpc(name, body)
   if (result.error) throw new Error(`${name}: ${result.error.message}`)
   return result.data
 }
