@@ -26,7 +26,8 @@ async function createInventory(creator, requester, label) {
   await must(service.from('inventories').insert({ id, name: `P7_${label}_${randomUUID()}`, status: 'ABIERTO', created_by: creator.id, prepared_at: time, prepared_by: creator.id, opened_at: time, opened_by: creator.id }), `inventory ${label}`)
   await must(service.from('inventory_assignments').insert([{ inventory_id: id, user_id: creator.id, assigned_by: creator.id, active: true }, { inventory_id: id, user_id: requester.id, assigned_by: creator.id, active: true }]), `assignments ${label}`)
   await must(service.from('inventory_master_items').insert({ inventory_id: id, codigo: '001234', descripcion: 'RP snapshot description', control_type: 'LEGACY', source: 'TEST', created_by: creator.id }), `master ${label}`)
-  return { id, deviceId: randomUUID() }
+  const deviceId = randomUUID(); await must(creator.client.rpc('register_sync_device', { p_device_id: deviceId, p_platform: 'WEB', p_app_version: 'phase7-ci', p_device_label: 'INVEN3 CI' }), `register device ${label}`)
+  return { id, deviceId }
 }
 
 async function accept(creator, inventory, fields = {}) {
