@@ -22,6 +22,9 @@ jobs:
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
+      - run: npx cap sync android
+      - run: npx cap sync ios
+      - run: npm audit --omit=dev
 
   database-checks:
     runs-on: ubuntu-latest
@@ -32,8 +35,25 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npx supabase start -x storage-api,imgproxy,mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor
+      - run: npx supabase start -x imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor
       - run: npx supabase db reset
       - run: npx supabase test db --local supabase/tests
       - run: set -a && eval "$(npx supabase status -o env)" && set +a && node scripts/supabase-sync-integration.mjs
       - run: npx supabase db advisors --local --type security --level warn --fail-on error
+
+  phase-7-edge-storage:
+    needs: database-checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx supabase start -x imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor
+      - run: npx supabase db reset
+      - run: set -a && eval "$(npx supabase status -o env)" && set +a && node scripts/phase-7-rp-integration.mjs
+      - run: npx supabase db advisors --local --type security --level warn --fail-on error
+      - if: always()
+        run: docker logs supabase_edge_runtime_inven3 || true
