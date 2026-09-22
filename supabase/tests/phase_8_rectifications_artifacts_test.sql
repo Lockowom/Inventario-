@@ -78,8 +78,8 @@ reset role;
 select set_config('request.jwt.claim.sub', 'f8000000-0000-0000-0000-000000000002', true); set local role authenticated;
 select lives_ok($$select public.freeze_inventory('f8100000-0000-0000-0000-000000000002')$$, 'assigned analyst freezes closed inventory');
 select is((select status from public.inventories where id = 'f8100000-0000-0000-0000-000000000002'), 'CONGELADO'::public.inventory_status, 'freeze transition remains valid');
-select is((select count(*) from public.artifact_generations where inventory_id = 'f8100000-0000-0000-0000-000000000002' and scope = 'FINAL_FROZEN_BACKUP' and status = 'REQUESTED'), 1::bigint, 'freeze reserves one final backup');
 reset role;
+select is((select count(*) from public.artifact_generations where inventory_id = 'f8100000-0000-0000-0000-000000000002' and scope = 'FINAL_FROZEN_BACKUP' and status = 'REQUESTED'), 1::bigint, 'freeze reserves one final backup');
 
 select set_config('request.jwt.claim.sub', 'f8000000-0000-0000-0000-000000000004', true); set local role authenticated;
 select is((select count(*) from public.artifact_generations where inventory_id = 'f8100000-0000-0000-0000-000000000001'), 0::bigint, 'unassigned ANALISTA sees no artifact lifecycle metadata');
