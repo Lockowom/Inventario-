@@ -183,7 +183,8 @@ await scenarioTest('METADATA_RLS', async () => { for (const [label, client, visi
 } })
 await scenarioTest('STORAGE_DIRECT_WRITE', async () => { for (const [label, client] of [['anon', createClient(url, anonKey)], ['counter', counter.client], ['analyst', requester.client], ['admin', admin.client]]) {
   const directPath = `direct-denied/${label}-${randomUUID()}.xlsx`; const inserted = await client.storage.from('inventory-rp').upload(directPath, new Uint8Array([1]), { upsert: false }); const updated = await client.storage.from('inventory-rp').upload(ready.fileMeta.storage_path, new Uint8Array([2]), { upsert: true }); const deleted = await client.storage.from('inventory-rp').remove([ready.fileMeta.storage_path])
-  fail(Boolean(inserted.error) && Boolean(updated.error) && Boolean(deleted.error), `Direct Storage write was allowed for ${label}.`)
+  const allowed = [['insert', inserted], ['update', updated], ['delete', deleted]].filter(([, result]) => !result.error).map(([operation]) => operation)
+  fail(allowed.length === 0, `Direct Storage write was allowed for ${label}: ${allowed.join(', ')}.`)
 } })
 
 // A real 2,350-row cut runs through Edge, Storage, READY and signed download.
