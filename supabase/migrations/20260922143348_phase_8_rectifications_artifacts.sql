@@ -213,7 +213,7 @@ begin
   v_talla := nullif(btrim(p_payload ->> 'talla'), '');
   v_color := nullif(btrim(p_payload ->> 'color'), '');
   if nullif(p_payload ->> 'fecha_vencimiento', '') is not null then
-    if (p_payload ->> 'fecha_vencimiento') !~ '^\\d{4}-\\d{2}-\\d{2}$' then
+    if (p_payload ->> 'fecha_vencimiento') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then
       raise exception 'INVALID_DATE' using errcode = '23514';
     end if;
     v_fecha := (p_payload ->> 'fecha_vencimiento')::date;
