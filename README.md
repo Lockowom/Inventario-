@@ -4,7 +4,7 @@ Sistema de captura para Inventario General físico, offline-first, con soporte A
 
 ## Estado
 
-**Fase actual:** Fase 7 — exportación RP XLSX controlada desde snapshots inmutables.
+**Fase actual:** Fase 8A — contrato de rectificaciones, snapshots, respaldos y recuperación en revisión; no hay lógica F8 implementada.
 
 ## Inicio rápido
 
@@ -66,6 +66,8 @@ La certificación de SQLite, permisos de cámara y scanner requiere pruebas en d
 - [`docs/CORRECCIONES_PRE_CORTE_V1.md`](docs/CORRECCIONES_PRE_CORTE_V1.md) — corrección auditada antes del corte.
 - [`docs/CORTES_V1.md`](docs/CORTES_V1.md) — corte idempotente y snapshot inmutable, sin XLSX.
 - [`docs/EXPORT_RP_XLSX_V1.md`](docs/EXPORT_RP_XLSX_V1.md) — contrato, generación, validación y descarga RP.
+- [`docs/RECTIFICACIONES_V1.md`](docs/RECTIFICACIONES_V1.md) — contrato F8A de rectificación separada post-corte.
+- [`docs/BACKUPS_RECOVERY_V1.md`](docs/BACKUPS_RECOVERY_V1.md) — contrato F8A de snapshots, respaldos y recuperación.
 
 ## Regla de gobierno
 
