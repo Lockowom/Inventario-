@@ -4,7 +4,7 @@ Sistema de captura para Inventario General físico, offline-first, con soporte A
 
 ## Estado
 
-**Fase actual:** Fase 8A — contrato de rectificaciones, snapshots, respaldos y recuperación en revisión; no hay lógica F8 implementada.
+**Fase actual:** Fase 8A — contrato final de rectificaciones, snapshots, respaldos y recuperación en revisión; no hay lógica F8 implementada.
 
 ## Inicio rápido
 

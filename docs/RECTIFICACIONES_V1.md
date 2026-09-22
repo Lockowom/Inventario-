@@ -1,6 +1,6 @@
 # Rectificaciones post-corte v1 — Contrato Fase 8
 
-**Estado:** contrato propuesto para revisión F8A. No habilita todavía migraciones, RPC, Edge Functions ni UI.
+**Estado:** contrato F8A final para revisión. No habilita todavía migraciones, RPC, Edge Functions ni UI.
 
 ## Alcance e invariantes
 
@@ -17,7 +17,7 @@ La fuente inicial de una rectificación es el `snapshot` de `inventory_cut_items
 
 ## Estados de inventario y autorización
 
-Se permite rectificar un corte en `ABIERTO`, `CERRADO` y `CONGELADO`. Los estados `BORRADOR` y `PREPARADO` no contienen cortes válidos. Permitir `ABIERTO` cubre cortes parciales sin esperar el cierre; permitir `CERRADO` y `CONGELADO` conserva consulta, auditoría, histórico, cortes y rectificaciones autorizadas. En todos los casos la rectificación es una mutación separada, no una reapertura del conteo normal.
+Se permite rectificar un corte en `ABIERTO`, `CERRADO` y `CONGELADO`; está prohibido en `BORRADOR` y `PREPARADO`. La regla es válida porque una rectificación crea evidencia append-only separada de un corte existente e inmutable. Incluso en `CONGELADO`, no reabre captura, no modifica `count_records` ni `inventory_cut_items.snapshot`, no libera `cut_id`/`export_seq`, y no modifica el `CUT_XLSX` original.
 
 | Actor | Crear / reintentar | Consultar / descargar |
 |---|---|---|
@@ -46,7 +46,18 @@ autorizar actor
 → commit
 ```
 
-`p_request_id` es UUID obligatorio. El esquema previsto añade `request_id` a `cut_rectifications` con `UNIQUE (cut_id, request_id)`. Un retry con la misma solicitud devuelve la misma fila, no agrega otra rectificación, auditoría ni solicitud de artefacto. Con otro `request_id`, una nueva rectificación es válida sólo si el payload y motivo representan una nueva decisión auditada.
+`p_request_id` es UUID obligatorio. El esquema previsto añade `request_id` a `cut_rectifications` con `UNIQUE (cut_id, request_id)` y exige comparar el fingerprint canónico de la solicitud:
+
+```text
+request_fingerprint = SHA-256(
+  cut_id + count_record_id + actor_user_id
+  + canonical_physical_payload + normalized_reason
+)
+```
+
+La serialización de `canonical_physical_payload` ordena determinísticamente sus claves y `normalized_reason` aplica la normalización aprobada antes de calcular el hash. La implementación podrá materializar ese hash o recomponerlo desde datos persistidos, pero siempre deberá compararlo.
+
+El mismo `(cut_id, request_id)` sólo es idempotente si conserva exactamente actor, `count_record_id`, payload físico canónico y motivo normalizado: devuelve la misma rectificación y no agrega fila, número, auditoría ni solicitud de artefacto. Si cualquiera difiere —incluido el actor— devuelve `IDEMPOTENCY_CONFLICT`; nunca devuelve silenciosamente una rectificación anterior. Un `request_id` nuevo puede crear una nueva decisión auditada.
 
 La numeración se calcula sólo después de bloquear el mismo corte/inventario. Bajo ese bloqueo puede usarse `coalesce(max(rectification_number), 0) + 1` de forma serializada, respaldada por el `UNIQUE (cut_id, rectification_number)` existente. Nunca se hará `SELECT MAX + 1` sin bloqueo.
 
@@ -55,12 +66,15 @@ La numeración se calcula sólo después de bloquear el mismo corte/inventario. 
 `old_values` y `new_values` son proyecciones físicas canónicas, no payloads libres. Contienen `ubicacion`, `codigo`, `serie`, `partida`, `pieza_producto`, `fecha_vencimiento`, `talla`, `color`, `cantidad_contada` y `descripcion` derivada. El `count_record_id`, corte, actor, motivo, número y UTC viven en columnas o auditoría, no se aceptan desde el cliente.
 
 ```text
-snapshot original → R001 → R002 → R003
-                  old       old     old
-                  snapshot  R001    R002
+registro A: snapshot original → R001 ───────────────→ R003
+                            old=snapshot             old=R001.new_values
+registro B: snapshot original ───────────→ R002
+                                         old=snapshot
 ```
 
 Para el mismo `(cut_id, count_record_id)`, la primera fila toma `old_values` del `inventory_cut_items.snapshot`. Cada fila posterior toma exactamente `new_values` de la rectificación previa de ese registro, ordenada por `rectification_number DESC` bajo el bloqueo. Ninguna versión histórica se actualiza o elimina.
+
+`rectification_number` es global por corte: si A es `R001`, B es `R002` y A vuelve a rectificarse, ésta es `R003`, cuyo `old_values` es `R001.new_values`, nunca `R002.new_values`.
 
 ## Validación física y descripción
 
@@ -71,9 +85,10 @@ El servidor normaliza y valida el nuevo payload con el mismo contrato de captura
 - SKU `SERIAL`: serie obligatoria, máximo 19 caracteres, partida ausente y cantidad exactamente 1;
 - SKU `PARTIDA`: partida obligatoria; los valores textuales preservan ceros iniciales;
 - cantidad es entero positivo; fecha es ISO `YYYY-MM-DD` válida o nula; el resto de textos conserva su semántica actual;
-- `descripcion` no es entrada de cliente: se deriva del maestro autorizado para el `codigo` final.
+- `p_physical_payload` acepta exclusivamente `ubicacion`, `codigo`, `serie`, `partida`, `pieza_producto`, `fecha_vencimiento`, `talla`, `color` y `cantidad_contada`; se rechaza cualquier clave inesperada;
+- no acepta `descripcion`, actor, timestamps, identificadores de corte/conteo, `rectification_number` ni `request_id`; `descripcion` se deriva server-side desde el maestro autorizado para el `codigo` final.
 
-El servicio rechaza referencias cruzadas entre inventarios, conteos no pertenecientes al corte y payloads cuya descripción no coincida con el maestro. La corrección no modifica `count_records`, el maestro, el snapshot ni el XLSX original.
+El servicio rechaza referencias cruzadas entre inventarios y conteos no pertenecientes al corte. La corrección no modifica `count_records`, el maestro, el snapshot ni el XLSX original.
 
 ## Auditoría
 
@@ -107,7 +122,7 @@ Identificadores se escriben como texto, fechas como celdas XLSX `dd-mm-yyyy` o b
 
 ## Cambios de base previstos, no implementados
 
-- Agregar `cut_rectifications.request_id` y su unicidad por corte para la idempotencia.
+- Agregar `cut_rectifications.request_id`, `request_fingerprint` o una comparación persistible equivalente, y su unicidad por corte para la idempotencia estricta.
 - Agregar una entidad de lifecycle de artefacto, referenciada por inventario/corte/rectificación con FKs compuestas, para no sobrecargar `generated_files` —que conserva metadata oficial inmutable— con estados transitorios.
 - Mantener `cut_rectifications`, `generated_files`, `audit_events`, `inventory_cuts`, `inventory_cut_items` y `count_records` sin cambio destructivo ni hard delete.
 - Revocar toda escritura directa desde cliente; sólo RPC/Edge service-side crean rectificaciones y artefactos.
@@ -116,7 +131,7 @@ Identificadores se escriben como texto, fechas como celdas XLSX `dd-mm-yyyy` o b
 
 | Capa | Casos obligatorios |
 |---|---|
-| Unit | normalización, cadena R001/R002/R003, serial/partida, fecha, ceros, descripción derivada, request id idempotente |
+| Unit | normalización, rechazo de claves inesperadas, cadena R001/R002/R003 entre registros, serial/partida, fecha, ceros, descripción derivada, fingerprint e idempotencia/conflicto |
 | pgTAP | roles, asignación, estados `ABIERTO/CERRADO/CONGELADO`, FKs compuestas, numeración concurrente, append-only, grants/RLS |
 | Edge/Storage | artifact separado, hash/tamaño, signed download, rechazo de overwrite/delete directo |
 | Recovery | request, metadata, generated, validated, READY, ERROR, recover, objeto faltante/corrupto |

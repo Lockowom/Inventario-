@@ -1,6 +1,6 @@
 # Snapshots, respaldos y recuperación v1 — Contrato Fase 8
 
-**Estado:** contrato propuesto para revisión F8A. Ningún backup, Storage object, Edge Function, migración o restauración se implementa con este documento.
+**Estado:** contrato F8A final para revisión. Ningún backup, Storage object, Edge Function, migración o restauración se implementa con este documento.
 
 ## Principios
 
@@ -11,13 +11,19 @@
 
 ## Tipos y momentos de generación
 
-| Tipo | Contenido y formato | Cuándo se solicita | Quién genera / descarga |
+| Tipo | Contenido y formato | Cuándo se reserva la solicitud | Quién genera / descarga |
 |---|---|---|---|
-| `SNAPSHOT` | JSON UTF-8 canónico versionado (`INVEN3_SNAPSHOT_V1`) de un corte: cabecera, `inventory_cut_items.snapshot`, cadena de rectificaciones existente y manifest de hashes. No es XLSX ni dump SQL. | Después de que un corte queda `READY`; una rectificación no reemplaza el snapshot original. | ANALISTA asignado o ADMIN / mismo alcance |
-| `TECHNICAL_BACKUP` | ZIP privado con `manifest.json`, `inventory.json`, `cuts.ndjson`, `cut-items.ndjson`, `rectifications.ndjson` y `artifacts.ndjson`; cada miembro se lista con SHA-256 y tamaño en el manifest. | Tras cada corte `READY` y un respaldo final al congelar. | ADMIN / ADMIN |
-| `RECTIFICATION_XLSX` | Workbook de auditoría definido en `RECTIFICACIONES_V1.md`. | Después de crear una rectificación. | ANALISTA asignado o ADMIN / mismo alcance |
+| `SNAPSHOT` | JSON UTF-8 canónico versionado (`INVEN3_SNAPSHOT_V1`) de un corte: cabecera `inventory_cut`, `inventory_cut_items.snapshot` y metadata del `CUT_XLSX` (`file_name`, SHA-256, tamaño e identidad Storage). No incorpora rectificaciones posteriores. No es XLSX ni dump SQL. | Server-side al alcanzar `CUT → READY`; existe exactamente uno por `cut_id`. | ANALISTA asignado o ADMIN / mismo alcance |
+| `TECHNICAL_BACKUP` | ZIP privado con `manifest.json`, `inventory.json`, `cuts.ndjson`, `cut-items.ndjson`, `rectifications.ndjson` y `artifacts.ndjson`; cada miembro se lista con SHA-256 y tamaño en el manifest. | Server-side tras `CUT → READY` (`CUT_READY_BACKUP`) y tras `INVENTORY → CONGELADO` (`FINAL_FROZEN_BACKUP`). | ADMIN / ADMIN |
+| `RECTIFICATION_XLSX` | Workbook de auditoría definido en `RECTIFICACIONES_V1.md`. | Server-side después de crear una rectificación. | ANALISTA asignado o ADMIN / mismo alcance |
 
-Los JSON se serializan con claves y arrays ordenados de manera determinista y UTC ISO-8601. El ZIP conserva orden fijo de entradas y timestamps normalizados para permitir verificar contenido y hash de cada artefacto. `TECHNICAL_BACKUP` es un paquete lógico recuperable en ambiente aislado; no ejecuta SQL ni restaura directamente sobre una instancia viva.
+El `SNAPSHOT` representa exclusivamente la evidencia base del corte READY original. Por ello una rectificación nunca lo reemplaza ni se incorpora a su contenido: incluir rectificaciones existentes lo haría depender del instante de generación. Los JSON se serializan con claves y arrays ordenados de manera determinista y UTC ISO-8601. El ZIP conserva orden fijo de entradas y timestamps normalizados para permitir verificar contenido y hash de cada artefacto. `TECHNICAL_BACKUP` es un paquete lógico recuperable en ambiente aislado; no ejecuta SQL ni restaura directamente sobre una instancia viva.
+
+Cada `TECHNICAL_BACKUP` incluye `as_of_at`, que fija la vista lógica reproducible: para `CUT_READY_BACKUP`, `source_cut_id = cut.id` y `as_of_at` es el instante server-side en que el corte alcanzó `READY`; para `FINAL_FROZEN_BACKUP`, `source_cut_id = null` y `as_of_at = inventory.frozen_at`. La generación física puede ocurrir después, pero un retry reconstruye el mismo conjunto lógico y no agrega cambios posteriores al `as_of_at`.
+
+Al alcanzar `CUT → READY`, la misma operación server-side reserva transaccional e idempotentemente las solicitudes `SNAPSHOT` y `TECHNICAL_BACKUP/CUT_READY_BACKUP`. Al alcanzar `INVENTORY → CONGELADO`, reserva `TECHNICAL_BACKUP/FINAL_FROZEN_BACKUP`. Nunca se hace una llamada HTTP Edge dentro de esa transacción: la generación de bytes se ejecuta luego mediante Edge/retry controlado.
+
+Cada reserva conserva su trazabilidad humana: `request_origin = SYSTEM`. Para un corte READY, `requested_by` es `generation_requested_by` del corte; para el backup de congelamiento, es el actor de `freeze_inventory`; para `RECTIFICATION_XLSX`, es `rectification.created_by`. Los reintentos manuales no alteran el actor canónico original. Las solicitudes explícitas de usuario, cuando una futura operación las permita, usan `request_origin = USER`.
 
 ## Bucket y descarga
 
@@ -38,22 +44,13 @@ Todo objeto oficial tiene `storage_path` único, MIME, SHA-256, `size_bytes`, ac
 El lifecycle será común para snapshot, backup y rectificación. Debe vivir en una entidad de generación separada de `generated_files`: ésta representa el archivo oficial final y no debe reutilizarse como lock/transitorio.
 
 ```text
-REQUESTED
-  → METADATA_CREATED
-  → FILE_GENERATED
-  → VALIDATED
-  → READY
-
-FILE_GENERATED / VALIDATED
-  → RECOVER → validar bytes existentes → READY
-
-REQUESTED / METADATA_CREATED / FILE_GENERATED / VALIDATED
-  → ERROR
-ERROR
-  → RECOVER o nueva solicitud idempotente
+REQUESTED → FILE_GENERATED → VALIDATED → READY
+REQUESTED / FILE_GENERATED / VALIDATED → ERROR
+ERROR + objeto válido → RECOVER → FILE_GENERATED / VALIDATED → READY
+ERROR + sin objeto → GENERATE
 ```
 
-`METADATA_CREATED` reserva identidad, request id y ruta, pero no declara artefacto oficial hasta que hash, tamaño y validación estén presentes. En `ERROR` se conserva mensaje seguro y evidencia disponible; no se borra ni reemplaza un objeto existente. `READY` es terminal e idempotente: la misma solicitud devuelve la misma metadata y no crea auditoría ni archivos nuevos.
+La fila de generación ya reserva identidad, request id, ruta y metadata de solicitud; `METADATA_CREATED` no es un estado separado. `RECOVER` es una acción, no un estado persistente. En `ERROR` se conserva mensaje seguro y evidencia disponible; no se borra ni reemplaza un objeto existente. `READY` es terminal e idempotente: la misma solicitud devuelve la misma metadata y no crea auditoría ni archivos nuevos.
 
 ## Recuperación controlada
 
@@ -67,18 +64,30 @@ Una recuperación de artefacto sólo puede:
 
 La recuperación de `TECHNICAL_BACKUP` se realiza en entorno local/aislado: se verifica el manifest antes de abrir los miembros y se genera un informe de divergencias. No hay restauración automática, `db push`, SQL remoto, overwrite de Storage ni modificación de ERP/RP.
 
-## Modelo y controles previstos, no implementados
+## Modelo, unicidad e idempotencia previstos, no implementados
 
-La futura entidad `artifact_generations` tendrá UUID, `inventory_id`, referencias compuestas opcionales a corte/rectificación, tipo, scope, request id, estado, error seguro, actor solicitante y timestamps UTC. Requerirá constraints que obliguen los pares correctos de referencia según tipo y unicidad de solicitud. `generated_files` conservará sólo metadata de artefacto oficial listo, con sus FKs actuales.
+`artifact_generations` contiene lifecycle transitorio y tendrá: UUID, `inventory_id`, `cut_id?`, `rectification_id?`, `artifact_type`, `scope`, `request_id`, `request_fingerprint`, `request_origin`, `requested_by`, `status`, `storage_path`, `sha256?`, `size_bytes?`, `generator_version?`, `as_of_at`, `error_safe?`, `created_at` y `updated_at`. Requerirá constraints para los pares de referencia y scope correctos.
+
+`generated_files` contiene únicamente el artefacto oficial `READY`; no recibe una fila antes de validación exitosa. `VALIDATED → READY` inserta `generated_files` exactamente una vez y transiciona la generación de modo transaccional e idempotente.
+
+La fuente canónica tiene como máximo un artefacto oficial: un `RECTIFICATION_XLSX` por `rectification_id`, un `SNAPSHOT` por `cut_id`, un `CUT_READY_BACKUP` por `source_cut_id` y un `FINAL_FROZEN_BACKUP` por inventario/evento de congelamiento. Recovery y retry no producen un segundo `generated_files`.
+
+Para la generación, el mismo `request_id` sólo reutiliza la misma fila si el fingerprint conserva tipo, fuente, scope, `as_of_at` y actor. Cualquier diferencia devuelve `IDEMPOTENCY_CONFLICT`. Aun con un `request_id` nuevo, si el artefacto oficial único de la misma fuente/scope existe, se reutiliza su lifecycle/artefacto canónico y no se duplica `generated_files`.
 
 Las funciones de generación y descarga exigirán `require_active_actor()` y `can_manage_inventory` para scope de analista, o `is_admin()` para `TECHNICAL_BACKUP`. Los helpers y funciones service-side se mantendrán en `app_private`/Edge con `search_path` fijado, grants mínimos, RLS y sin acceso de `anon`. CONTADOR no puede generar ni descargar estos artefactos.
+
+## Auditoría F8 prevista
+
+Además de `RECTIFICATION_CREATED`, el lifecycle usa eventos genéricos: `ARTIFACT_REQUESTED`, `ARTIFACT_FILE_GENERATED`, `ARTIFACT_VALIDATED`, `ARTIFACT_READY`, `ARTIFACT_ERROR` y `ARTIFACT_DOWNLOADED`. Su payload identifica `artifact_generation_id`, tipo, scope, corte, rectificación, `generated_file_id` cuando exista, SHA-256/tamaño cuando existan, `request_origin` y `requested_by`.
+
+Una ejecución exitosa produce exactamente uno de `ARTIFACT_REQUESTED`, `ARTIFACT_FILE_GENERATED`, `ARTIFACT_VALIDATED` y `ARTIFACT_READY`. Retry de `READY`, `RECOVER` o lost ACK no duplica eventos ya completados. Un intento fallido real puede agregar un `ARTIFACT_ERROR`; la futura implementación incorpora `attempt_number` si es necesario para distinguir esos fallos legítimos de duplicados.
 
 ## Matriz F8 antes de CI pesada
 
 | Grupo | Escenarios independientes acumulables |
 |---|---|
 | Unit | serialización canónica, manifest, nombres/rutas, hashes, ZIP determinista, normalización UTC |
-| pgTAP | roles, asignación, estados, request id, unicidad, transición, RLS, grants y no hard delete |
+| pgTAP | roles, asignación, estados, fingerprint/request id, unicidad oficial, transición, auditoría idempotente, RLS, grants y no hard delete |
 | Edge/Storage | generación, validación, signed URL, SHA/size descargados, aislamiento de metadata |
 | Recovery | ERROR sin objeto, ERROR con objeto, FILE_GENERATED recovery, VALIDATED recovery, storage missing y corrupt, READY idempotente |
 | Security | CONTADOR/anon/no asignado denegados; upload/overwrite/delete directo no persiste; service role no llega al cliente |
