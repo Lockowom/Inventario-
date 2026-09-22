@@ -19,8 +19,8 @@ insert into public.profiles (user_id, display_name, role) values
   ('f8000000-0000-0000-0000-000000000002', 'F8 Analyst', 'ANALISTA'),
   ('f8000000-0000-0000-0000-000000000003', 'F8 Counter', 'CONTADOR'),
   ('f8000000-0000-0000-0000-000000000004', 'F8 Outsider', 'ANALISTA');
-insert into public.inventories (id, name, status, created_by, prepared_at, prepared_by, opened_at, opened_by) values
-  ('f8100000-0000-0000-0000-000000000001', 'F8 OPEN', 'ABIERTO', 'f8000000-0000-0000-0000-000000000001', now(), 'f8000000-0000-0000-0000-000000000001', now(), 'f8000000-0000-0000-0000-000000000001'),
+insert into public.inventories (id, name, status, created_by, prepared_at, prepared_by, opened_at, opened_by, closed_at, closed_by) values
+  ('f8100000-0000-0000-0000-000000000001', 'F8 OPEN', 'ABIERTO', 'f8000000-0000-0000-0000-000000000001', now(), 'f8000000-0000-0000-0000-000000000001', now(), 'f8000000-0000-0000-0000-000000000001', null, null),
   ('f8100000-0000-0000-0000-000000000002', 'F8 CLOSED', 'CERRADO', 'f8000000-0000-0000-0000-000000000001', now(), 'f8000000-0000-0000-0000-000000000001', now(), 'f8000000-0000-0000-0000-000000000001', now(), 'f8000000-0000-0000-0000-000000000001');
 insert into public.inventory_assignments (inventory_id, user_id, assigned_by) values
   ('f8100000-0000-0000-0000-000000000001', 'f8000000-0000-0000-0000-000000000002', 'f8000000-0000-0000-0000-000000000001'),
