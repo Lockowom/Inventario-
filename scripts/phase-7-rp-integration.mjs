@@ -182,9 +182,11 @@ await scenarioTest('METADATA_RLS', async () => { for (const [label, client, visi
   fail(visible ? !directFile.error && directFile.data.length === 1 && !directCut.error && directCut.data.length === 1 : (Boolean(directFile.error) || directFile.data.length === 0) && (Boolean(directCut.error) || directCut.data.length === 0), `Metadata RLS mismatch for ${label}.`)
 } })
 await scenarioTest('STORAGE_DIRECT_WRITE', async () => { for (const [label, client] of [['anon', createClient(url, anonKey)], ['counter', counter.client], ['analyst', requester.client], ['admin', admin.client]]) {
-  const directPath = `direct-denied/${label}-${randomUUID()}.xlsx`; const inserted = await client.storage.from('inventory-rp').upload(directPath, new Uint8Array([1]), { upsert: false }); const updated = await client.storage.from('inventory-rp').upload(ready.fileMeta.storage_path, new Uint8Array([2]), { upsert: true }); const deleted = await client.storage.from('inventory-rp').remove([ready.fileMeta.storage_path])
-  const allowed = [['insert', inserted], ['update', updated], ['delete', deleted]].filter(([, result]) => !result.error).map(([operation]) => operation)
-  fail(allowed.length === 0, `Direct Storage write was allowed for ${label}: ${allowed.join(', ')}.`)
+  const directPath = `direct-denied/${label}-${randomUUID()}.xlsx`; const original = await must(service.storage.from('inventory-rp').download(ready.fileMeta.storage_path), 'read official storage bytes before direct-write check'); const originalBytes = new Uint8Array(await original.arrayBuffer()); const originalHash = sha(originalBytes)
+  const inserted = await client.storage.from('inventory-rp').upload(directPath, new Uint8Array([1]), { upsert: false }); const insertedProbe = await service.storage.from('inventory-rp').download(directPath)
+  fail(Boolean(inserted.error) || Boolean(insertedProbe.error), `Direct Storage insert persisted for ${label}.`)
+  await client.storage.from('inventory-rp').upload(ready.fileMeta.storage_path, new Uint8Array([2]), { upsert: true }); const afterUpdate = await must(service.storage.from('inventory-rp').download(ready.fileMeta.storage_path), 'read official storage bytes after direct update'); fail(sha(new Uint8Array(await afterUpdate.arrayBuffer())) === originalHash, `Direct Storage update changed official bytes for ${label}.`)
+  await client.storage.from('inventory-rp').remove([ready.fileMeta.storage_path]); const afterDelete = await must(service.storage.from('inventory-rp').download(ready.fileMeta.storage_path), 'read official storage bytes after direct delete'); fail(sha(new Uint8Array(await afterDelete.arrayBuffer())) === originalHash, `Direct Storage delete changed official bytes for ${label}.`)
 } })
 
 // A real 2,350-row cut runs through Edge, Storage, READY and signed download.
