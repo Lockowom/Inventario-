@@ -132,6 +132,9 @@ await scenario('IDEMPOTENCY', async () => {
   const replay = await rpc(manager, 'rectify_cut', { p_cut_id: ready.id, p_count_record_id: recordA.count_record_id, p_physical_payload: { cantidad_contada: 3, color: 'NEGRO', talla: 'M', fecha_vencimiento: '2027-05-15', pieza_producto: '0001', partida: '00725', serie: '00001', codigo: '001234', ubicacion: 'B-02-03' }, p_reason: 'first decision', p_request_id: requestId })
   fail(replay.id === firstRectification.id && replay.idempotent === true, 'Canonical retry did not return same rectification.')
   await rpcError(manager, 'rectify_cut', { p_cut_id: ready.id, p_count_record_id: recordA.count_record_id, p_physical_payload: { ...payload, cantidad_contada: 4 }, p_reason: 'first decision', p_request_id: requestId }, 'IDEMPOTENCY_CONFLICT')
+  await rpcError(manager, 'rectify_cut', { p_cut_id: ready.id, p_count_record_id: recordB.count_record_id, p_physical_payload: payload, p_reason: 'first decision', p_request_id: requestId }, 'IDEMPOTENCY_CONFLICT')
+  await rpcError(manager, 'rectify_cut', { p_cut_id: ready.id, p_count_record_id: recordA.count_record_id, p_physical_payload: payload, p_reason: 'different reason', p_request_id: requestId }, 'IDEMPOTENCY_CONFLICT')
+  await rpcError(owner, 'rectify_cut', { p_cut_id: ready.id, p_count_record_id: recordA.count_record_id, p_physical_payload: payload, p_reason: 'first decision', p_request_id: requestId }, 'IDEMPOTENCY_CONFLICT')
   const rectCount = await manager.client.from('cut_rectifications').select('id', { count: 'exact', head: true }).eq('id', firstRectification.id)
   const auditCount = await manager.client.from('audit_events').select('id', { count: 'exact', head: true }).eq('entity_id', firstRectification.id).eq('event_type', 'RECTIFICATION_CREATED')
   fail(!rectCount.error && !auditCount.error && rectCount.count === 1 && auditCount.count === 1, 'Idempotent retry duplicated row or business audit.')
@@ -145,12 +148,24 @@ await scenario('CROSS_RECORD_CHAIN', async () => {
   fail(second.rectification_number < third.rectification_number && JSON.stringify(thirdRow.old_values) === JSON.stringify(first.new_values), 'R003 did not use R001 effective values for the same record.')
 })
 
-await scenario('CONCURRENCY', async () => {
+await scenario('CONCURRENT_DISTINCT_REQUESTS', async () => {
   const outcomes = await Promise.all([
     rpc(manager, 'rectify_cut', { p_cut_id: ready.id, p_count_record_id: recordA.count_record_id, p_physical_payload: { ubicacion: 'G-07-08', codigo: '001234', cantidad_contada: 8 }, p_reason: 'concurrent A', p_request_id: randomUUID() }),
     rpc(manager, 'rectify_cut', { p_cut_id: ready.id, p_count_record_id: recordB.count_record_id, p_physical_payload: { ubicacion: 'H-08-09', codigo: '001234', cantidad_contada: 9 }, p_reason: 'concurrent B', p_request_id: randomUUID() }),
   ])
   fail(outcomes[0].rectification_number !== outcomes[1].rectification_number, 'Concurrent rectifications collided on their global number.')
+})
+
+await scenario('CONCURRENT_SAME_REQUEST', async () => {
+  const requestId = randomUUID()
+  const body = { p_cut_id: ready.id, p_count_record_id: recordA.count_record_id, p_physical_payload: { ubicacion: 'I-09-10', codigo: '001234', cantidad_contada: 10 }, p_reason: 'concurrent same request', p_request_id: requestId }
+  const [left, right] = await Promise.all([rpc(manager, 'rectify_cut', body), rpc(manager, 'rectify_cut', body)])
+  fail(left.id === right.id && left.rectification_number === right.rectification_number, 'Same request concurrency returned distinct rectifications.')
+  const rectifications = await manager.client.from('cut_rectifications').select('id', { count: 'exact', head: true }).eq('id', left.id)
+  const businessAudits = await manager.client.from('audit_events').select('id', { count: 'exact', head: true }).eq('entity_id', left.id).eq('event_type', 'RECTIFICATION_CREATED')
+  const artifact = await must(manager.client.from('artifact_generations').select('id').eq('rectification_id', left.id).eq('scope', 'RECTIFICATION_XLSX').single(), 'same-request artifact')
+  const artifactAudits = await manager.client.from('audit_events').select('id', { count: 'exact', head: true }).eq('entity_id', artifact.id).eq('event_type', 'ARTIFACT_REQUESTED')
+  fail(!rectifications.error && !businessAudits.error && !artifactAudits.error && rectifications.count === 1 && businessAudits.count === 1 && artifactAudits.count === 1, 'Same request concurrency duplicated evidence.')
 })
 
 await scenario('IMMUTABILITY', async () => {
@@ -173,6 +188,21 @@ await scenario('AUTO_RESERVATIONS', async () => {
   fail(finalBackup.status === 'REQUESTED' && finalBackup.as_of_at === frozenState.frozen_at && finalBackup.requested_by === manager.id && finalBackup.request_origin === 'SYSTEM', 'Freeze reservation is not canonical.')
   const rectArtifact = await must(service.from('artifact_generations').select('status,request_origin,requested_by').eq('rectification_id', firstRectification.id).eq('scope', 'RECTIFICATION_XLSX').single(), 'rectification artifact reservation')
   fail(rectArtifact.status === 'REQUESTED' && rectArtifact.request_origin === 'SYSTEM' && rectArtifact.requested_by === manager.id, 'Rectification reservation is not canonical.')
+})
+
+await scenario('RECTIFICATION_AS_OF', async () => {
+  const rectification = await must(manager.client.from('cut_rectifications').select('id,cut_id,created_at').eq('id', firstRectification.id).single(), 'rectification timestamp')
+  const artifact = await must(manager.client.from('artifact_generations').select('cut_id,rectification_id,as_of_at').eq('rectification_id', firstRectification.id).eq('scope', 'RECTIFICATION_XLSX').single(), 'rectification as_of artifact')
+  fail(artifact.as_of_at === rectification.created_at, 'RECTIFICATION_XLSX as_of_at does not equal rectification created_at.')
+  fail(artifact.cut_id === rectification.cut_id && artifact.rectification_id === rectification.id, 'RECTIFICATION_XLSX is not structurally linked to its cut.')
+})
+
+await scenario('CROSS_CUT_INTEGRITY', async () => {
+  const rows = await must(manager.client.from('artifact_generations').select('cut_id,rectification_id').not('rectification_id', 'is', null), 'rectification artifact links')
+  for (const row of rows) {
+    const rectification = await must(manager.client.from('cut_rectifications').select('cut_id').eq('id', row.rectification_id).single(), 'rectification cut link')
+    fail(row.cut_id === rectification.cut_id, 'Artifact generation joins a rectification from another cut.')
+  }
 })
 
 console.log('PHASE 8B DATABASE CERTIFICATION SUMMARY')
