@@ -84,7 +84,7 @@ await must(service.from('inventory_assignments').insert({ inventory_id: primary.
 await stageCount(owner, primary, { ubicacion: 'A-01-01', cantidad_contada: 1, serie: '00001', partida: '00725', pieza_producto: '0001', fecha_vencimiento: '2027-05-15', talla: 'M', color: 'NEGRO' })
 await stageCount(owner, primary, { ubicacion: 'A-01-02', cantidad_contada: 2 })
 const ready = await makeReady(owner, manager, primary)
-const cutItems = await must(service.from('inventory_cut_items').select('count_record_id,snapshot').eq('cut_id', ready.id).order('count_record_id'), 'cut items')
+const cutItems = await rpc(manager, 'get_cut_items', { p_cut_id: ready.id, p_limit: 100, p_after_export_seq: null })
 const [recordA, recordB] = cutItems
 const originalSnapshot = JSON.stringify(recordA.snapshot)
 const originalCount = await must(service.from('count_records').select('cantidad_contada,cut_id,export_seq').eq('id', recordA.count_record_id).single(), 'original count')
@@ -103,7 +103,7 @@ await scenario('AUTHORIZATION', async () => {
 await scenario('STATES', async () => {
   const notReadyInventory = await createInventory(owner, manager, 'not-ready'); await stageCount(owner, notReadyInventory, {})
   const notReadyCut = await rpc(manager, 'create_cut', { p_inventory_id: notReadyInventory.id, p_request_id: randomUUID() })
-  const notReadyRecord = await must(service.from('inventory_cut_items').select('count_record_id').eq('cut_id', notReadyCut.id).single(), 'not ready record')
+  const [notReadyRecord] = await rpc(manager, 'get_cut_items', { p_cut_id: notReadyCut.id, p_limit: 100, p_after_export_seq: null })
   await rpcError(manager, 'rectify_cut', { p_cut_id: notReadyCut.id, p_count_record_id: notReadyRecord.count_record_id, p_physical_payload: { ubicacion: 'A-01-01', codigo: '001234', cantidad_contada: 2 }, p_reason: 'not ready', p_request_id: randomUUID() }, 'Cut must be READY')
   const closed = await rpc(manager, 'close_inventory', { target_inventory_id: primary.id })
   fail(closed.status === 'CERRADO', 'Inventory did not close.')
@@ -155,7 +155,7 @@ await scenario('CONCURRENCY', async () => {
 
 await scenario('IMMUTABILITY', async () => {
   const afterCount = await must(service.from('count_records').select('cantidad_contada,cut_id,export_seq').eq('id', recordA.count_record_id).single(), 'count after rectification')
-  const afterSnapshot = await must(service.from('inventory_cut_items').select('snapshot').eq('count_record_id', recordA.count_record_id).single(), 'snapshot after rectification')
+  const afterSnapshot = (await rpc(manager, 'get_cut_items', { p_cut_id: ready.id, p_limit: 100, p_after_export_seq: null })).find((item) => item.count_record_id === recordA.count_record_id)
   const afterFile = await must(service.from('generated_files').select('storage_path,sha256,file_name').eq('cut_id', ready.id).eq('file_type', 'CUT_XLSX').single(), 'F7 metadata after rectification')
   fail(JSON.stringify(afterCount) === JSON.stringify(originalCount) && JSON.stringify(afterSnapshot.snapshot) === originalSnapshot && JSON.stringify(afterFile) === JSON.stringify(originalFile), 'Rectification mutated immutable F7 evidence.')
 })
