@@ -39,6 +39,7 @@ jobs:
       - run: npx supabase db reset
       - run: npx supabase test db --local supabase/tests
       - run: set -a && eval "$(npx supabase status -o env)" && set +a && node scripts/supabase-sync-integration.mjs
+      - run: set -a && eval "$(npx supabase status -o env)" && set +a && node scripts/phase-8-db-integration.mjs
       - run: npx supabase db advisors --local --type security --level warn --fail-on error
 
   phase-7-edge-storage:
