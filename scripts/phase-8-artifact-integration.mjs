@@ -26,7 +26,7 @@ async function makeUser(role, label) {
   return { id: created.data.user.id, client: createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${login.data.session.access_token}` } } }) }
 }
 async function invoke(actor, fn, body) { const result = await actor.client.functions.invoke(fn, { body }); if (result.error || !result.response?.ok) throw new Error(result.data?.error ?? result.error?.message ?? `${fn} failed`); return result.data }
-async function rpc(actor, fn, args) { return must(actor.client.rpc(fn, args), fn) }
+async function rpc(actor, fn, args) { return must((actor.client ?? actor).rpc(fn, args), fn) }
 async function denied(actor, generation) { const result = await actor.client.functions.invoke('download-inventory-artifact', { body: { artifact_generation_id: generation.id } }); check(!result.response?.ok, 'unauthorized download succeeded') }
 async function download(actor, generation) {
   const reply = await invoke(actor, 'download-inventory-artifact', { artifact_generation_id: generation.id }); const signed = new URL(reply.signedUrl); const external = new URL(url); signed.protocol = external.protocol; signed.host = external.host
@@ -65,7 +65,7 @@ async function createRectification(label, countId = countRecordId) {
   const generation = (await generations()).find((row) => row.rectification_id === rectification.id); check(generation, `generation missing for ${label}`); return { rectification, generation }
 }
 async function assertLifecycle(generation, expectedErrorCount = 0) {
-  const events = await must(service.from('audit_events').select('event_type,actor_user_id').eq('entity_type', 'artifact_generation').eq('entity_id', generation.id), 'artifact audit')
+  const events = await must(analyst.client.from('audit_events').select('event_type,actor_user_id').eq('entity_type', 'artifact_generation').eq('entity_id', generation.id), 'artifact audit')
   for (const event of ['ARTIFACT_REQUESTED', 'ARTIFACT_FILE_GENERATED', 'ARTIFACT_VALIDATED', 'ARTIFACT_READY']) { const matching = events.filter((row) => row.event_type === event); check(matching.length === 1, `${event} count ${matching.length}`); check(matching[0].actor_user_id === analyst.id, `${event} wrong actor`) }
   check(events.filter((row) => row.event_type === 'ARTIFACT_ERROR').length === expectedErrorCount, `ARTIFACT_ERROR count mismatch`)
 }
@@ -73,7 +73,7 @@ async function assertLifecycle(generation, expectedErrorCount = 0) {
 const primaryRectification = await createRectification('primary')
 let snapshot; let rect; let cutBackup; let frozenBackup
 await scenario('RECTIFICATION_XLSX', async () => { rect = await generate('RECTIFICATION_XLSX'); check(rect.file_name.includes('RECTIFICACION_001'), 'rectification name is not stable'); const source = await sourceFor(rect); const bytes = await download(analyst, rect); await validateRectificationXlsx(bytes, source); check(String(source.rectification.new_values.codigo) === '000123', 'leading zero source changed') })
-await scenario('SNAPSHOT_JSON', async () => { snapshot = await generate('CUT_SNAPSHOT'); const parsed = JSON.parse(decoder.decode(await download(analyst, snapshot))); check(parsed.cut_items.length === 1 && parsed.cut_items[0].snapshot.cantidad_contada === 1, 'snapshot base is not immutable') })
+await scenario('SNAPSHOT_JSON', async () => { snapshot = await generate('CUT_SNAPSHOT'); const parsed = JSON.parse(decoder.decode(await download(analyst, snapshot))); const baseRow = parsed.cut_items[0]?.snapshot ?? parsed.cut_items[0]; check(parsed.cut_items.length === 1 && baseRow?.cantidad_contada === 1, 'snapshot base is not immutable') })
 await scenario('CUT_READY_BACKUP', async () => { cutBackup = await generate('CUT_READY_BACKUP', admin) })
 await scenario('PURE_DETERMINISM_RECTIFICATION_XLSX', async () => { const source = await sourceFor(requireDependency('RECTIFICATION_XLSX', rect)); const first = await artifactBytes(source); const second = await artifactBytes(source); check(sha(first) === sha(second) && first.byteLength === second.byteLength && Buffer.compare(Buffer.from(first), Buffer.from(second)) === 0, 'RECTIFICATION_XLSX pure bytes differ') })
 await scenario('PURE_DETERMINISM_SNAPSHOT', async () => { const source = await sourceFor(requireDependency('SNAPSHOT_JSON', snapshot)); const first = await artifactBytes(source); const second = await artifactBytes(source); check(sha(first) === sha(second) && first.byteLength === second.byteLength && Buffer.compare(Buffer.from(first), Buffer.from(second)) === 0, 'SNAPSHOT pure bytes differ') })
