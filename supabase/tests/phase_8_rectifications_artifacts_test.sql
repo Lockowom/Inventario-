@@ -1,11 +1,17 @@
 begin;
-select plan(57);
+select plan(63);
 
 select has_table('public', 'artifact_generations', 'artifact generation lifecycle table exists');
 select ok((select relrowsecurity from pg_class where oid = 'public.artifact_generations'::regclass), 'artifact generations has RLS enabled');
 select ok(exists (select 1 from pg_type where typname = 'artifact_generation_status'), 'artifact lifecycle enum exists');
 select ok(exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'inventory_cuts' and column_name = 'ready_at'), 'cuts retain ready_at');
 select ok(not has_table_privilege('authenticated', 'public.artifact_generations', 'INSERT'), 'authenticated cannot directly create lifecycle rows');
+select ok(exists (select 1 from information_schema.columns where table_schema='public' and table_name='artifact_generations' and column_name='attempt_count'), 'artifact lifecycle records real generation attempts');
+select ok(not has_function_privilege('authenticated', 'public.claim_inventory_artifact_generation(uuid)', 'EXECUTE'), 'authenticated cannot claim server-only artifact lifecycle');
+select ok(has_function_privilege('service_role', 'public.claim_inventory_artifact_generation(uuid)', 'EXECUTE'), 'service role can claim artifact lifecycle');
+select ok(not has_function_privilege('authenticated', 'public.get_inventory_artifact_source(uuid)', 'EXECUTE'), 'authenticated cannot read artifact source content');
+select ok(has_function_privilege('authenticated', 'public.authorize_inventory_artifact_generation(uuid)', 'EXECUTE'), 'authenticated can perform guarded Edge authorization');
+select ok(has_function_privilege('authenticated', 'public.get_inventory_artifact_download(uuid)', 'EXECUTE'), 'authenticated can perform guarded signed-download authorization');
 select ok(not has_function_privilege('anon', 'public.rectify_cut(uuid,uuid,jsonb,text,uuid)', 'EXECUTE'), 'anon cannot rectify');
 select ok(has_function_privilege('authenticated', 'public.rectify_cut(uuid,uuid,jsonb,text,uuid)', 'EXECUTE'), 'authenticated can invoke guarded rectification RPC');
 select ok(exists (select 1 from pg_constraint where conrelid = 'public.cut_rectifications'::regclass and conname = 'cut_rectifications_id_cut_inventory_key'), 'rectifications expose compound cut/inventory candidate key');
