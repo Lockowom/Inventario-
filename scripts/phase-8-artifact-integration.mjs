@@ -61,7 +61,7 @@ async function stageGenerated(generation, target = 'FILE_GENERATED') {
   return { source, bytes, generation: await generationById(generation.id) }
 }
 async function createRectification(label, countId = countRecordId) {
-  const rectification = await rpc(analyst, 'rectify_cut', { p_cut_id: cut.id, p_count_record_id: countId, p_physical_payload: { ubicacion: 'A-01-01', codigo: '000123', serie: '000001', partida: '0007', pieza_producto: '0001', fecha_vencimiento: '2027-05-15', cantidad_contada: 2, descripcion: `F8C ${label}` }, p_reason: `F8C ${label}`, p_request_id: randomUUID() })
+  const rectification = await rpc(analyst, 'rectify_cut', { p_cut_id: cut.id, p_count_record_id: countId, p_physical_payload: { ubicacion: 'A-01-01', codigo: '000123', serie: '000001', partida: '0007', pieza_producto: '0001', fecha_vencimiento: '2027-05-15', cantidad_contada: 2 }, p_reason: `F8C ${label}`, p_request_id: randomUUID() })
   const generation = (await generations()).find((row) => row.rectification_id === rectification.id); check(generation, `generation missing for ${label}`); return { rectification, generation }
 }
 async function assertLifecycle(generation, expectedErrorCount = 0) {
