@@ -71,7 +71,7 @@ jobs:
       - run: npm ci
       - run: npx supabase start -x imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor
       - run: npx supabase db reset
-      - run: set -a && eval "$(npx supabase status -o env)" && set +a && node scripts/phase-8-artifact-integration.mjs
+      - run: set -a && eval "$(npx supabase status -o env)" && set +a && node --experimental-strip-types scripts/phase-8-artifact-integration.mjs
       - run: npx supabase db advisors --local --type security --level warn --fail-on error
       - if: always()
         run: docker logs supabase_edge_runtime_inven3 || true

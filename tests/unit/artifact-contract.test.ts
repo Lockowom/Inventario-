@@ -1,6 +1,6 @@
 import * as XLSX from '@e965/xlsx'
 import { describe, expect, it } from 'vitest'
-import { buildSnapshot, buildTechnicalBackup, canonicalJson, generateRectificationXlsx, RECTIFICATION_HEADERS, sha256, validateRectificationXlsx, validateSnapshot, validateTechnicalBackup } from '../../supabase/functions/_shared/artifact-contract'
+import { buildSnapshot, buildTechnicalBackup, canonicalJson, canonicalNdjson, generateRectificationXlsx, RECTIFICATION_HEADERS, sha256, validateRectificationXlsx, validateSnapshot, validateTechnicalBackup } from '../../supabase/functions/_shared/artifact-contract'
 
 const source = {
   generation: { id: '10000000-0000-0000-0000-000000000001', artifact_type: 'RECTIFICATION_XLSX', scope: 'RECTIFICATION_XLSX', as_of_at: '2027-05-15T00:00:00.000Z' },
@@ -20,4 +20,5 @@ describe('F8C artifact contract', () => {
   it('canonically serializes and validates immutable snapshots', () => { const first = buildSnapshot(source); const second = buildSnapshot({ ...source, inventory: { name: 'Inventory', id: source.inventory.id } }); expect([...first]).toEqual([...second]); validateSnapshot(first, source); expect(new TextDecoder().decode(first).charCodeAt(0)).not.toBe(0xfeff) })
   it('creates byte-for-byte deterministic valid ZIP backups', async () => { const backupSource = { ...source, generation: { ...source.generation, artifact_type: 'TECHNICAL_BACKUP', scope: 'CUT_READY_BACKUP' } }; const first = await buildTechnicalBackup(backupSource); const second = await buildTechnicalBackup(backupSource); expect([...first]).toEqual([...second]); expect(await sha256(first)).toBe(await sha256(second)); await validateTechnicalBackup(first, backupSource) })
   it('sorts JSON object keys without changing array order', () => { expect(new TextDecoder().decode(canonicalJson({ z: 1, a: [{ b: 2, a: 1 }] }))).toBe('{"a":[{"a":1,"b":2}],"z":1}') })
+  it('canonically serializes NDJSON records with one terminating newline', () => { expect(new TextDecoder().decode(canonicalNdjson([{ z: 1, a: 2 }, { b: 1, a: 2 }]))).toBe('{"a":2,"z":1}\n{"a":2,"b":1}\n') })
 })

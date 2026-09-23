@@ -67,14 +67,14 @@ export function validateSnapshot(bytes: Uint8Array, source: any) {
   const parsed = JSON.parse(actual); if (parsed.version !== 'INVEN3_SNAPSHOT_V1' || !Array.isArray(parsed.cut_items)) throw new Error('Snapshot contract invalid')
 }
 
-const ndjson = (items: unknown[]) => encoder.encode(items.map((item) => JSON.stringify(canonicalize(item))).join(items.length ? '\n' : '') + (items.length ? '\n' : ''))
+export const canonicalNdjson = (items: unknown[]) => encoder.encode(items.map((item) => JSON.stringify(canonicalize(item))).join(items.length ? '\n' : '') + (items.length ? '\n' : ''))
 export async function buildTechnicalBackup(source: any) {
   const members: Record<string, Uint8Array> = {
     'inventory.json': canonicalJson(source.inventory),
-    'cuts.ndjson': ndjson(source.cuts),
-    'cut-items.ndjson': ndjson(source.cut_items),
-    'rectifications.ndjson': ndjson(source.rectifications),
-    'artifacts.ndjson': ndjson(source.artifacts),
+    'cuts.ndjson': canonicalNdjson(source.cuts),
+    'cut-items.ndjson': canonicalNdjson(source.cut_items),
+    'rectifications.ndjson': canonicalNdjson(source.rectifications),
+    'artifacts.ndjson': canonicalNdjson(source.artifacts),
   }
   const manifestMembers = await Promise.all(Object.entries(members).map(async ([name, bytes]) => ({ name, sha256: await sha(bytes), size_bytes: bytes.byteLength, count: name.endsWith('.ndjson') ? (decoder.decode(bytes).match(/\n/g) ?? []).length : 1 })))
   const manifest = canonicalJson({ version: 'INVEN3_TECHNICAL_BACKUP_V1', artifact_generation_id: source.generation.id, inventory_id: source.inventory.id, scope: source.generation.scope, as_of_at: source.generation.as_of_at, members: manifestMembers })
