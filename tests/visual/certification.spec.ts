@@ -11,6 +11,6 @@ for (const viewport of [{ name: 'mobile-320', width: 320, height: 900 }, { name:
     // Baselines are shared by Windows development and Linux CI. The bounded
     // tolerance absorbs host font rasterization while preserving layout/state
     // regression signal; explicit overflow checks live in the e2e suite.
-    await expect(page).toHaveScreenshot(`f9-${viewport.name}.png`, { fullPage: true, animations: 'disabled', maxDiffPixelRatio: 0.1 })
+    await expect(page).toHaveScreenshot(`f9-${viewport.name}.png`, { fullPage: false, animations: 'disabled', maxDiffPixelRatio: 0.1 })
   })
 }

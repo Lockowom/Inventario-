@@ -73,12 +73,18 @@ for (let wave = 1; wave <= waves; wave += 1) {
   }))
 }
 
-const persisted = await service.from('count_records').select('id,client_count_id,user_id,device_id', { count: 'exact' }).eq('inventory_id', inventoryId)
-if (persisted.error || persisted.count !== expected || persisted.data?.length !== expected) throw new Error(`Expected ${expected} persisted load records, got ${persisted.count ?? 'unknown'}.`)
-if (new Set(persisted.data.map((row) => row.client_count_id)).size !== expected) throw new Error('Persisted client_count_id values are not unique.')
-if (new Set(persisted.data.map((row) => row.device_id)).size !== devicesPerWave) throw new Error('Persisted records do not retain exactly one authorized device per actor.')
+const persistedCount = await service.from('count_records').select('*', { count: 'exact', head: true }).eq('inventory_id', inventoryId)
+if (persistedCount.error || persistedCount.count !== expected) throw new Error(`Expected ${expected} persisted load records, got ${persistedCount.count ?? 'unknown'}.`)
+const persisted = []
+for (let from = 0; from < expected; from += 1000) {
+  const page = await must(await service.from('count_records').select('id,client_count_id,user_id,device_id').eq('inventory_id', inventoryId).range(from, Math.min(from + 999, expected - 1)), `read persisted load page ${from}`)
+  persisted.push(...page)
+}
+if (persisted.length !== expected) throw new Error(`Expected ${expected} persisted rows across paged verification, got ${persisted.length}.`)
+if (new Set(persisted.map((row) => row.client_count_id)).size !== expected) throw new Error('Persisted client_count_id values are not unique.')
+if (new Set(persisted.map((row) => row.device_id)).size !== devicesPerWave) throw new Error('Persisted records do not retain exactly one authorized device per actor.')
 for (const actor of actors) {
-  if (persisted.data.some((row) => row.device_id === actor.deviceId && row.user_id !== actor.userId)) throw new Error(`Cross-user device ownership persisted for device ${actor.deviceId}.`)
+  if (persisted.some((row) => row.device_id === actor.deviceId && row.user_id !== actor.userId)) throw new Error(`Cross-user device ownership persisted for device ${actor.deviceId}.`)
 }
 
 const elapsedMs = Date.now() - startedAt
