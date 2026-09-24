@@ -9,6 +9,8 @@ const labels: Record<keyof PhysicalPayload | 'descripcion', string> = {
 }
 
 function text(value: unknown) { return value === null || value === undefined ? '' : String(value) }
+function normalizeCode(value: string) { return value.trim().toUpperCase() }
+function isIdempotencyConflict(error: unknown) { return /IDEMPOTENCY_CONFLICT/i.test(error instanceof Error ? error.message : '') }
 function physical(values: EvidenceValues): PhysicalPayload {
   return { ubicacion: text(values.ubicacion), codigo: text(values.codigo), serie: text(values.serie), partida: text(values.partida), pieza_producto: text(values.pieza_producto), fecha_vencimiento: text(values.fecha_vencimiento), talla: text(values.talla), color: text(values.color), cantidad_contada: Number(values.cantidad_contada ?? 1) }
 }
@@ -16,7 +18,7 @@ function effectiveFor(item: CutItem, history: CutRectification[]) { return histo
 
 function userMessage(error: unknown) {
   const message = error instanceof Error ? error.message : ''
-  if (/IDEMPOTENCY_CONFLICT/i.test(message)) return 'Esta solicitud ya está asociada a otra rectificación. Revise los datos antes de crear una nueva solicitud.'
+  if (isIdempotencyConflict(error)) return 'Esta solicitud ya está asociada a otra rectificación. Revise los datos antes de crear una nueva solicitud.'
   if (/not authorized|permission|authorization/i.test(message)) return 'No tiene autorización para rectificar este corte.'
   if (/Cut must be READY/i.test(message)) return 'El corte debe estar LISTO para crear una rectificación.'
   if (/UNKNOWN_SKU/i.test(message)) return 'El código no existe en el maestro autorizado.'
@@ -59,7 +61,20 @@ export function RectificationPanel({ inventoryId, cut, items, rectifications, ro
     const codigo = payload?.codigo.trim()
     if (!codigo) { setMaster(null); return }
     let current = true
-    void repository.masterItem(inventoryId, codigo).then((item) => { if (current) setMaster(item) }).catch(() => { if (current) setMaster(null) })
+    const requestedCode = normalizeCode(codigo)
+    setMaster(null)
+    void repository.masterItem(inventoryId, codigo).then((item) => {
+      if (!current) return
+      setMaster(item)
+      if (item?.control_type === 'SERIAL' || item?.control_type === 'PARTIDA') {
+        setPayload((existing) => {
+          if (!existing || normalizeCode(existing.codigo) !== requestedCode) return existing
+          return item.control_type === 'SERIAL'
+            ? { ...existing, partida: '', cantidad_contada: 1 }
+            : { ...existing, serie: '' }
+        })
+      }
+    }).catch(() => { if (current) setMaster(null) })
     return () => { current = false }
   }, [inventoryId, payload?.codigo, repository])
 
@@ -85,7 +100,10 @@ export function RectificationPanel({ inventoryId, cut, items, rectifications, ro
     try {
       const result = await repository.rectifyCut({ cutId: cut.id, countRecordId: selected.count_record_id, physicalPayload: payload, reason: reason.trim(), requestId: stableRequestId })
       setRequestId(''); setNotice(`RECTIFICACIÓN R${String(result.rectification_number).padStart(3, '0')} CREADA`); setReason(''); await onChanged()
-    } catch (error) { setNotice(userMessage(error)) } finally { setSaving(false) }
+    } catch (error) {
+      if (isIdempotencyConflict(error)) setRequestId('')
+      setNotice(userMessage(error))
+    } finally { setSaving(false) }
   }
 
   return <section className="rectification-panel" aria-labelledby="rectification-title">
@@ -99,7 +117,7 @@ export function RectificationPanel({ inventoryId, cut, items, rectifications, ro
       <History history={history} />
       <fieldset className="rectification-form"><legend>VALORES CORRECTOS</legend><p>El formulario comienza con el último estado efectivo. DESCRIPCIÓN se deriva del maestro y no se envía al servidor.</p>
         {physicalFields.map((key) => <label className="field" key={key}><span>{labels[key]}{(key === 'serie' && master?.control_type === 'SERIAL') || (key === 'partida' && master?.control_type === 'PARTIDA') ? ' · OBLIGATORIO' : ''}</span><input type={key === 'cantidad_contada' ? 'number' : key === 'fecha_vencimiento' ? 'date' : 'text'} min={key === 'cantidad_contada' ? 1 : undefined} value={String(payload[key] ?? '')} disabled={(key === 'partida' && master?.control_type === 'SERIAL') || (key === 'serie' && master?.control_type === 'PARTIDA') || (key === 'cantidad_contada' && master?.control_type === 'SERIAL')} onChange={(event) => update(key, event.target.value)} /></label>)}
-        <label className="field"><span>DESCRIPCIÓN · SOLO LECTURA</span><input readOnly value={text(effective.descripcion ?? master?.descripcion)} /></label>
+        <label className="field"><span>DESCRIPCIÓN · SOLO LECTURA</span><input readOnly value={normalizeCode(payload.codigo) === normalizeCode(text(effective.codigo)) ? text(effective.descripcion) : text(master?.descripcion)} /></label>
         <label className="field"><span>MOTIVO OBLIGATORIO</span><textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} /></label>
         {master && <p className="cuts-note" role="status">Control de maestro: {master.control_type}. El servidor valida nuevamente estos datos.</p>}
         {errors.length > 0 && <ul className="form-error" role="alert">{errors.map((error) => <li key={error}>{error}</li>)}</ul>}

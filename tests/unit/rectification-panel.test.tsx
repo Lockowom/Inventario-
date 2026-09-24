@@ -60,6 +60,69 @@ describe('rectificaciones post-corte', () => {
     expect(screen.getByLabelText('SERIE')).toBeDisabled(); expect(screen.getByLabelText(/PARTIDA/)).not.toBeDisabled()
   })
 
+  it('normaliza LEGACY a SERIAL al confirmar el maestro y envía sólo el estado válido', async () => {
+    const legacy = { ...item, snapshot: { ...item.snapshot, codigo: 'SKU-LEGACY', serie: '', partida: '0007', cantidad_contada: 3, descripcion: 'Legacy original' } }
+    const repo = repository()
+    vi.mocked(repo.masterItem).mockImplementation(async (_inventoryId, code) => code === 'SKU-S'
+      ? { codigo: 'SKU-S', descripcion: 'Serial actual', control_type: 'SERIAL' }
+      : { codigo: 'SKU-LEGACY', descripcion: 'Legacy', control_type: 'LEGACY' })
+    vi.mocked(repo.rectifyCut).mockResolvedValue({ id: 'r4', rectification_number: 4, idempotent: false })
+    render(<RectificationPanel inventoryId="inventory-a" cut={{ id: 'cut-a', cut_number: 4, status: 'READY' }} items={[legacy]} rectifications={[]} role="ANALISTA" repository={repo} onChanged={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'RECTIFICAR' })); await flush()
+    fireEvent.change(screen.getByLabelText('CÓDIGO'), { target: { value: 'sku-s' } }); await flush()
+    expect(screen.getByLabelText(/PARTIDA/)).toHaveValue(''); expect(screen.getByLabelText(/PARTIDA/)).toBeDisabled()
+    expect(screen.getByLabelText('Cantidad Contada')).toHaveValue(1); expect(screen.getByLabelText('Cantidad Contada')).toBeDisabled()
+    fireEvent.change(screen.getByLabelText(/^SERIE/), { target: { value: 'SER-NUEVA' } })
+    fireEvent.change(screen.getByLabelText('MOTIVO OBLIGATORIO'), { target: { value: 'Cambio de control' } })
+    fireEvent.click(screen.getByRole('button', { name: 'GUARDAR RECTIFICACIÓN' })); await flush()
+    expect(vi.mocked(repo.rectifyCut).mock.calls[0]![0].physicalPayload).toMatchObject({ codigo: 'SKU-S', serie: 'SER-NUEVA', partida: '', cantidad_contada: 1 })
+  })
+
+  it('normaliza SERIAL a PARTIDA al confirmar el maestro y elimina la serie', async () => {
+    const repo = repository()
+    vi.mocked(repo.masterItem).mockImplementation(async (_inventoryId, code) => code === 'SKU-P'
+      ? { codigo: 'SKU-P', descripcion: 'Partida actual', control_type: 'PARTIDA' }
+      : { codigo: 'SKU-S', descripcion: 'Serial', control_type: 'SERIAL' })
+    vi.mocked(repo.rectifyCut).mockResolvedValue({ id: 'r4', rectification_number: 4, idempotent: false })
+    render(<RectificationPanel inventoryId="inventory-a" cut={{ id: 'cut-a', cut_number: 4, status: 'READY' }} items={[item]} rectifications={[]} role="ANALISTA" repository={repo} onChanged={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'RECTIFICAR' })); await flush()
+    fireEvent.change(screen.getByLabelText('CÓDIGO'), { target: { value: 'sku-p' } }); await flush()
+    expect(screen.getByLabelText('SERIE')).toHaveValue(''); expect(screen.getByLabelText('SERIE')).toBeDisabled()
+    fireEvent.change(screen.getByLabelText(/PARTIDA/), { target: { value: 'L-0007' } })
+    fireEvent.change(screen.getByLabelText('MOTIVO OBLIGATORIO'), { target: { value: 'Cambio de lote' } })
+    fireEvent.click(screen.getByRole('button', { name: 'GUARDAR RECTIFICACIÓN' })); await flush()
+    expect(vi.mocked(repo.rectifyCut).mock.calls[0]![0].physicalPayload).toMatchObject({ codigo: 'SKU-P', serie: '', partida: 'L-0007' })
+  })
+
+  it('limpia la descripción anterior mientras resuelve el maestro del nuevo código', async () => {
+    let resolveSecond: ((value: { codigo: string; descripcion: string; control_type: 'LEGACY' }) => void) | undefined
+    const repo = repository()
+    vi.mocked(repo.masterItem).mockImplementation((_inventoryId, code) => code === 'SKU-B'
+      ? new Promise((resolve) => { resolveSecond = resolve })
+      : Promise.resolve({ codigo: 'SKU-S', descripcion: 'Descripción A', control_type: 'LEGACY' }))
+    render(<RectificationPanel inventoryId="inventory-a" cut={{ id: 'cut-a', cut_number: 4, status: 'READY' }} items={[item]} rectifications={[]} role="ANALISTA" repository={repo} onChanged={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'RECTIFICAR' })); await flush()
+    expect(screen.getByLabelText(/DESCRIPCIÓN/)).toHaveValue('Original')
+    fireEvent.change(screen.getByLabelText('CÓDIGO'), { target: { value: 'SKU-B' } }); await flush()
+    expect(screen.getByLabelText(/DESCRIPCIÓN/)).toHaveValue('')
+    await act(async () => { resolveSecond?.({ codigo: 'SKU-B', descripcion: 'Descripción B', control_type: 'LEGACY' }); await Promise.resolve() })
+    expect(screen.getByLabelText(/DESCRIPCIÓN/)).toHaveValue('Descripción B')
+  })
+
+  it('descarta un request_id sólo cuando el servidor confirma IDEMPOTENCY_CONFLICT', async () => {
+    vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValueOnce('request-conflict').mockReturnValueOnce('request-new') })
+    const repo = repository(); const rectify = vi.mocked(repo.rectifyCut).mockRejectedValueOnce(new Error('IDEMPOTENCY_CONFLICT')).mockResolvedValueOnce({ id: 'r4', rectification_number: 4, idempotent: false })
+    render(<RectificationPanel inventoryId="inventory-a" cut={{ id: 'cut-a', cut_number: 4, status: 'READY' }} items={[item]} rectifications={[]} role="ANALISTA" repository={repo} onChanged={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'RECTIFICAR' })); await flush()
+    fireEvent.change(screen.getByLabelText('MOTIVO OBLIGATORIO'), { target: { value: 'Motivo verificable' } })
+    fireEvent.click(screen.getByRole('button', { name: 'GUARDAR RECTIFICACIÓN' })); await flush()
+    expect(rectify.mock.calls[0]![0].requestId).toBe('request-conflict')
+    expect(screen.getByLabelText('MOTIVO OBLIGATORIO')).toHaveValue('Motivo verificable')
+    fireEvent.click(screen.getByRole('button', { name: 'GUARDAR RECTIFICACIÓN' })); await flush()
+    expect(rectify.mock.calls[1]![0].requestId).toBe('request-new')
+    expect(window.confirm).toHaveBeenCalledTimes(2)
+  })
+
   it.each([
     ['IDEMPOTENCY_CONFLICT', 'Esta solicitud ya está asociada a otra rectificación. Revise los datos antes de crear una nueva solicitud.'],
     ['Not authorized to rectify cut', 'No tiene autorización para rectificar este corte.'],
