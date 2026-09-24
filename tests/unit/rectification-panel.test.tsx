@@ -1,0 +1,136 @@
+import { act, fireEvent, render, screen } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { RectificationPanel } from '../../src/features/rectifications/rectification-panel'
+import type { CutRectification, RectificationsRepository } from '../../src/features/rectifications/contracts'
+
+const item = { count_record_id: 'record-a', export_seq: 7, snapshot: { ubicacion: 'A-01-01', codigo: 'SKU-S', serie: 'SER-1', partida: '', pieza_producto: '', fecha_vencimiento: '', talla: '', color: '', cantidad_contada: 1, descripcion: 'Original' } }
+const history: CutRectification[] = [
+  { id: 'r1', cut_id: 'cut-a', count_record_id: 'record-a', rectification_number: 1, old_values: item.snapshot, new_values: { ...item.snapshot, cantidad_contada: 3 }, reason: 'Primera', created_at: '2026-09-23T00:00:00.000Z', created_by: 'actor-a' },
+  { id: 'r2', cut_id: 'cut-a', count_record_id: 'record-b', rectification_number: 2, old_values: item.snapshot, new_values: { ...item.snapshot, cantidad_contada: 2 }, reason: 'Otro registro', created_at: '2026-09-23T00:01:00.000Z', created_by: 'actor-b' },
+  { id: 'r3', cut_id: 'cut-a', count_record_id: 'record-a', rectification_number: 3, old_values: { ...item.snapshot, cantidad_contada: 3 }, new_values: { ...item.snapshot, cantidad_contada: 4 }, reason: 'Tercera', created_at: '2026-09-23T00:02:00.000Z', created_by: 'actor-a' },
+]
+
+function repository(): RectificationsRepository {
+  return { rectifyCut: vi.fn(), rectifications: vi.fn(), artifacts: vi.fn(), generateArtifact: vi.fn(), downloadArtifact: vi.fn(), masterItem: vi.fn().mockResolvedValue({ codigo: 'SKU-S', descripcion: 'Legacy', control_type: 'LEGACY' }) }
+}
+async function flush() { await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve() }) }
+
+describe('rectificaciones post-corte', () => {
+  beforeEach(() => { vi.spyOn(window, 'confirm').mockReturnValue(true); vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValueOnce('request-stable').mockReturnValueOnce('request-next') }) })
+
+  it('oculta RECTIFICAR al CONTADOR y no crea panel de gestión', () => {
+    render(<RectificationPanel inventoryId="inventory-a" cut={{ id: 'cut-a', cut_number: 4, status: 'READY' }} items={[item]} rectifications={history} role="CONTADOR" repository={repository()} onChanged={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: 'RECTIFICAR' })).not.toBeInTheDocument()
+  })
+
+  it('prefill del último estado efectivo y conserva R001/R003 sin mezclar R002', async () => {
+    render(<RectificationPanel inventoryId="inventory-a" cut={{ id: 'cut-a', cut_number: 4, status: 'READY' }} items={[item]} rectifications={history} role="ANALISTA" repository={repository()} onChanged={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'RECTIFICAR' })); await flush()
+    expect(screen.getByText('RECTIFICACIÓN POST-CORTE')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('4')).toBeInTheDocument()
+    expect(screen.getByText('R001')).toBeInTheDocument(); expect(screen.getByText('R003')).toBeInTheDocument()
+    expect(screen.queryByText('R002')).not.toBeInTheDocument()
+  })
+
+  it('reutiliza request_id tras un fallo y preserva el motivo', async () => {
+    const repo = repository(); const rectify = vi.mocked(repo.rectifyCut).mockRejectedValueOnce(new Error('Failed to fetch')).mockResolvedValueOnce({ id: 'r4', rectification_number: 4, idempotent: false }).mockResolvedValueOnce({ id: 'r5', rectification_number: 5, idempotent: false })
+    render(<RectificationPanel inventoryId="inventory-a" cut={{ id: 'cut-a', cut_number: 4, status: 'READY' }} items={[item]} rectifications={history} role="ADMIN" repository={repo} onChanged={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'RECTIFICAR' })); await flush()
+    fireEvent.change(screen.getByLabelText('MOTIVO OBLIGATORIO'), { target: { value: 'Corrección comprobada' } })
+    fireEvent.click(screen.getByRole('button', { name: 'GUARDAR RECTIFICACIÓN' })); await flush()
+    expect(screen.getByText('Rectificaciones y evidencias requieren conexión al servidor. No se realizó ningún cambio.')).toBeInTheDocument()
+    expect(screen.getByLabelText('MOTIVO OBLIGATORIO')).toHaveValue('Corrección comprobada')
+    fireEvent.click(screen.getByRole('button', { name: 'GUARDAR RECTIFICACIÓN' })); await flush()
+    expect(rectify).toHaveBeenCalledTimes(2)
+    expect(rectify.mock.calls[0]![0].requestId).toBe('request-stable')
+    expect(rectify.mock.calls[1]![0].requestId).toBe('request-stable')
+    expect(rectify.mock.calls[0]![0].physicalPayload).not.toHaveProperty('descripcion')
+    fireEvent.change(screen.getByLabelText('MOTIVO OBLIGATORIO'), { target: { value: 'Nueva rectificación' } })
+    fireEvent.click(screen.getByRole('button', { name: 'GUARDAR RECTIFICACIÓN' })); await flush()
+    expect(rectify.mock.calls[2]![0].requestId).toBe('request-next')
+  })
+
+  it('aplica controles de SERIAL y PARTIDA como ayuda UX', async () => {
+    const serial = repository(); vi.mocked(serial.masterItem).mockResolvedValue({ codigo: 'SKU-S', descripcion: 'Serial', control_type: 'SERIAL' })
+    const { rerender } = render(<RectificationPanel inventoryId="inventory-a" cut={{ id: 'cut-a', cut_number: 4, status: 'READY' }} items={[item]} rectifications={[]} role="ANALISTA" repository={serial} onChanged={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'RECTIFICAR' })); await flush()
+    expect(screen.getByLabelText(/PARTIDA/)).toBeDisabled(); expect(screen.getByLabelText('Cantidad Contada')).toBeDisabled()
+    const batch = repository(); vi.mocked(batch.masterItem).mockResolvedValue({ codigo: 'SKU-S', descripcion: 'Partida', control_type: 'PARTIDA' })
+    rerender(<RectificationPanel inventoryId="inventory-a" cut={{ id: 'cut-a', cut_number: 4, status: 'READY' }} items={[item]} rectifications={[]} role="ANALISTA" repository={batch} onChanged={vi.fn()} />); await flush()
+    expect(screen.getByLabelText('SERIE')).toBeDisabled(); expect(screen.getByLabelText(/PARTIDA/)).not.toBeDisabled()
+  })
+
+  it('normaliza LEGACY a SERIAL al confirmar el maestro y envía sólo el estado válido', async () => {
+    const legacy = { ...item, snapshot: { ...item.snapshot, codigo: 'SKU-LEGACY', serie: '', partida: '0007', cantidad_contada: 3, descripcion: 'Legacy original' } }
+    const repo = repository()
+    vi.mocked(repo.masterItem).mockImplementation(async (_inventoryId, code) => code === 'SKU-S'
+      ? { codigo: 'SKU-S', descripcion: 'Serial actual', control_type: 'SERIAL' }
+      : { codigo: 'SKU-LEGACY', descripcion: 'Legacy', control_type: 'LEGACY' })
+    vi.mocked(repo.rectifyCut).mockResolvedValue({ id: 'r4', rectification_number: 4, idempotent: false })
+    render(<RectificationPanel inventoryId="inventory-a" cut={{ id: 'cut-a', cut_number: 4, status: 'READY' }} items={[legacy]} rectifications={[]} role="ANALISTA" repository={repo} onChanged={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'RECTIFICAR' })); await flush()
+    fireEvent.change(screen.getByLabelText('CÓDIGO'), { target: { value: 'sku-s' } }); await flush()
+    expect(screen.getByLabelText(/PARTIDA/)).toHaveValue(''); expect(screen.getByLabelText(/PARTIDA/)).toBeDisabled()
+    expect(screen.getByLabelText('Cantidad Contada')).toHaveValue(1); expect(screen.getByLabelText('Cantidad Contada')).toBeDisabled()
+    fireEvent.change(screen.getByLabelText(/^SERIE/), { target: { value: 'SER-NUEVA' } })
+    fireEvent.change(screen.getByLabelText('MOTIVO OBLIGATORIO'), { target: { value: 'Cambio de control' } })
+    fireEvent.click(screen.getByRole('button', { name: 'GUARDAR RECTIFICACIÓN' })); await flush()
+    expect(vi.mocked(repo.rectifyCut).mock.calls[0]![0].physicalPayload).toMatchObject({ codigo: 'SKU-S', serie: 'SER-NUEVA', partida: '', cantidad_contada: 1 })
+  })
+
+  it('normaliza SERIAL a PARTIDA al confirmar el maestro y elimina la serie', async () => {
+    const repo = repository()
+    vi.mocked(repo.masterItem).mockImplementation(async (_inventoryId, code) => code === 'SKU-P'
+      ? { codigo: 'SKU-P', descripcion: 'Partida actual', control_type: 'PARTIDA' }
+      : { codigo: 'SKU-S', descripcion: 'Serial', control_type: 'SERIAL' })
+    vi.mocked(repo.rectifyCut).mockResolvedValue({ id: 'r4', rectification_number: 4, idempotent: false })
+    render(<RectificationPanel inventoryId="inventory-a" cut={{ id: 'cut-a', cut_number: 4, status: 'READY' }} items={[item]} rectifications={[]} role="ANALISTA" repository={repo} onChanged={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'RECTIFICAR' })); await flush()
+    fireEvent.change(screen.getByLabelText('CÓDIGO'), { target: { value: 'sku-p' } }); await flush()
+    expect(screen.getByLabelText('SERIE')).toHaveValue(''); expect(screen.getByLabelText('SERIE')).toBeDisabled()
+    fireEvent.change(screen.getByLabelText(/PARTIDA/), { target: { value: 'L-0007' } })
+    fireEvent.change(screen.getByLabelText('MOTIVO OBLIGATORIO'), { target: { value: 'Cambio de lote' } })
+    fireEvent.click(screen.getByRole('button', { name: 'GUARDAR RECTIFICACIÓN' })); await flush()
+    expect(vi.mocked(repo.rectifyCut).mock.calls[0]![0].physicalPayload).toMatchObject({ codigo: 'SKU-P', serie: '', partida: 'L-0007' })
+  })
+
+  it('limpia la descripción anterior mientras resuelve el maestro del nuevo código', async () => {
+    let resolveSecond: ((value: { codigo: string; descripcion: string; control_type: 'LEGACY' }) => void) | undefined
+    const repo = repository()
+    vi.mocked(repo.masterItem).mockImplementation((_inventoryId, code) => code === 'SKU-B'
+      ? new Promise((resolve) => { resolveSecond = resolve })
+      : Promise.resolve({ codigo: 'SKU-S', descripcion: 'Descripción A', control_type: 'LEGACY' }))
+    render(<RectificationPanel inventoryId="inventory-a" cut={{ id: 'cut-a', cut_number: 4, status: 'READY' }} items={[item]} rectifications={[]} role="ANALISTA" repository={repo} onChanged={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'RECTIFICAR' })); await flush()
+    expect(screen.getByLabelText(/DESCRIPCIÓN/)).toHaveValue('Original')
+    fireEvent.change(screen.getByLabelText('CÓDIGO'), { target: { value: 'SKU-B' } }); await flush()
+    expect(screen.getByLabelText(/DESCRIPCIÓN/)).toHaveValue('')
+    await act(async () => { resolveSecond?.({ codigo: 'SKU-B', descripcion: 'Descripción B', control_type: 'LEGACY' }); await Promise.resolve() })
+    expect(screen.getByLabelText(/DESCRIPCIÓN/)).toHaveValue('Descripción B')
+  })
+
+  it('descarta un request_id sólo cuando el servidor confirma IDEMPOTENCY_CONFLICT', async () => {
+    vi.stubGlobal('crypto', { randomUUID: vi.fn().mockReturnValueOnce('request-conflict').mockReturnValueOnce('request-new') })
+    const repo = repository(); const rectify = vi.mocked(repo.rectifyCut).mockRejectedValueOnce(new Error('IDEMPOTENCY_CONFLICT')).mockResolvedValueOnce({ id: 'r4', rectification_number: 4, idempotent: false })
+    render(<RectificationPanel inventoryId="inventory-a" cut={{ id: 'cut-a', cut_number: 4, status: 'READY' }} items={[item]} rectifications={[]} role="ANALISTA" repository={repo} onChanged={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'RECTIFICAR' })); await flush()
+    fireEvent.change(screen.getByLabelText('MOTIVO OBLIGATORIO'), { target: { value: 'Motivo verificable' } })
+    fireEvent.click(screen.getByRole('button', { name: 'GUARDAR RECTIFICACIÓN' })); await flush()
+    expect(rectify.mock.calls[0]![0].requestId).toBe('request-conflict')
+    expect(screen.getByLabelText('MOTIVO OBLIGATORIO')).toHaveValue('Motivo verificable')
+    fireEvent.click(screen.getByRole('button', { name: 'GUARDAR RECTIFICACIÓN' })); await flush()
+    expect(rectify.mock.calls[1]![0].requestId).toBe('request-new')
+    expect(window.confirm).toHaveBeenCalledTimes(2)
+  })
+
+  it.each([
+    ['IDEMPOTENCY_CONFLICT', 'Esta solicitud ya está asociada a otra rectificación. Revise los datos antes de crear una nueva solicitud.'],
+    ['Not authorized to rectify cut', 'No tiene autorización para rectificar este corte.'],
+    ['UNKNOWN_SKU', 'El código no existe en el maestro autorizado.'],
+  ])('muestra un error seguro para %s sin borrar el formulario', async (serverError, expected) => {
+    const repo = repository(); vi.mocked(repo.rectifyCut).mockRejectedValue(new Error(serverError))
+    render(<RectificationPanel inventoryId="inventory-a" cut={{ id: 'cut-a', cut_number: 4, status: 'READY' }} items={[item]} rectifications={[]} role="ANALISTA" repository={repo} onChanged={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'RECTIFICAR' })); await flush(); fireEvent.change(screen.getByLabelText('MOTIVO OBLIGATORIO'), { target: { value: 'Motivo verificable' } }); fireEvent.click(screen.getByRole('button', { name: 'GUARDAR RECTIFICACIÓN' })); await flush()
+    expect(screen.getByText(expected)).toBeInTheDocument(); expect(screen.getByLabelText('MOTIVO OBLIGATORIO')).toHaveValue('Motivo verificable')
+  })
+})
