@@ -27,4 +27,11 @@ describe('evidencias F8', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'DESCARGAR XLSX' })[0]!); await flush()
     expect(repo.downloadArtifact).toHaveBeenCalledWith('ready'); expect(open).toHaveBeenCalledWith('https://signed.example/file', '_blank', 'noopener,noreferrer')
   })
+
+  it('muestra un error seguro cuando el servidor no puede procesar el artefacto', async () => {
+    const repo = repository(); vi.mocked(repo.generateArtifact).mockRejectedValue(new Error('artifact generation error'))
+    render(<ArtifactPanel artifacts={[artifact('requested', 'ERROR', 'SNAPSHOT', 'CUT_SNAPSHOT')]} finalArtifacts={[]} rectifications={records} role="ADMIN" inventoryFrozen={false} repository={repo} onChanged={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'PROCESAR ARTEFACTO' })); await flush()
+    expect(screen.getByText('No fue posible procesar el artefacto. No se expusieron detalles internos; puede reintentar con conexión al servidor.')).toBeInTheDocument()
+  })
 })

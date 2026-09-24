@@ -59,4 +59,15 @@ describe('rectificaciones post-corte', () => {
     rerender(<RectificationPanel inventoryId="inventory-a" cut={{ id: 'cut-a', cut_number: 4, status: 'READY' }} items={[item]} rectifications={[]} role="ANALISTA" repository={batch} onChanged={vi.fn()} />); await flush()
     expect(screen.getByLabelText('SERIE')).toBeDisabled(); expect(screen.getByLabelText(/PARTIDA/)).not.toBeDisabled()
   })
+
+  it.each([
+    ['IDEMPOTENCY_CONFLICT', 'Esta solicitud ya está asociada a otra rectificación. Revise los datos antes de crear una nueva solicitud.'],
+    ['Not authorized to rectify cut', 'No tiene autorización para rectificar este corte.'],
+    ['UNKNOWN_SKU', 'El código no existe en el maestro autorizado.'],
+  ])('muestra un error seguro para %s sin borrar el formulario', async (serverError, expected) => {
+    const repo = repository(); vi.mocked(repo.rectifyCut).mockRejectedValue(new Error(serverError))
+    render(<RectificationPanel inventoryId="inventory-a" cut={{ id: 'cut-a', cut_number: 4, status: 'READY' }} items={[item]} rectifications={[]} role="ANALISTA" repository={repo} onChanged={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'RECTIFICAR' })); await flush(); fireEvent.change(screen.getByLabelText('MOTIVO OBLIGATORIO'), { target: { value: 'Motivo verificable' } }); fireEvent.click(screen.getByRole('button', { name: 'GUARDAR RECTIFICACIÓN' })); await flush()
+    expect(screen.getByText(expected)).toBeInTheDocument(); expect(screen.getByLabelText('MOTIVO OBLIGATORIO')).toHaveValue('Motivo verificable')
+  })
 })
