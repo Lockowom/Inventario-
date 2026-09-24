@@ -4,7 +4,7 @@ Sistema de captura para Inventario General físico, offline-first, con soporte A
 
 ## Estado
 
-**Fase actual:** Fase 8A — contrato final de rectificaciones, snapshots, respaldos y recuperación en revisión; no hay lógica F8 implementada.
+**Fase actual:** Fase 9A — certificación automatizada y gates manuales/externalizados en revisión.
 
 ## Inicio rápido
 
@@ -68,6 +68,10 @@ La certificación de SQLite, permisos de cámara y scanner requiere pruebas en d
 - [`docs/EXPORT_RP_XLSX_V1.md`](docs/EXPORT_RP_XLSX_V1.md) — contrato, generación, validación y descarga RP.
 - [`docs/RECTIFICACIONES_V1.md`](docs/RECTIFICACIONES_V1.md) — contrato F8A de rectificación separada post-corte.
 - [`docs/BACKUPS_RECOVERY_V1.md`](docs/BACKUPS_RECOVERY_V1.md) — contrato F8A de snapshots, respaldos y recuperación.
+- [`docs/CERTIFICATION_V1.md`](docs/CERTIFICATION_V1.md) — matriz autoritativa de certificación F9.
+- [`docs/DEVICE_QA_V1.md`](docs/DEVICE_QA_V1.md) — checklist físico Android/iOS pendiente.
+- [`docs/RP_ACCEPTANCE_V1.md`](docs/RP_ACCEPTANCE_V1.md) — gate de importación real RP pendiente.
+- [`docs/BETA_ACCEPTANCE_V1.md`](docs/BETA_ACCEPTANCE_V1.md) — aceptación beta interna pendiente.
 
 ## Regla de gobierno
 

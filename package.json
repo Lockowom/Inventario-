@@ -10,7 +10,7 @@
     "typecheck": "tsc -b --pretty false",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --project=chromium",
     "test:visual": "playwright test --project=visual",
     "db:test": "supabase test db",
     "db:types": "supabase gen types typescript --local > src/services/supabase.types.ts",

@@ -8,3 +8,4 @@ android/app/build/
 ios/App/App/public/
 playwright-report/
 test-results/
+tests/visual/*.spec.ts-snapshots/

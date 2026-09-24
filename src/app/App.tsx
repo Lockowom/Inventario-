@@ -11,10 +11,16 @@ import { resolveCountingContext } from '../domain/count/resolve-counting-context
 import { authService } from '../features/auth/auth-service'
 import type { CountingRuntime } from '../features/counting/counting-screen'
 import type { SyncCoordinator } from '../domain/sync/sync-coordinator'
+import { CertificationFixture } from './certification-fixture'
 
 const version = import.meta.env.VITE_APP_VERSION ?? '0.1.0'
 
 export function App() {
+  if (import.meta.env.VITE_CERTIFICATION_FIXTURE === '1') return <CertificationFixture />
+  return <RuntimeApp />
+}
+
+function RuntimeApp() {
   const [countingRuntime, setCountingRuntime] = useState<CountingRuntime | null>(null)
   const [syncCoordinator, setSyncCoordinator] = useState<SyncCoordinator | null>(null)
   const [startupSyncMessage, setStartupSyncMessage] = useState('')
