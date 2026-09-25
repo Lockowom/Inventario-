@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const viewports = [320, 360, 420, 600, 768, 900, 1024, 1440]
+const viewports = [320, 360, 390, 412, 420, 430, 600, 768, 900, 1024, 1440]
 
 test.describe('F9A certificación responsive y accesible', () => {
   for (const width of viewports) {
@@ -37,6 +37,26 @@ test.describe('F9A certificación responsive y accesible', () => {
       await expect(page.getByText('Pendiente de reintento')).toBeVisible()
       if (pending === 50) await expect(page.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeDisabled()
       else await expect(page.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeEnabled()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    })
+  }
+
+  for (const [width, state, message, blocked] of [
+    [320, 'counting-warning', 'Advertencia: existen varios conteos pendientes de sincronización.', false],
+    [390, 'counting-critical', 'Advertencia crítica: el dispositivo está próximo al límite de 50 conteos pendientes.', false],
+    [412, 'counting-blocked', 'Debe sincronizar antes de continuar; GUARDAR está bloqueado.', true],
+    [430, 'counting-warning', 'Advertencia: existen varios conteos pendientes de sincronización.', false],
+  ] as const) {
+    test(`CountingScreen mantiene captura usable a ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 })
+      await page.goto(`/?fixture=${state}`)
+      await expect(page.getByRole('heading', { name: 'CONTEO FÍSICO' })).toBeVisible()
+      await expect(page.getByText(message)).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'MIS CONTEOS' })).toBeVisible()
+      const save = page.getByRole('button', { name: 'GUARDAR CONTEO' })
+      await expect(save).toBeVisible()
+      if (blocked) await expect(save).toBeDisabled()
+      else await expect(save).toBeEnabled()
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
     })
   }
