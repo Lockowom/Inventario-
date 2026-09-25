@@ -12,6 +12,7 @@ for (const snapshot of snapshots) {
     await page.emulateMedia({ reducedMotion: 'reduce' })
     await page.goto(`/?fixture=${snapshot.state}`)
     await page.addStyleTag({ content: '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}' })
+    if (snapshot.state === 'rectification' || snapshot.state === 'artifacts') await page.getByRole('button', { name: 'VER DETALLE' }).click()
     if (snapshot.state === 'rectification') await page.getByRole('button', { name: 'RECTIFICAR' }).click()
     await expect(page.getByText(snapshot.ready).first()).toBeVisible()
     // Baselines are shared by Windows development and Linux CI. The bounded

@@ -1,14 +1,14 @@
 import { useMemo } from 'react'
-import { ArtifactPanel } from '../features/rectifications/artifact-panel'
-import { RectificationPanel } from '../features/rectifications/rectification-panel'
 import { SupervisionScreen } from '../features/supervision/supervision-screen'
 import { MasterSkuScreen } from '../features/master/master-sku-screen'
 import { CountingScreen, type CountingRuntime } from '../features/counting/counting-screen'
+import { CutsScreen } from '../features/cuts/cuts-screen'
 import { PendingCountCapacityError, type CountListFilter, type CountRepository } from '../domain/ports/count-repository'
 import type { MasterSkuRepository } from '../domain/ports/master-sku-repository'
 import type { LocalCountRecord } from '../domain/count/contracts'
 import type { MasterSku } from '../domain/master/contracts'
 import type { ArtifactGeneration, CutRectification, RectificationsRepository } from '../features/rectifications/contracts'
+import { SupabaseCutsRepository } from '../services/supabase-cuts-repository'
 import { readCertificationFixtureState } from './certification-fixture-state'
 
 const inventoryId = '11111111-1111-4111-8111-111111111111'
@@ -85,13 +85,17 @@ const repository: RectificationsRepository = {
   masterItem: async (_inventoryId, codigo) => ({ codigo, descripcion: master.descripcion, control_type: 'PARTIDA' }),
 }
 
-function FixtureCutReady() {
-  return <>
-    <section className="cuts-screen" aria-labelledby="fixture-cuts-title"><header><p className="eyebrow">Fase 7/8 · estado certificado</p><h1 id="fixture-cuts-title">CORTES</h1></header><article className="cut-card"><strong>CORTE 001 · READY</strong><span>RP XLSX validado y disponible.</span><div><button className="button-secondary" type="button">VER DETALLE</button><button className="button-primary" type="button">DESCARGAR RP XLSX</button></div></article></section>
-    <RectificationPanel inventoryId={inventoryId} cut={{ id: cutId, cut_number: 1, status: 'READY' }} items={[{ count_record_id: recordId, export_seq: 1, snapshot: values }]} rectifications={[rectification]} role="ADMIN" repository={repository} onChanged={async () => undefined} />
-    <ArtifactPanel role="ADMIN" inventoryFrozen={false} rectifications={[rectification]} repository={repository} onChanged={async () => undefined} finalArtifacts={[]} artifacts={artifacts} />
-  </>
-}
+const fixtureCutsRepository = {
+  inventories: async () => [{ id: inventoryId, name: 'Inventario de certificación', status: 'ABIERTO' }],
+  myProfile: async () => ({ role: 'ADMIN', active: true }),
+  cuts: async () => [{ id: cutId, cut_number: 1, status: 'READY', record_count: 1, first_export_seq: 1, last_export_seq: 1 }],
+  items: async () => [{ count_record_id: recordId, export_seq: 1, snapshot: values }],
+  downloadRpXlsx: async () => ({ signedUrl: 'https://example.invalid/INVEN3_CERTIFICATION.xlsx', fileName: 'INVEN3_CERTIFICATION.xlsx' }),
+  generateRpXlsx: async () => ({ action: 'READY' }),
+  createCut: async () => ({ id: cutId, cut_number: 1, record_count: 1 }),
+  correctionContext: async () => ({ count: { id: recordId, ...values }, revisions: [] }),
+  correct: async () => ({ revision_number: 1 }),
+} as unknown as SupabaseCutsRepository
 
 /** DEV-only deterministic composition for Playwright; it has no production route. */
 export function CertificationFixture() {
@@ -102,6 +106,6 @@ export function CertificationFixture() {
     <header><p className="eyebrow">Fase 9 · fixture DEV determinista</p><h1>INVEN3 CERTIFICATION</h1><p>Datos sintéticos contractualmente válidos para regresión visual y accesibilidad.</p></header>
     {state.startsWith('counting-') && <CountingScreen runtime={runtime} />}
     {state === 'layout' && <><SupervisionScreen /><MasterSkuScreen /></>}
-    {['cuts-ready', 'rectification', 'artifacts'].includes(state) && <FixtureCutReady />}
+    {['cuts-ready', 'rectification', 'artifacts'].includes(state) && <CutsScreen cutsRepository={fixtureCutsRepository} rectificationsRepository={repository} />}
   </main>
 }

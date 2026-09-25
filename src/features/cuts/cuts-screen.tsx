@@ -13,6 +13,8 @@ type Profile = { role: 'CONTADOR' | 'ANALISTA' | 'ADMIN' }
 const blankCorrection: PhysicalCorrection = { ubicacion: '', codigo: '', cantidad_contada: 1 }
 
 export function CutsScreen({ cutsRepository = repository, rectificationsRepository = rectificationRepository }: { cutsRepository?: SupabaseCutsRepository; rectificationsRepository?: RectificationsRepository }) {
+  const hasInjectedRepository = cutsRepository !== repository
+  const canLoadCuts = isSupabaseConfigured || hasInjectedRepository
   const [inventories, setInventories] = useState<Inventory[]>([])
   const [profile, setProfile] = useState<Profile | null>(null)
   const [inventoryId, setInventoryId] = useState('')
@@ -20,7 +22,7 @@ export function CutsScreen({ cutsRepository = repository, rectificationsReposito
   const [items, setItems] = useState<Record<string, unknown>[]>([])
   const [selectedCutId, setSelectedCutId] = useState<string | null>(null)
   const [nextItemCursor, setNextItemCursor] = useState<number | null>(null)
-  const [message, setMessage] = useState(isSupabaseConfigured ? 'Cargando cortes autorizados…' : 'Cortes no configurados.')
+  const [message, setMessage] = useState(canLoadCuts ? 'Cargando cortes autorizados…' : 'Cortes no configurados.')
   const [requestId, setRequestId] = useState('')
   const [creating, setCreating] = useState(false)
   const [generatingCutId, setGeneratingCutId] = useState<string | null>(null)
@@ -36,11 +38,11 @@ export function CutsScreen({ cutsRepository = repository, rectificationsReposito
   const selectedCut = useMemo(() => cuts.find((cut) => String(cut.id) === selectedCutId) ?? null, [cuts, selectedCutId])
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return
+    if (!canLoadCuts) return
     void Promise.all([cutsRepository.inventories(), cutsRepository.myProfile()]).then(([nextInventories, nextProfile]) => {
       setInventories(nextInventories as Inventory[]); setInventoryId(nextInventories[0]?.id ?? ''); setProfile(nextProfile as Profile); setMessage(nextInventories.length ? '' : 'No existen inventarios autorizados.')
     }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : 'Cortes no disponibles.'))
-  }, [cutsRepository])
+  }, [canLoadCuts, cutsRepository])
   useEffect(() => { if (inventoryId && isManager) void refreshCuts() // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inventoryId, isManager])
 

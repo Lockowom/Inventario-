@@ -4,12 +4,17 @@ const viewports = [320, 360, 420, 600, 768, 900, 1024, 1440]
 
 test.describe('F9A certificación responsive y accesible', () => {
   for (const width of viewports) {
-    test(`cut READY no tiene overflow operativo a ${width}px`, async ({ page }) => {
+    test(`CutsScreen READY real no tiene overflow operativo a ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 1000 })
       await page.goto('/?fixture=cuts-ready')
-      await expect(page.getByRole('heading', { name: 'CORTES' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'CORTES', exact: true })).toBeVisible()
       await expect(page.getByRole('button', { name: 'VER DETALLE' })).toBeVisible()
       await expect(page.getByRole('button', { name: 'DESCARGAR RP XLSX' })).toBeVisible()
+      await page.getByRole('button', { name: 'VER DETALLE' }).click()
+      await expect(page.getByRole('heading', { name: 'Detalle inmutable' })).toBeVisible()
+      await expect(page.getByText('#1 · 00001 · 3')).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'RECTIFICACIONES' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'EVIDENCIAS Y RESPALDOS' })).toBeVisible()
       await expect(page.getByRole('button', { name: 'RECTIFICAR' })).toBeVisible()
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
     })
@@ -36,19 +41,30 @@ test.describe('F9A certificación responsive y accesible', () => {
     })
   }
 
-  test('cut READY, rectificación efectiva y estados válidos de artefactos son visibles', async ({ page }) => {
+  test('CutsScreen real muestra el flujo READY y rectificación efectiva', async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 1000 })
     await page.goto('/?fixture=rectification')
     await expect(page.getByText('CORTE 001 · READY')).toBeVisible()
+    await page.getByRole('button', { name: 'VER DETALLE' }).click()
+    await expect(page.getByRole('heading', { name: 'Detalle inmutable' })).toBeVisible()
     await expect(page.getByText('SNAPSHOT DEL CORTE')).toBeVisible()
-    await expect(page.getByText('R001 · XLSX DE RECTIFICACIÓN')).toBeVisible()
-    await expect(page.getByText('PENDIENTE DE GENERACIÓN')).toBeVisible()
-    await expect(page.getByText('REQUIERE REINTENTO')).toBeVisible()
     await page.getByRole('button', { name: 'RECTIFICAR' }).click()
     await expect(page.getByRole('heading', { name: 'RECTIFICACIÓN POST-CORTE' })).toBeVisible()
     await expect(page.getByText('ESTADO EFECTIVO ACTUAL')).toBeVisible()
     await expect(page.getByText('R001').first()).toBeVisible()
     await expect(page.locator('fieldset').filter({ hasText: 'VALORES CORRECTOS' })).toBeVisible()
+  })
+
+  test('CutsScreen real muestra estados válidos de artefactos tras VER DETALLE', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 1000 })
+    await page.goto('/?fixture=artifacts')
+    await page.getByRole('button', { name: 'VER DETALLE' }).click()
+    await expect(page.getByText('SNAPSHOT DEL CORTE')).toBeVisible()
+    await expect(page.getByText('PENDIENTE DE GENERACIÓN')).toBeVisible()
+    await expect(page.getByText('R001 · XLSX DE RECTIFICACIÓN')).toBeVisible()
+    await expect(page.getByText('LISTO')).toBeVisible()
+    await expect(page.getByText('RESPALDO TÉCNICO DEL CORTE')).toBeVisible()
+    await expect(page.getByText('REQUIERE REINTENTO')).toBeVisible()
   })
 
   test('supervisión y maestro declaran sólo el smoke de layout sin backend', async ({ page }) => {
