@@ -16,7 +16,7 @@ Certified CI run: [`36189000875`](https://github.com/Lockowom/Inventario-/action
 | OFFLINE | umbrales 0–39, 40, 45, 50 | AUTOMATED | estado usado por UI | mensajes funcionales correctos y bloqueo en 50 | CI 36189000875/app-checks + phase-9-e2e-visual | PASS |
 | OFFLINE | freeze con pendientes conocidos | AUTOMATED | F4/F6 y pgTAP existentes | bloquea >0; se resuelve tras reportar 0 | CI 36189000875/database-checks | PASS |
 | DEVICES | build, Capacitor, plugins y configuración | AUTOMATED | `app-checks` + inspección estática | Android/iOS sync; SQLite y scanner configurados | CI 36189000875/app-checks | PASS |
-| DEVICES | Device Health Check | CONTRACT | `DEVICE_HEALTH_CHECK_V1.md` | contrato revisable antes de implementación; no ejecuta diagnóstico | contrato F9A | CONTRACT_PENDING / NOT_IMPLEMENTED |
+| DEVICES | Device Health Check | CONTRACT | `DEVICE_HEALTH_CHECK_V1.md` | contrato listo para implementación; no ejecuta diagnóstico | contrato F9A | CONTRACT_READY / NOT_IMPLEMENTED |
 | DEVICES | cámara, scanner, SQLite y safe areas reales | MANUAL_PHYSICAL | `DEVICE_QA_V1.md` | checklist por Android/iOS ejecutado en hardware | evidencia QA | MANUAL_REQUIRED |
 | VISUAL | viewports 320,360,390,412,420,430,600,768,900,1024,1440 | AUTOMATED | Playwright e2e sobre flujo real de Cortes | sin overflow horizontal; `VER DETALLE`, detalle inmutable, rectificación y artefacto visibles | CI 36189000875/phase-9-e2e-visual | PASS |
 | VISUAL | conteo 320,390,412,430 | AUTOMATED | Playwright e2e | sin overflow; Guardar visible; mensajes 40/45/50 y `Mis conteos`; bloqueo en 50 | CI 36189000875/phase-9-e2e-visual | PASS |
@@ -34,7 +34,7 @@ Certified CI run: [`36189000875`](https://github.com/Lockowom/Inventario-/action
 - F9A no agrega conciliación, stock RP, diferencias, ajustes, valorización, SCI, roles ni tablas de negocio.
 - La carga usa datos efímeros de Supabase local y no enlaza, aplica ni consulta Supabase remoto.
 - El benchmark registra integridad como criterio primario; tiempo, records/s y RSS son observaciones, no SLA contractual.
-- Device Health permanece exclusivamente como `CONTRACT_PENDING / NOT_IMPLEMENTED`: no agrega UI, adaptadores, RPC, RLS, migraciones ni telemetría.
+- Device Health está contractualmente listo, pero todavía no implementado: no agrega UI, adaptadores, RPC, RLS, migraciones ni telemetría.
 - La cobertura visual usa el fixture de compilación `VITE_CERTIFICATION_FIXTURE=1` sólo cuando `import.meta.env.DEV` es verdadero; un build productivo siempre renderiza `RuntimeApp`. Sus datos sintéticos son deterministas y contractualmente válidos.
 - `SUPERVISION_LAYOUT_SMOKE = PASS` en CI 36189000875/phase-9-e2e-visual. Los estados de datos de supervisión se certifican por las pruebas unitarias e integración existentes, no se declaran ejecutados por Playwright.
 

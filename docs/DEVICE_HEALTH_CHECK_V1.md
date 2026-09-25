@@ -1,6 +1,6 @@
 # Health Check del dispositivo v1 — contrato cerrado
 
-Estado: `CONTRACT_PENDING / NOT_IMPLEMENTED`. Este documento fija las políticas funcionales para una implementación futura; no crea UI, adapters, permisos, RPC, migraciones, RLS, telemetría ni cambios en la captura.
+Estado: `CONTRACT_READY / NOT_IMPLEMENTED`. Este documento fija las políticas funcionales para una implementación futura; no crea UI, adapters, permisos, RPC, migraciones, RLS, telemetría ni cambios en la captura.
 
 ## Alcance y autoridad existente
 
@@ -109,4 +109,4 @@ Los objetivos físicos futuros no son SLA de CI de escritorio: guardado SQLite y
 
 ## Límites de esta fase
 
-Este cierre es exclusivamente documental. Device Health permanece `CONTRACT_PENDING / NOT_IMPLEMENTED`; no se implementa Device Health, F9B ni Fase 10.
+Este cierre es exclusivamente documental. Device Health está contractualmente listo, pero todavía no implementado; no se implementa Device Health, F9B ni Fase 10.
