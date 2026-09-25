@@ -1,70 +1,112 @@
-# Health Check del dispositivo v1 — contrato pendiente
+# Health Check del dispositivo v1 — contrato cerrado
 
-Estado: `CONTRACT_PENDING / NOT_IMPLEMENTED`. Este documento cierra el contrato de la sección 47 del Blueprint; no crea UI, adapters, permisos, RPC, migraciones ni cambios de RLS.
+Estado: `CONTRACT_PENDING / NOT_IMPLEMENTED`. Este documento fija las políticas funcionales para una implementación futura; no crea UI, adapters, permisos, RPC, migraciones, RLS, telemetría ni cambios en la captura.
 
-## Propósito y resultado
+## Alcance y autoridad existente
 
-Antes de una jornada, y bajo demanda, INVEN3 evaluará la capacidad del dispositivo para capturar inventario sin exponer credenciales ni datos privados. El resultado propuesto será una de estas salidas:
+Health Check no es una nueva fuente de autorización ni de datos. Debe consumir las garantías existentes sin reinterpretarlas:
 
-- `DISPOSITIVO LISTO PARA INVENTARIO`: todos los prerrequisitos de captura local están en `PASS`.
-- `DISPOSITIVO LISTO PARA INVENTARIO OFFLINE`: prerrequisitos locales en `PASS`; conectividad backend degradada según la política pendiente.
-- `REVISIÓN REQUERIDA`: existe al menos un check bloqueante en `FAIL`.
-- detalle seguro de cada check, sin tokens, SQL, rutas de Storage ni mensajes internos.
+- `resolveCountingContext()` conserva la regla **server answers win**: `AUTHORIZED` produce `ONLINE`; `UNAVAILABLE` sólo permite `OFFLINE` con cache válido y el mismo `localSessionUserId`; `NOT_AUTHORIZED` y `AMBIGUOUS` producen `BLOCKED` y limpian el cache.
+- `verifyServerCountingContext()` continúa comprobando `getUser()`, perfil activo, asignación e inventario `ABIERTO` contra el servidor. Al reconectar, esa respuesta vuelve a ser autoritativa sin período de gracia.
+- El maestro se consulta sólo mediante `MasterSkuRepository`, metadata y lookup existentes; no habrá una copia de maestro para Health Check.
+- Cámara y scanner reutilizarán `src/scanner/` y `SCANNER_V1.md`; no habrá un segundo scanner.
 
-El modelo mínimo de estado propuesto es `PASS`, `WARN`, `FAIL` y `UNAVAILABLE`. `UNAVAILABLE` significa que la plataforma no puede ejecutar esa observación; no equivale por sí solo a `FAIL`. La decisión de bloqueo se deriva por check y por política, no de una regla global de estado.
+No se modifican en esta fase `authorized-counting-context.ts`, `resolve-counting-context.ts`, `counting-runtime.ts`, `barcode-scanner.ts`, `SCANNER_V1.md` ni `DEVICE_SYNC_V1.md`.
 
-## Contrato de checks
+## Estados y resultado global
 
-| Check | Fuente y método futuro | Plataformas | Resultado y bloqueo propuesto | Offline | Mensaje seguro al usuario | Evidencia QA |
-|---|---|---|---|---|---|---|
-| `APP_VERSION` | versión compilada (`VITE_APP_VERSION`) y versión nativa cuando Capacitor la exponga; comparar sólo contra política aprobada | Web, Android, iOS | `PASS` si identificable; `WARN` si no se puede comparar con política; bloqueo por versión mínima es `DECISION_REQUIRED` | Sí, identifica build local | “Versión instalada: …” o “No fue posible verificar la política de versión.” | build/SHA, SO y captura de pantalla en `DEVICE_QA_V1.md` |
-| `AUTH_USER` | sesión autenticada local y perfil activo/cache autorizado; no mostrar JWT | Web, Android, iOS | `FAIL` sin usuario autenticado o perfil inactivo; bloqueante para captura | Sólo con sesión/contexto local válido; reglas de expiración offline son `DECISION_REQUIRED` | “Inicie sesión con un usuario activo.” | login de prueba Android/iOS |
-| `INVENTORY_CONTEXT` | contexto autorizado seleccionado/cached, inventario `ABIERTO`, asignación vigente | Web, Android, iOS | `FAIL` si falta contexto, asignación o inventario abierto; bloqueante | Sí, sólo con contexto previamente verificado y cacheado | “Seleccione un inventario abierto autorizado.” | login, inventario y maestro offline disponibles |
-| `MASTER_SNAPSHOT` | repositorio de maestro: metadata y snapshot local | Web/Dexie, Android/iOS SQLite | `PASS` sólo si `inventory_id` coincide, metadata existe, `row_count > 0` y snapshot es legible; `FAIL` bloqueante en otro caso | Sí | “El maestro de este inventario no está disponible localmente.” | maestro offline y búsqueda SKU |
-| `LOCAL_DATABASE` | abrir repositorio local, lectura y transacción técnica de prueba en namespace de salud, sin escribir conteos de negocio | Web/Dexie, Android/iOS SQLite | `FAIL` si no abre/lee/escribe transaccionalmente; bloqueante | Sí | “La base local no está disponible. No capture conteos.” | guardar, cerrar/reabrir y revisar pendiente |
-| `CAMERA_AVAILABLE` | capacidad nativa/Barcode Detection API, no inferida de permiso | Web, Android, iOS | `PASS` disponible; `UNAVAILABLE` sin capacidad; propuesta `WARN` no bloqueante porque la digitación manual permanece contractual | Sí | “Cámara no disponible; puede ingresar los datos manualmente.” | prueba cámara por dispositivo |
-| `CAMERA_PERMISSION` | estado de permiso del adaptador nativo o navegador, separado de capacidad | Web, Android, iOS | `PASS` concedido; `WARN` denegado/no solicitado, no bloqueante mientras exista digitación manual | Sí | “Permiso de cámara no concedido; puede ingresar los datos manualmente.” | aceptar y rechazar permiso |
-| `SCANNER_AVAILABLE` | inicialización/capacidad del adaptador y, Android, disponibilidad del módulo Google Scanner | Web, Android, iOS | `PASS` inicializable; `WARN`/`UNAVAILABLE` no bloqueante por ingreso manual contractual; si una futura operación exige escaneo, su bloqueo es `DECISION_REQUIRED` | Sí | “Scanner no disponible; puede ingresar los datos manualmente.” | QR, Code128, cancelar y restauración |
-| `LOCAL_STORAGE` | Web: disponibilidad IndexedDB y cuota estimada sin umbral inventado. Móvil: apertura SQLite y espacio reportable si el SO/adaptador lo permite sin nuevo plugin | Web, Android, iOS | `PASS` almacenamiento operativo; `WARN` si cuota/espacio no observable; `FAIL` si no puede persistir; `FAIL` es bloqueante | Sí | “No hay almacenamiento local disponible para proteger los conteos.” | SQLite y espacio disponible en matriz física |
-| `BACKEND_CONNECTIVITY` | consulta autorizada mínima, sin RPC nueva ni datos sensibles; definir endpoint y timeout en diseño posterior | Web, Android, iOS | `PASS` alcanzable; `WARN` no alcanzable con prerrequisitos locales válidos. Política de inicio de jornada sin red es `DECISION_REQUIRED` | No para la observación; sí para captura cuando lo local está listo | “Servidor no disponible ahora. Puede trabajar offline y sincronizar después.” | desconexión/reconexión y sync posterior |
-| `DEVICE_TIME` | reloj local ISO; comparación con referencia firmada/autorizada sólo cuando exista conectividad | Web, Android, iOS | `PASS` si reloj legible; deriva de comparación/tolerancia es `DECISION_REQUIRED`. `UNAVAILABLE` para drift sin referencia no bloquea por ahora | Sí para lectura local; no para comparación | “No fue posible comparar la hora del dispositivo con el servidor.” | registrar hora local, hora de referencia y diferencia |
+Cada check retorna `PASS`, `WARN`, `FAIL` o `UNAVAILABLE`. `UNAVAILABLE` no implica automáticamente fallo: su criticidad se determina por este contrato.
 
-## Semántica de bloqueo y decisiones pendientes
+Sólo existen cuatro resultados globales:
 
-Los checks de identidad, contexto, maestro y persistencia local son prerrequisitos propuestos de captura: `AUTH_USER`, `INVENTORY_CONTEXT`, `MASTER_SNAPSHOT`, `LOCAL_DATABASE` y un `LOCAL_STORAGE` que no puede persistir deben bloquear. Cámara, permiso y scanner son advertencias por el flujo manual contractual de `SCANNER_V1.md`.
+| Resultado | Label de UI | Regla |
+|---|---|---|
+| `READY` | **DISPOSITIVO LISTO PARA INVENTARIO** | Todos los checks aplicables en `PASS`. |
+| `READY_OFFLINE` | **DISPOSITIVO LISTO PARA INVENTARIO OFFLINE** | Sin `FAIL` bloqueante, `BACKEND_CONNECTIVITY` no disponible y `resolveCountingContext()` válido en `OFFLINE`. |
+| `READY_WITH_WARNINGS` | **DISPOSITIVO LISTO CON ADVERTENCIAS** | Sin `FAIL` bloqueante, backend disponible y uno o más `WARN`/`UNAVAILABLE` no críticos. |
+| `BLOCKED` | **REVISIÓN REQUERIDA** | Cualquier `FAIL` bloqueante. |
 
-Las siguientes decisiones no se fijan en este contrato:
+La pantalla de conteo futura sólo bloqueará captura si el resultado global es `BLOCKED`; no por `WARN`, `UNAVAILABLE` no crítico, `READY_OFFLINE` ni `READY_WITH_WARNINGS`.
 
-1. `DECISION_REQUIRED — BACKEND_CONNECTIVITY`: el Blueprint es offline-first y permite trabajar offline, pero no define si una jornada nueva puede iniciarse sin conexión. La propuesta permite captura offline sólo con usuario, contexto y maestro previamente verificados; la autoridad operativa debe aprobarla.
-2. `DECISION_REQUIRED — DEVICE_TIME`: faltan referencia autorizada, tolerancia de drift y conducta offline. No se creará RPC ni se inventará una tolerancia.
-3. `DECISION_REQUIRED — APP_VERSION`: falta política de versión mínima/obsoleta y si bloquea.
-4. `DECISION_REQUIRED — AUTH_USER offline`: falta la regla de expiración/renovación de sesión para comenzar una jornada sin red.
-5. `DECISION_REQUIRED — LOCAL_STORAGE`: falta un umbral de espacio mínimo que sea válido por plataforma; no se añadirá plugin nativo sólo para medirlo.
-6. `DECISION_REQUIRED — scanner obligatorio`: el flujo general conserva digitación manual; una excepción por operación requeriría cambio funcional aprobado.
+## Contrato final de checks
 
-## Base local y maestro
+| Orden | Check | Fuente y método futuro | Resultado y bloqueo | Comportamiento offline / mensaje seguro |
+|---:|---|---|---|---|
+| 1 | `APP_VERSION` | `VITE_APP_VERSION` con fallback de build `0.1.0` y versión nativa si Capacitor la expone. | Identificable: `PASS`; no identificable: `WARN`, no bloqueante. No hay versión mínima, forced upgrade ni bloqueo v1. El diseño acepta una política futura de rollout sin reescribir el dominio. | Local: “No fue posible identificar la versión instalada.” Health sólo informa; no descarga bundles, APK ni gestiona App Store. |
+| 2 | `AUTH_USER` | Identidad de sesión persistida del cliente Supabase y el resultado de `resolveCountingContext()`. | Sin identidad local del usuario: `FAIL` bloqueante. No se exige refresh remoto sin red. | Requiere identidad persistida y `cached.userId === localSessionUserId`; de otro modo bloquea. Mensaje: “Inicie sesión con un usuario activo.” |
+| 3 | `INVENTORY_CONTEXT` | `resolveCountingContext()` y contexto de conteo seleccionado. | Sólo `ABIERTO` y `ONLINE` autorizado por servidor o `OFFLINE` cacheado válido. Cualquier `BLOCKED`, contexto ausente o estado distinto de `ABIERTO`: `FAIL` bloqueante. | El cache no autoriza tras respuesta `NOT_AUTHORIZED` o `AMBIGUOUS`. Mensaje: “Seleccione un inventario abierto autorizado.” |
+| 4 | `MASTER_SNAPSHOT` | `MasterSkuRepository.getMetadata`, `listByInventory` y `findByCode`. | Exige mismo `inventoryId`, metadata legible, `rowCount > 0`, filas legibles con cardinalidad coherente y lookup real de una fila del snapshot. Cualquier incumplimiento: `FAIL` bloqueante. | Válido offline si ya reside localmente. Mensaje: “El maestro de este inventario no está disponible localmente.” |
+| 5 | `LOCAL_DATABASE` | Puerto técnico de probe común para Dexie/SQLite, explicado abajo. | Debe abrir, leer y demostrar write/transaction seguro; error: `FAIL` bloqueante. | Opera localmente. Mensaje: “La base local no está disponible. No capture conteos.” |
+| 6 | `LOCAL_STORAGE` | Resultado de persistencia local y estimación de cuota sólo cuando la plataforma la exponga. | Persistencia operativa: `PASS`; cuota/espacio no observable: `WARN` no bloqueante; incapacidad de persistir: `FAIL` bloqueante. No hay umbral MB/GB v1. | Web puede informar `navigator.storage.estimate()`; móvil puede reportar cuota física `UNAVAILABLE` sin plugin nuevo. |
+| 7 | `BACKEND_CONNECTIVITY` | Resultado de `verifyServerCountingContext()` y resolución existente, no un endpoint paralelo. | `AUTHORIZED`/`ONLINE`: `PASS`. `UNAVAILABLE` con cache válido y mismo usuario: `WARN`, no bloqueante. Sin cache autorizado o identidad coincidente: el contexto queda `BLOCKED`. | Con prerrequisitos locales válidos: “Servidor no disponible ahora. Puede trabajar offline y sincronizar después.” |
+| 8 | `DEVICE_TIME` | `Date.now()` y `new Date().toISOString()`; con backend online, referencia PostgreSQL futura. | Runtime sin fecha ISO válida: `FAIL` bloqueante. Con referencia online, drift absoluto `<= 5 min`: `PASS`; `> 5 min`: `FAIL` y bloquea nueva captura. | Con reloj válido y contexto `OFFLINE`: `WARN`, no bloquea: “No fue posible comparar la hora del dispositivo con el servidor.” |
+| 9 | `CAMERA_AVAILABLE` | Capacidad del adaptador nativo o navegador, separada del permiso. | Disponible: `PASS`; no disponible: `WARN`/`UNAVAILABLE`, no bloqueante porque existe digitación manual. | “Cámara no disponible; puede ingresar los datos manualmente.” |
+| 10 | `CAMERA_PERMISSION` | Consulta pasiva de permiso disponible por adaptador; nunca solicita permiso automáticamente. | Concedido: `PASS`; denegado, no solicitado o restringido: `WARN`, no bloqueante. En Android Google Scanner ready-to-use, cámara de INVEN3 no es requerida: se informa `UNAVAILABLE`/no aplicable, nunca falso `FAIL`. | Solicitud de permiso sólo por acción explícita del usuario. Mensaje: “Permiso de cámara no concedido; puede ingresar los datos manualmente.” |
+| 11 | `SCANNER_AVAILABLE` | Capacidad/inicialización segura de `src/scanner/`; Android verifica disponibilidad del módulo Google Scanner sin abrir lectura. | Inicializable: `PASS`; no disponible: `WARN`/`UNAVAILABLE`, no bloqueante. Scanner nunca es requisito de captura en INVEN3 v1. | “Scanner no disponible; puede ingresar los datos manualmente.” |
 
-El probe de `LOCAL_DATABASE` deberá usar una operación técnica aislada y transaccional, con lectura/escritura/rollback o limpieza garantizada en un namespace que no sea `count_records`. No debe crear UUID, pendientes, auditoría ni conteos ficticios. Su esquema o mecanismo exacto requiere diseño aprobado antes de implementación.
+No se agregan checks por conveniencia. La ausencia de scanner, cámara o permiso no convierte la captura manual en `BLOCKED`.
 
-`MASTER_SNAPSHOT` no se satisface por la mera existencia de una tabla: debe comprobar que el snapshot pertenece al inventario seleccionado, que metadata está disponible, que `row_count` es válido y que se puede leer para resolver trabajo offline.
+## Política de conectividad, identidad y reconexión
 
-## UI y ejecución futura
+La política v1 queda cerrada así:
 
-La futura pantalla se titulará **HEALTH CHECK DEL DISPOSITIVO** y mostrará checks, estado, mensaje seguro, hora de ejecución y acción **ACTUALIZAR**. Se propondrá ejecución en: inicio de app (diagnóstico liviano), post-login, selección/cambio de inventario, antes de jornada y refresh manual. La evaluación intensiva de cámara/scanner debe ser explícita y nunca abrir cámara automáticamente.
+```text
+BACKEND disponible
+  → verificación server-authoritative normal
 
-No debe exponer `service_role`, JWT, tokens, rutas sensibles de Storage, SQL ni metadata privada. No requiere privilegios, RPC ni backend nuevos bajo este contrato.
+BACKEND no disponible + resolveCountingContext = OFFLINE
+  → BACKEND_CONNECTIVITY = WARN
+  → no bloquear captura
 
-## Matriz QA futura y rendimiento físico
+BACKEND no disponible + sin contexto cacheado autorizado
+o sin identidad local del mismo usuario
+  → BLOCKED
+```
 
-Cada check se registrará en `DEVICE_QA_V1.md` para Android angosto, estándar, grande, alta densidad y tablet Android; iPhone compacto, estándar, grande e iPad. La evidencia debe incluir modelo, SO, build/SHA, responsable, fecha, resultado y capturas no sensibles.
+Por tanto, si `AUTH_USER`, `INVENTORY_CONTEXT`, `MASTER_SNAPSHOT`, `LOCAL_DATABASE` y `LOCAL_STORAGE` son válidos y backend no está disponible, el resultado es exactamente **DISPOSITIVO LISTO PARA INVENTARIO OFFLINE**, no “REVISIÓN REQUERIDA”. Al volver la conexión, `getUser()`, perfil activo, asignación e inventario `ABIERTO` vuelven a decidir; `NOT_AUTHORIZED` o `AMBIGUOUS` invalidan el contexto local de inmediato.
 
-Los siguientes objetivos del Blueprint son gates físicos futuros, no resultados de CI de escritorio:
+## Probe de base local y almacenamiento
 
-- guardar SQLite local < 300 ms normalmente;
-- buscar SKU local < 300 ms;
-- abrir formulario < 1 s en dispositivo objetivo;
-- sync nunca bloquea captura.
+Se revisaron los adapters actuales. El mecanismo mínimo común propuesto es un puerto de infraestructura semántico, por ejemplo `LocalHealthProbe`, que exponga sólo abrir, lectura y transacción/write; el dominio no conocerá SQL ni Dexie.
+
+- **Dexie:** abre `Inven3WebDatabase`, lee `runtimeState` y, dentro de una transacción `rw`, escribe, lee y elimina una clave técnica con prefijo reservado `health_probe:`. La transacción confirma sin residuo persistente.
+- **SQLite:** inicializa la conexión y migraciones existentes, lee `pragma user_version` y ejecuta una transacción sobre una tabla temporal de nombre técnico, por ejemplo `health_probe`. Inserta/lee un marcador estático y la elimina antes de commit.
+
+Ambos mecanismos demuestran apertura, lectura y capacidad transaccional de escritura sin crear `count_record`, `client_count_id`, pendiente, auditoría ni esquema persistente. No se crea tabla, migración ni código ahora. La estimación de cuota es informativa y distinta de la persistencia operativa crítica.
+
+## Política de tiempo
+
+Health Check detecta, informa y bloquea cuando corresponde; nunca corrige la hora del sistema operativo. No obtiene “ahora” desde `iat`/`exp` de JWT, `last_sign_in_at`, `captured_at`, `received_at` histórico ni otra fecha previa.
+
+La referencia preferida para una implementación futura es una RPC mínima `get_server_time()` que devuelva exclusivamente `clock_timestamp()`:
+
+```text
+SECURITY INVOKER
+sin parámetros ni acceso a tablas
+sin service_role
+authenticated solamente
+REVOKE PUBLIC
+REVOKE anon
+GRANT authenticated
+```
+
+La revisión del repositorio no encontró una alternativa actual que exponga la hora presente del servidor. Si se aprueba, se implementará posteriormente mediante migración forward-only local/CI, sin deploy remoto y sin `SECURITY DEFINER`. Mientras haya conectividad, se registrará la diferencia observada y se aplicará una única tolerancia operacional v1 de ±5 minutos. Si la referencia no puede obtenerse pese a backend disponible, el check será `WARN` y se reintentará; no se afirmará `PASS` sin comparación.
+
+## Modos de ejecución y UI futura
+
+| Modo | Cuándo | Alcance |
+|---|---|---|
+| `LIGHT` | Inicio, post-login y cambio/selección de inventario. | Checks seguros; no abre cámara ni solicita permisos. |
+| `FULL` | Acción explícita **COMPROBAR DISPOSITIVO**. | Puede consultar soporte scanner, permiso y probes adicionales seguros; nunca inicia una lectura de código. |
+
+La futura pantalla se titulará **HEALTH CHECK DEL DISPOSITIVO** y mostrará resultado global, hora del check, cada check, estado y mensaje seguro. Sus únicas acciones v1 serán **ACTUALIZAR** y **COMPROBAR DISPOSITIVO**.
+
+## Seguridad y QA
+
+Los mensajes no expondrán JWT, access/refresh token, `service_role`, SQL, rutas de Storage, errores internos ni metadata privada. La evidencia manual en `DEVICE_QA_V1.md` cubre Android angosto, estándar, grande, alta densidad y tablet; iPhone compacto, estándar, grande e iPad. Cada registro debe incluir modelo, SO, build/SHA, responsable, fecha, resultado y capturas no sensibles.
+
+Los objetivos físicos futuros no son SLA de CI de escritorio: guardado SQLite y lookup SKU local normalmente <300 ms, apertura de formulario <1 s y sync no bloqueante para captura.
 
 ## Límites de esta fase
 
-Este contrato no implementa Health Check y no modifica migraciones, RPC, RLS, Edge Functions, Storage, permisos nativos, scanner, SQLite ni UI productiva.
+Este cierre es exclusivamente documental. Device Health permanece `CONTRACT_PENDING / NOT_IMPLEMENTED`; no se implementa Device Health, F9B ni Fase 10.
