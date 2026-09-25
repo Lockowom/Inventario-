@@ -9,6 +9,7 @@ import type { MasterSkuRepository } from '../domain/ports/master-sku-repository'
 import type { LocalCountRecord } from '../domain/count/contracts'
 import type { MasterSku } from '../domain/master/contracts'
 import type { ArtifactGeneration, CutRectification, RectificationsRepository } from '../features/rectifications/contracts'
+import { readCertificationFixtureState } from './certification-fixture-state'
 
 const inventoryId = '11111111-1111-4111-8111-111111111111'
 const userId = '22222222-2222-4222-8222-222222222222'
@@ -17,15 +18,6 @@ const cutId = '44444444-4444-4444-8444-444444444444'
 const recordId = '55555555-5555-4555-8555-555555555555'
 const rectificationId = '66666666-6666-4666-8666-666666666666'
 const fixedAt = '2026-09-24T12:00:00.000Z'
-
-type FixtureState = 'counting-normal' | 'counting-warning' | 'counting-critical' | 'counting-blocked' | 'cuts-ready' | 'rectification' | 'artifacts' | 'layout'
-const fixtureStates: readonly FixtureState[] = ['counting-normal', 'counting-warning', 'counting-critical', 'counting-blocked', 'cuts-ready', 'rectification', 'artifacts', 'layout']
-
-/** The selector is consumed only after App has admitted the DEV-only fixture. */
-export function readCertificationFixtureState(search: string): FixtureState {
-  const candidate = new URLSearchParams(search).get('fixture')
-  return fixtureStates.includes(candidate as FixtureState) ? candidate as FixtureState : 'cuts-ready'
-}
 
 const master: MasterSku = { inventoryId, codigo: '00001', descripcion: 'Producto de certificación', controlType: 'PARTIDA', cachedAt: fixedAt }
 const masters: MasterSkuRepository = {
