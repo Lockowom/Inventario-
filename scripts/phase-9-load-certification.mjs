@@ -29,7 +29,11 @@ async function createFixture(label) {
 }
 
 async function createActors({ count, inventoryId, adminId, label }) {
-  return Promise.all(Array.from({ length: count }, async (_, index) => {
+  // GoTrue fixture provisioning is intentionally serialized.  The condition under
+  // certification is the later `Promise.all(actors.map(... sync_counts ...))`,
+  // not contention in the local Auth emulator's email uniqueness lookup.
+  const actors = []
+  for (let index = 0; index < count; index += 1) {
     const email = `phase9-${label}-counter-${index}-${randomUUID()}@example.invalid`
     const password = `P9-${randomUUID()}-safe`
     const created = await service.auth.admin.createUser({ email, password, email_confirm: true })
@@ -43,8 +47,9 @@ async function createActors({ count, inventoryId, adminId, label }) {
     const client = createClient(url, anonKey, { global: { headers: { Authorization: `Bearer ${login.data.session.access_token}` } } })
     const deviceId = randomUUID()
     await must(await client.rpc('register_sync_device', { p_device_id: deviceId, p_platform: 'WEB', p_app_version: 'phase-9-ci', p_device_label: `INVEN3 F9 ${label} DEVICE ${String(index + 1).padStart(3, '0')}` }), `register ${label} device ${index}`)
-    return { index, userId, deviceId, client }
-  }))
+    actors.push({ index, userId, deviceId, client })
+  }
+  return actors
 }
 
 function buildRecords({ actor, recordCount, wave, clientIds }) {
