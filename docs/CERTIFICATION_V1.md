@@ -2,7 +2,7 @@
 
 Este documento es la fuente autoritativa de certificación F9. Un estado `PASS` requiere ejecución y evidencia reproducible; los gates físicos, de RP y beta no se reinterpretan como automatizados.
 
-Certified SHA: `6d3e0602c4f9c96e4dd93a12f07214d79910979a`  
+Certified SHA: `6d3e0602c4f9c96e4dd93a12f07214d79910979a`
 Certified CI run: [`36160214262`](https://github.com/Lockowom/Inventario-/actions/runs/36160214262)
 
 | AREA | SCENARIO | TYPE | METHOD | PASS CRITERIA | EVIDENCE | STATUS |
