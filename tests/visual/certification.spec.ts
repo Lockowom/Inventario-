@@ -14,6 +14,9 @@ for (const snapshot of snapshots) {
     await page.addStyleTag({ content: '*,*::before,*::after{animation:none!important;transition:none!important;caret-color:transparent!important}' })
     if (snapshot.state === 'rectification' || snapshot.state === 'artifacts') await page.getByRole('button', { name: 'VER DETALLE' }).click()
     if (snapshot.state === 'rectification') await page.getByRole('button', { name: 'RECTIFICAR' }).click()
+    // Keep the non-semantic explanatory copy to one desktop line so host font
+    // metrics cannot change the artifact panel's captured height.
+    if (snapshot.state === 'artifacts') await page.addStyleTag({ content: '.artifact-panel>header>p{font-size:14px!important;line-height:20px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}' })
     await expect(page.getByText(snapshot.ready).first()).toBeVisible()
     const target = snapshot.state === 'artifacts' ? page.locator('.artifact-panel') : page
     // Baselines are shared by Windows development and Linux CI. The bounded
