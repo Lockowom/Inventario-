@@ -15,8 +15,9 @@ for (const snapshot of snapshots) {
     if (snapshot.state === 'rectification' || snapshot.state === 'artifacts') await page.getByRole('button', { name: 'VER DETALLE' }).click()
     if (snapshot.state === 'rectification') await page.getByRole('button', { name: 'RECTIFICAR' }).click()
     await expect(page.getByText(snapshot.ready).first()).toBeVisible()
+    const target = snapshot.state === 'artifacts' ? page.locator('.artifact-panel') : page
     // Baselines are shared by Windows development and Linux CI. The bounded
     // tolerance absorbs host font rasterization; overflow is asserted in e2e.
-    await expect(page).toHaveScreenshot(`f9-${snapshot.name}.png`, { fullPage: false, animations: 'disabled', maxDiffPixelRatio: 0.1 })
+    await expect(target).toHaveScreenshot(`f9-${snapshot.name}.png`, { animations: 'disabled', maxDiffPixelRatio: 0.1 })
   })
 }
