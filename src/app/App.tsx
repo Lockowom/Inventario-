@@ -12,11 +12,12 @@ import { authService } from '../features/auth/auth-service'
 import type { CountingRuntime } from '../features/counting/counting-screen'
 import type { SyncCoordinator } from '../domain/sync/sync-coordinator'
 import { CertificationFixture } from './certification-fixture'
+import { isCertificationFixtureEnabled } from './certification-fixture-mode'
 
 const version = import.meta.env.VITE_APP_VERSION ?? '0.1.0'
 
 export function App() {
-  if (import.meta.env.VITE_CERTIFICATION_FIXTURE === '1') return <CertificationFixture />
+  if (isCertificationFixtureEnabled({ dev: import.meta.env.DEV, fixture: import.meta.env.VITE_CERTIFICATION_FIXTURE })) return <CertificationFixture />
   return <RuntimeApp />
 }
 

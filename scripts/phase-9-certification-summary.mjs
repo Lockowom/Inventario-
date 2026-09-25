@@ -1,4 +1,7 @@
 /* global console */
+// These PASS lines are sound without a GitHub API query because this job has
+// `needs` on app-checks, database-checks, phase-7-edge-storage,
+// phase-8-edge-storage, phase-9-load, and phase-9-e2e-visual.
 console.log(`INVEN3 PHASE 9 CERTIFICATION
 
 LOAD              PASS

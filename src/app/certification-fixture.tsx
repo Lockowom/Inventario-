@@ -1,31 +1,115 @@
+import { useMemo } from 'react'
 import { ArtifactPanel } from '../features/rectifications/artifact-panel'
 import { RectificationPanel } from '../features/rectifications/rectification-panel'
 import { SupervisionScreen } from '../features/supervision/supervision-screen'
-import { CutsScreen } from '../features/cuts/cuts-screen'
 import { MasterSkuScreen } from '../features/master/master-sku-screen'
-import { CountingScreen } from '../features/counting/counting-screen'
-import type { RectificationsRepository } from '../features/rectifications/contracts'
+import { CountingScreen, type CountingRuntime } from '../features/counting/counting-screen'
+import { PendingCountCapacityError, type CountListFilter, type CountRepository } from '../domain/ports/count-repository'
+import type { MasterSkuRepository } from '../domain/ports/master-sku-repository'
+import type { LocalCountRecord } from '../domain/count/contracts'
+import type { MasterSku } from '../domain/master/contracts'
+import type { ArtifactGeneration, CutRectification, RectificationsRepository } from '../features/rectifications/contracts'
 
-const repository: RectificationsRepository = {
-  rectifyCut: async () => ({ id: 'rectification-001', rectification_number: 1, idempotent: false }),
-  rectifications: async () => [],
-  artifacts: async () => [],
-  generateArtifact: async () => undefined,
-  downloadArtifact: async () => ({ signedUrl: 'https://example.invalid/file', fileName: 'INVEN3_CERTIFICATION.xlsx' }),
-  masterItem: async (_inventoryId, codigo) => ({ codigo, descripcion: 'Descripción de certificación', control_type: 'LEGACY' }),
+const inventoryId = '11111111-1111-4111-8111-111111111111'
+const userId = '22222222-2222-4222-8222-222222222222'
+const deviceId = '33333333-3333-4333-8333-333333333333'
+const cutId = '44444444-4444-4444-8444-444444444444'
+const recordId = '55555555-5555-4555-8555-555555555555'
+const rectificationId = '66666666-6666-4666-8666-666666666666'
+const fixedAt = '2026-09-24T12:00:00.000Z'
+
+type FixtureState = 'counting-normal' | 'counting-warning' | 'counting-critical' | 'counting-blocked' | 'cuts-ready' | 'rectification' | 'artifacts' | 'layout'
+const fixtureStates: readonly FixtureState[] = ['counting-normal', 'counting-warning', 'counting-critical', 'counting-blocked', 'cuts-ready', 'rectification', 'artifacts', 'layout']
+
+/** The selector is consumed only after App has admitted the DEV-only fixture. */
+export function readCertificationFixtureState(search: string): FixtureState {
+  const candidate = new URLSearchParams(search).get('fixture')
+  return fixtureStates.includes(candidate as FixtureState) ? candidate as FixtureState : 'cuts-ready'
 }
 
-/** Test-only composition enabled solely by VITE_CERTIFICATION_FIXTURE=1. */
+const master: MasterSku = { inventoryId, codigo: '00001', descripcion: 'Producto de certificación', controlType: 'PARTIDA', cachedAt: fixedAt }
+const masters: MasterSkuRepository = {
+  findByCode: async (_inventoryId, code) => code.trim().toUpperCase() === master.codigo ? master : null,
+  listByInventory: async () => [master],
+  getMetadata: async () => ({ inventoryId, masterVersion: 1, rowCount: 1, fingerprint: 'a'.repeat(64), cachedAt: fixedAt }),
+  replaceSnapshot: async () => undefined,
+}
+
+function uuid(sequence: number) { return `70000000-0000-4000-8000-${String(sequence).padStart(12, '0')}` }
+function countRecord(sequence: number, syncStatus: LocalCountRecord['syncStatus']): LocalCountRecord {
+  return {
+    id: uuid(sequence), clientCountId: uuid(10_000 + sequence), inventoryId, userId, deviceId,
+    ubicacion: 'A-01-01', codigo: '00001', serie: null, partida: '00725', piezaProducto: null,
+    fechaVencimiento: null, talla: 'L', color: 'Negro', cantidadContada: 3, descripcion: master.descripcion,
+    controlType: 'PARTIDA', capturedAt: fixedAt, createdAt: fixedAt, syncStatus, syncAttempts: syncStatus === 'FAILED' ? 1 : 0,
+    lastSyncError: syncStatus === 'FAILED' ? 'Red temporalmente no disponible' : null, syncStartedAt: null,
+    nextRetryAt: null, confirmedAt: syncStatus === 'CONFIRMED' ? fixedAt : null,
+    serverCountId: syncStatus === 'CONFIRMED' ? uuid(20_000 + sequence) : null, lastSyncAt: null,
+  }
+}
+
+class FixtureCountRepository implements CountRepository {
+  public constructor(private readonly records: LocalCountRecord[]) {}
+  public async getOrCreateDeviceId() { return deviceId }
+  public async save(record: LocalCountRecord) { this.records.push(record); return record }
+  public async savePendingWithCapacity(record: LocalCountRecord, maxPending: number) {
+    const pending = await this.countPendingByDevice(record.deviceId)
+    if (pending >= maxPending) throw new PendingCountCapacityError(maxPending)
+    this.records.push(record)
+    return { record, pending: pending + 1 }
+  }
+  public async findByClientId(clientCountId: string) { return this.records.find((record) => record.clientCountId === clientCountId) ?? null }
+  public async listOwnCounts(filter: CountListFilter) {
+    const search = filter.search?.trim().toUpperCase()
+    return this.records.filter((record) => record.inventoryId === filter.inventoryId && record.userId === filter.userId && (!search || [record.codigo, record.serie, record.partida, record.ubicacion].some((value) => value?.toUpperCase().includes(search))))
+  }
+  public async listOutstandingSyncScopes(scopeUserId: string) { return this.records.some((record) => record.userId === scopeUserId && record.syncStatus !== 'CONFIRMED' && record.syncStatus !== 'REJECTED') ? [{ inventoryId, userId: scopeUserId }] : [] }
+  public async countPendingByDevice(id: string) { return this.records.filter((record) => record.deviceId === id && record.syncStatus === 'PENDING').length }
+  public async countOutstandingByInventoryDevice(nextInventoryId: string, id: string) { return this.records.filter((record) => record.inventoryId === nextInventoryId && record.deviceId === id && record.syncStatus !== 'CONFIRMED' && record.syncStatus !== 'REJECTED').length }
+  public async claimNextSyncBatch() { return [] }
+  public async recoverStaleSyncing() { return 0 }
+  public async applySyncAcknowledgements() { return undefined }
+  public async markSyncFailed() { return undefined }
+}
+
+function countingRuntime(pending: number): CountingRuntime {
+  // Pending is actual durable outbox state; MyCounts also receives terminal and retry examples.
+  const records = Array.from({ length: pending }, (_, index) => countRecord(index + 1, 'PENDING'))
+  records.push(countRecord(10_001, 'CONFIRMED'), countRecord(10_002, 'FAILED'))
+  return { context: { inventoryId, userId, inventoryStatus: 'ABIERTO' }, masters, counts: new FixtureCountRepository(records), now: () => new Date(fixedAt), createUuid: () => uuid(90_000) }
+}
+
+const values = { ubicacion: 'A-01-01', codigo: '00001', serie: '', partida: '00725', pieza_producto: '001234', fecha_vencimiento: '2027-04-10', talla: 'L', color: 'Negro', cantidad_contada: 3, descripcion: 'Producto de certificación' }
+const correctedValues = { ...values, cantidad_contada: 4 }
+const rectification: CutRectification = { id: rectificationId, cut_id: cutId, count_record_id: recordId, rectification_number: 1, old_values: values, new_values: correctedValues, reason: 'Corrección sintética certificable', created_at: fixedAt, created_by: userId }
+const artifacts: ArtifactGeneration[] = [
+  { id: '77777777-7777-4777-8777-777777777777', inventory_id: inventoryId, cut_id: cutId, rectification_id: null, artifact_type: 'SNAPSHOT', scope: 'CUT_SNAPSHOT', status: 'REQUESTED', created_at: fixedAt, as_of_at: fixedAt, file_name: null, sha256: null, size_bytes: null, error_safe: null },
+  { id: '88888888-8888-4888-8888-888888888888', inventory_id: inventoryId, cut_id: cutId, rectification_id: null, artifact_type: 'TECHNICAL_BACKUP', scope: 'CUT_READY_BACKUP', status: 'ERROR', created_at: fixedAt, as_of_at: fixedAt, file_name: null, sha256: null, size_bytes: null, error_safe: 'SAFE_ERROR' },
+  { id: '99999999-9999-4999-8999-999999999999', inventory_id: inventoryId, cut_id: cutId, rectification_id: rectificationId, artifact_type: 'RECTIFICATION_XLSX', scope: 'RECTIFICATION_XLSX', status: 'READY', created_at: fixedAt, as_of_at: fixedAt, file_name: 'INVEN3_CERTIFICATION_R001.xlsx', sha256: 'a'.repeat(64), size_bytes: 1024, error_safe: null },
+]
+const repository: RectificationsRepository = {
+  rectifyCut: async () => ({ id: rectificationId, rectification_number: 1, idempotent: false }), rectifications: async () => [rectification], artifacts: async () => artifacts,
+  generateArtifact: async () => undefined, downloadArtifact: async () => ({ signedUrl: 'https://example.invalid/file', fileName: 'INVEN3_CERTIFICATION.xlsx' }),
+  masterItem: async (_inventoryId, codigo) => ({ codigo, descripcion: master.descripcion, control_type: 'PARTIDA' }),
+}
+
+function FixtureCutReady() {
+  return <>
+    <section className="cuts-screen" aria-labelledby="fixture-cuts-title"><header><p className="eyebrow">Fase 7/8 · estado certificado</p><h1 id="fixture-cuts-title">CORTES</h1></header><article className="cut-card"><strong>CORTE 001 · READY</strong><span>RP XLSX validado y disponible.</span><div><button className="button-secondary" type="button">VER DETALLE</button><button className="button-primary" type="button">DESCARGAR RP XLSX</button></div></article></section>
+    <RectificationPanel inventoryId={inventoryId} cut={{ id: cutId, cut_number: 1, status: 'READY' }} items={[{ count_record_id: recordId, export_seq: 1, snapshot: values }]} rectifications={[rectification]} role="ADMIN" repository={repository} onChanged={async () => undefined} />
+    <ArtifactPanel role="ADMIN" inventoryFrozen={false} rectifications={[rectification]} repository={repository} onChanged={async () => undefined} finalArtifacts={[]} artifacts={artifacts} />
+  </>
+}
+
+/** DEV-only deterministic composition for Playwright; it has no production route. */
 export function CertificationFixture() {
-  const values = { ubicacion: 'A-01-01', codigo: '00001', serie: '', partida: '00725', pieza_producto: '001234', fecha_vencimiento: '2027-04-10', talla: 'L', color: 'Negro', cantidad_contada: 3, descripcion: 'Producto de certificación' }
+  const state = readCertificationFixtureState(window.location.search)
+  const capacity = state === 'counting-warning' ? 40 : state === 'counting-critical' ? 45 : state === 'counting-blocked' ? 50 : 39
+  const runtime = useMemo(() => countingRuntime(capacity), [capacity])
   return <main className="app-shell certification-fixture">
-    <header><p className="eyebrow">Fase 9 · fixture determinista</p><h1>INVEN3 CERTIFICATION</h1><p>Datos sintéticos no productivos para regresión visual y accesibilidad.</p></header>
-    <SupervisionScreen /><CutsScreen /><MasterSkuScreen /><CountingScreen runtime={null} />
-    <RectificationPanel inventoryId="11111111-1111-4111-8111-111111111111" cut={{ id: 'cut-001', cut_number: 1, status: 'READY' }} items={[{ count_record_id: 'record-001', export_seq: 1, snapshot: values }]} rectifications={[]} role="ANALISTA" repository={repository} onChanged={async () => undefined} />
-    <ArtifactPanel role="ADMIN" inventoryFrozen={false} rectifications={[]} repository={repository} onChanged={async () => undefined} finalArtifacts={[]} artifacts={[
-      { id: 'artifact-requested', inventory_id: '11111111-1111-4111-8111-111111111111', cut_id: 'cut-001', rectification_id: null, artifact_type: 'TECHNICAL_BACKUP', scope: 'CUT_SNAPSHOT', status: 'REQUESTED', created_at: '2026-09-24T12:00:00.000Z', as_of_at: '2026-09-24T12:00:00.000Z', file_name: null, sha256: null, size_bytes: null, error_safe: null },
-      { id: 'artifact-error', inventory_id: '11111111-1111-4111-8111-111111111111', cut_id: 'cut-001', rectification_id: null, artifact_type: 'TECHNICAL_BACKUP', scope: 'CUT_READY_BACKUP', status: 'ERROR', created_at: '2026-09-24T12:00:00.000Z', as_of_at: '2026-09-24T12:00:00.000Z', file_name: null, sha256: null, size_bytes: null, error_safe: 'SAFE_ERROR' },
-      { id: 'artifact-ready', inventory_id: '11111111-1111-4111-8111-111111111111', cut_id: 'cut-001', rectification_id: null, artifact_type: 'RECTIFICATION_XLSX', scope: 'RECTIFICATION_XLSX', status: 'READY', created_at: '2026-09-24T12:00:00.000Z', as_of_at: '2026-09-24T12:00:00.000Z', file_name: 'INVEN3_CERTIFICATION.xlsx', sha256: 'a'.repeat(64), size_bytes: 1024, error_safe: null },
-    ]} />
+    <header><p className="eyebrow">Fase 9 · fixture DEV determinista</p><h1>INVEN3 CERTIFICATION</h1><p>Datos sintéticos contractualmente válidos para regresión visual y accesibilidad.</p></header>
+    {state.startsWith('counting-') && <CountingScreen runtime={runtime} />}
+    {state === 'layout' && <><SupervisionScreen /><MasterSkuScreen /></>}
+    {['cuts-ready', 'rectification', 'artifacts'].includes(state) && <FixtureCutReady />}
   </main>
 }
