@@ -61,9 +61,27 @@ function requireClient() {
 }
 
 function parseMasterSku(value: { inventory_id: string; codigo: string; descripcion: string; control_type: string; created_at: string }): MasterSku {
-  return masterSkuSchema.parse({ inventoryId: value.inventory_id, codigo: value.codigo, descripcion: value.descripcion, controlType: value.control_type, cachedAt: value.created_at })
+  return masterSkuSchema.parse({
+    inventoryId: value.inventory_id,
+    codigo: value.codigo,
+    descripcion: value.descripcion,
+    controlType: value.control_type,
+    cachedAt: normalizePostgresTimestamp(value.created_at),
+  })
 }
 
 function parseMasterMetadata(value: { inventory_id: string; master_version: number; row_count: number; fingerprint: string; cached_at: string }): MasterMetadata {
-  return masterMetadataSchema.parse({ inventoryId: value.inventory_id, masterVersion: value.master_version, rowCount: value.row_count, fingerprint: value.fingerprint, cachedAt: value.cached_at })
+  return masterMetadataSchema.parse({
+    inventoryId: value.inventory_id,
+    masterVersion: value.master_version,
+    rowCount: value.row_count,
+    fingerprint: value.fingerprint,
+    cachedAt: normalizePostgresTimestamp(value.cached_at),
+  })
+}
+
+export function normalizePostgresTimestamp(value: string): string {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) throw new Error('Timestamp remoto inválido.')
+  return parsed.toISOString()
 }
