@@ -1,6 +1,6 @@
 # Health Check del dispositivo v1 — contrato cerrado
 
-Estado: `CONTRACT_READY / NOT_IMPLEMENTED`. F9A.4A incorpora exclusivamente dominio, adapters no visuales y la RPC mínima de hora para certificar el contrato; no crea UI, permisos activos, telemetría ni cambios en la captura.
+Estado: `IMPLEMENTED / PHYSICAL_PENDING`. F9A.4B integra la pantalla controlada, los modos LIGHT/FULL y el gate de nueva captura sobre el contrato F9A.4A; no añade permisos activos, telemetría ni cambios de backend.
 
 ## Alcance y autoridad existente
 
@@ -92,14 +92,16 @@ GRANT authenticated
 
 La revisión del repositorio no encontró una alternativa actual que exponga la hora presente del servidor. Si se aprueba, se implementará posteriormente mediante migración forward-only local/CI, sin deploy remoto y sin `SECURITY DEFINER`. Mientras haya conectividad, se registrará la diferencia observada y se aplicará una única tolerancia operacional v1 de ±5 minutos. Si la referencia no puede obtenerse pese a backend disponible, el check será `WARN` y se reintentará; no se afirmará `PASS` sin comparación.
 
-## Modos de ejecución y UI futura
+## Modos de ejecución y UI
 
 | Modo | Cuándo | Alcance |
 |---|---|---|
-| `LIGHT` | Inicio, post-login y cambio/selección de inventario. | Checks seguros; no abre cámara ni solicita permisos. |
+| `LIGHT` | Inicio y post-login, además de **ACTUALIZAR**. | Checks seguros; no abre cámara ni solicita permisos. |
 | `FULL` | Acción explícita **COMPROBAR DISPOSITIVO**. | Puede consultar soporte scanner, permiso y probes adicionales seguros; nunca inicia una lectura de código. |
 
-La futura pantalla se titulará **HEALTH CHECK DEL DISPOSITIVO** y mostrará resultado global, hora del check, cada check, estado y mensaje seguro. Sus únicas acciones v1 serán **ACTUALIZAR** y **COMPROBAR DISPOSITIVO**.
+La pantalla controlada se titula **HEALTH CHECK DEL DISPOSITIVO** y muestra resultado global, hora del check, los once checks, estado y mensaje seguro. Sus únicas acciones v1 son **ACTUALIZAR** y **COMPROBAR DISPOSITIVO**. La composición reutiliza `report.resolvedContext` para crear el runtime de conteo y no resuelve autorización por segunda vez.
+
+`BLOCKED` deshabilita exclusivamente nueva captura. Con un contexto `ONLINE`/`OFFLINE` válido se conservan runtime, **MIS CONTEOS**, búsqueda y sincronización; si el contexto resuelto es `BLOCKED`, no se crea runtime de captura y la sincronización de outbox sigue siendo una acción de nivel App. Un error inesperado del runner o un LIGHT inicial en curso bloquean temporalmente nueva captura sin borrar datos locales ni autorizar mediante un READY anterior.
 
 ## Seguridad y QA
 
@@ -109,4 +111,4 @@ Los objetivos físicos futuros no son SLA de CI de escritorio: guardado SQLite y
 
 ## Límites de esta fase
 
-El contrato permanece `CONTRACT_READY / NOT_IMPLEMENTED`: F9A.4A no implementa pantalla, gatillo de captura ni permiso activo de Device Health. Sólo deja certificados el dominio, adapters no visuales y la referencia de hora; no se implementa F9B ni Fase 10.
+La automatización de Device Health está implementada y certificada en `d50be9e2f7ad59e1561317bbc546af060803988f` / CI [`36208026455`](https://github.com/Lockowom/Inventario-/actions/runs/36208026455). La validación física de cámara, scanner y SQLite en Android/iOS permanece `MANUAL_REQUIRED`. No se implementa F9B ni Fase 10.
