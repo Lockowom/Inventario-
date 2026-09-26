@@ -38,7 +38,7 @@ describe('local health probes', () => {
   it('SQLite uses a temporary table and leaves user_version unchanged', async () => {
     const database = new ProbeSqliteDatabase()
     await expect(new SqliteLocalHealthProbe(database).probe()).resolves.toMatchObject({ databaseOperational: true, persistenceOperational: true, storageEstimate: null })
-    expect(database.userVersion).toBe(5)
+    expect(database.userVersion).toBe(6)
     expect(database.statements).toEqual(expect.arrayContaining([
       'pragma user_version', 'create temp table health_probe (marker text not null)', 'insert into health_probe (marker) values (?)',
       'select marker from health_probe', 'delete from health_probe', 'drop table health_probe',
@@ -47,7 +47,7 @@ describe('local health probes', () => {
 })
 
 class ProbeSqliteDatabase implements SqliteDatabase {
-  public userVersion = 5
+  public userVersion = 6
   public statements: string[] = []
   public async initialize() {}
   public async close() {}
