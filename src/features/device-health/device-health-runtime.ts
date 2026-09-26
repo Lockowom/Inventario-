@@ -19,7 +19,14 @@ export function createDeviceHealthService(mode: DeviceHealthMode): DeviceHealthS
     resolveContext: () => resolveCountingContext({ verifyServer: verifyServerCountingContext, getLocalSessionUserId }, cache),
     getLocalSessionUserId,
     masters,
-    hydrateMasterSnapshot: (inventoryId) => hydrateLocalMasterSnapshot(inventoryId, masters, remoteMasters),
+    hydrateMasterSnapshot: async (inventoryId) => {
+      try {
+        await hydrateLocalMasterSnapshot(inventoryId, masters, remoteMasters)
+      } catch (error: unknown) {
+        console.error('MASTER_SNAPSHOT_HYDRATION_FAIL', error)
+        throw error
+      }
+    },
     localHealth: getLocalHealthProbe(),
     appVersion: new CapacitorAppVersionProvider(),
     serverTime: new SupabaseServerTimeGateway(),
