@@ -57,7 +57,18 @@ La verificación directa en `INVEN3-QA` confirmó:
 - no hubo pérdida ni duplicación remota;
 - el defecto estaba en el parser cliente de `received_at timestamptz`.
 
-Se preparó forward-fix cliente para normalizar timestamps PostgreSQL de ACK a UTC y migración SQLite v6 que reencola exclusivamente falsos `SYNC_RESPONSE_INCOMPATIBLE`. El replay conserva `client_count_id` y depende de la idempotencia remota para resolver como `ALREADY_ACCEPTED`.
+Se preparó y ejecutó forward-fix cliente para normalizar timestamps PostgreSQL de ACK a UTC y migración SQLite v6 que reencola exclusivamente falsos `SYNC_RESPONSE_INCOMPATIBLE`. El replay conservó `client_count_id` y resolvió como `ALREADY_ACCEPTED`.
+
+Resultado físico posterior al upgrade in-place:
+
+- ambos conteos aparecen localmente como `Confirmado en servidor`;
+- consulta operativa remota muestra ambos registros recibidos;
+- verificación SQL directa confirmó exactamente una fila por cada `client_count_id`;
+- no se creó ningún duplicado durante el replay;
+- el primer registro conservó server id `2d027b8f-0e82-43e4-810d-98b14e237d05`;
+- el segundo registro conservó server id `79f35546-00ee-4654-99e4-61dfb1d435bd`.
+
+Este incidente queda cerrado como PASS de recuperación/idempotencia del defecto descubierto; la prueba offline completa con cierre/reinicio físico continúa pendiente.
 
 ## Pendientes de esta ejecución
 
