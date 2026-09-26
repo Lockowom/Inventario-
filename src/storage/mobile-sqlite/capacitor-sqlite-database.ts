@@ -4,6 +4,7 @@ import type { SqliteDatabase, SqliteResult } from './sqlite-database'
 export class CapacitorSqliteDatabase implements SqliteDatabase {
   private connection: SQLiteDBConnection | undefined
   private initialization: Promise<void> | undefined
+  private transactionTail: Promise<void> = Promise.resolve()
   private readonly sqlite = new SQLiteConnection(CapacitorSQLite)
 
   public constructor(private readonly databaseName: string) {}
@@ -15,20 +16,38 @@ export class CapacitorSqliteDatabase implements SqliteDatabase {
   }
 
   public async transaction<T>(operation: () => Promise<T>): Promise<T> {
+    const previous = this.transactionTail
+    let release!: () => void
+    this.transactionTail = new Promise<void>((resolve) => { release = resolve })
+
+    await previous
     const connection = this.requireConnection()
-    await connection.execute('BEGIN IMMEDIATE')
+
     try {
+      await connection.beginTransaction()
       const result = await operation()
-      await connection.execute('COMMIT')
+      await connection.commitTransaction()
       return result
     } catch (error: unknown) {
-      await connection.execute('ROLLBACK')
+      try {
+        const active = await connection.isTransactionActive()
+        if (active.result) await connection.rollbackTransaction()
+      } catch {
+        // Preserve the original transaction failure.
+      }
       throw error
+    } finally {
+      release()
     }
   }
 
   public async execute(statement: string, values: readonly unknown[] = []): Promise<void> {
-    await this.requireConnection().run(statement, [...values])
+    const connection = this.requireConnection()
+    if (values.length > 0) {
+      await connection.run(statement, [...values], false)
+      return
+    }
+    await connection.execute(statement, false)
   }
 
   public async query<Row extends Record<string, unknown>>(statement: string, values: readonly unknown[] = []): Promise<SqliteResult<Row>> {
@@ -38,6 +57,7 @@ export class CapacitorSqliteDatabase implements SqliteDatabase {
 
   public async close(): Promise<void> {
     if (this.initialization) await this.initialization.catch(() => undefined)
+    await this.transactionTail.catch(() => undefined)
     if (!this.connection) return
     await this.connection.close()
     await this.sqlite.closeConnection(this.databaseName, false)
