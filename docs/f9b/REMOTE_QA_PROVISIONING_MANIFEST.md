@@ -1,8 +1,8 @@
 # Manifiesto de provisión QA y preparación Edge — F9B.4
 
-Estado: `NOT_EXECUTED / AUTHORIZATION_REQUIRED`. Este documento es un paquete de ejecución futura para `INVEN3-QA`; no contiene credenciales, valores de variables ni evidencia de que se haya ejecutado una acción remota. Los gates conservan `ANDROID_PHYSICAL = MANUAL_REQUIRED`, `IOS_PHYSICAL = MANUAL_REQUIRED`, `RP_REAL_IMPORT = BLOCKED_EXTERNAL` y `BETA_MANUAL = MANUAL_REQUIRED`.
+Estado: `EXECUTED_PARTIAL / QA_ONLY`. La provisión autorizada ya fue ejecutada exclusivamente en `INVEN3-QA` (`uazunvlxlszdyweddxtb`): usuarios sintéticos, profiles, assignments, inventario, maestro mínimo, apertura, conteos, sync/idempotencia, controles RLS y un primer corte. No contiene credenciales ni secretos. Los gates conservan `ANDROID_PHYSICAL = MANUAL_REQUIRED`, `IOS_PHYSICAL = MANUAL_REQUIRED`, `RP_REAL_IMPORT = BLOCKED_EXTERNAL` y `BETA_MANUAL = MANUAL_REQUIRED`.
 
-Baseline de preparación: `f4fd93accfef36f15c1052433c4be3ea056d3813`. La precondición ya confirmada por la autoridad remota es `REMOTE_QA_SECURITY_HARDENING_DEPLOYED = PASS`: 21/21 migraciones alineadas hasta `20260926043115_phase_9_remote_default_privilege_hardening.sql`, sin usuarios, inventario, maestro, conteos ni funciones Edge en QA.
+Baseline de provisión documentada: `24cdf452bb333fdaa1271d6305fc41c6c8475adc`. `REMOTE_QA_SECURITY_HARDENING_DEPLOYED = PASS`: 21/21 migraciones alineadas hasta `20260926043115_phase_9_remote_default_privilege_hardening.sql`. Las cuatro Edge Functions están `ACTIVE` con `verify_jwt = true`. El estado operacional posterior a la provisión está resumido en `REMOTE_QA_EXECUTION_STATUS.md`.
 
 ## A. Prechecks
 
@@ -65,7 +65,7 @@ Secretos futuros del pipeline, sólo por nombre y sólo en almacenamiento cifrad
 
 ## E. Users
 
-La provisión futura crea exactamente tres identidades sintéticas, con correos bajo dominio QA controlado y credenciales entregadas por canal seguro:
+La provisión ejecutada creó exactamente tres identidades sintéticas; las credenciales permanecen fuera de Git y de la evidencia:
 
 | Identidad | Auth | `public.profiles` | Uso QA |
 |---|---|---|---|
@@ -73,7 +73,7 @@ La provisión futura crea exactamente tres identidades sintéticas, con correos 
 | `qa-analista` | un `auth.users` confirmado | `display_name = 'QA ANALISTA'`, `role = ANALISTA`, `active = true` | Supervisión, cortes, RP y autorizaciones analíticas dentro del inventario asignado. |
 | `qa-admin` | un `auth.users` confirmado | `display_name = 'QA ADMIN'`, `role = ADMIN`, `active = true` | Crear/preparar/abrir el inventario y cargar maestro sintético. |
 
-El operador debe recuperar el UUID creado por Auth y asociarlo al `profiles.user_id` correcto, verificar `active = true`, y no decidir el rol desde `raw_user_meta_data`. Ningún usuario se crea hasta recibir autorización remota separada.
+El operador debe recuperar el UUID creado por Auth y asociarlo al `profiles.user_id` correcto, verificar `active = true`, y no decidir el rol desde `raw_user_meta_data`. La creación ya fue autorizada y ejecutada en QA; cualquier recreación, rotación de credenciales o provisión adicional requiere una decisión nueva y no forma parte de este manifiesto.
 
 ## F. Profiles
 
@@ -81,11 +81,11 @@ Después de crear las identidades por el canal administrativo aprobado, verifica
 
 ## G. Assignments
 
-Crear un único inventario sintético y asignaciones activas para los tres UUIDs, con `assigned_by = qa-admin` y timestamp UTC. `qa-contador` y `qa-analista` deben estar asignados para validar acceso; conservar un cuarto usuario sólo si una prueba posterior explícita necesita el caso no asignado. Comprobar que un usuario fuera de assignment recibe denegación/resultado vacío según contrato RLS, no acceso.
+Se creó un único inventario sintético y asignaciones activas para los tres UUIDs, con trazabilidad UTC. `qa-contador` y `qa-analista` deben estar asignados para validar acceso; conservar un cuarto usuario sólo si una prueba posterior explícita necesita el caso no asignado. Comprobar que un usuario fuera de assignment recibe denegación/resultado vacío según contrato RLS, no acceso.
 
 ## H. Synthetic inventory
 
-El objeto de trabajo futuro es uno solo, por ejemplo `INVEN3_QA_SYNTHETIC_F9B4_<UTC>`, creado en `BORRADOR` por `qa-admin`. No usar IDs, nombres ni datos productivos.
+El objeto de trabajo ejecutado es `INVEN3_QA_SYNTHETIC_F9B4_20260926T0535Z`, creado como fixture sintética de QA. No usar IDs, nombres ni datos productivos.
 
 La secuencia de ciclo de vida requerida es:
 

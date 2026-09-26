@@ -8,6 +8,7 @@ import { CutsScreen } from '../features/cuts/cuts-screen'
 import { createCountingRuntime, createSyncCoordinator, getCountingContextRepository } from '../features/counting/counting-runtime'
 import { getLocalSessionUserId } from '../features/counting/authorized-counting-context'
 import { authService } from '../features/auth/auth-service'
+import { LoginScreen } from '../features/auth/login-screen'
 import type { CountingRuntime } from '../features/counting/counting-screen'
 import type { SyncCoordinator } from '../domain/sync/sync-coordinator'
 import type { DeviceHealthMode, DeviceHealthReport } from '../domain/device-health/contracts'
@@ -26,6 +27,25 @@ export function App() {
 }
 
 function RuntimeApp() {
+  if (!isSupabaseConfigured) return <main className="app-shell"><InfrastructureDiagnostic supabaseState="NOT CONFIGURED" /></main>
+  return <AuthBoundary />
+}
+
+function AuthBoundary() {
+  const [state, setState] = useState<'CHECKING' | 'SIGNED_OUT' | 'SIGNED_IN'>('CHECKING')
+  useEffect(() => {
+    let active = true
+    void authService.getSession().then((session) => { if (active) setState(session ? 'SIGNED_IN' : 'SIGNED_OUT') }).catch(() => { if (active) setState('SIGNED_OUT') })
+    const authChanges = authService.onAuthStateChange((_event, session) => { if (active) setState(session ? 'SIGNED_IN' : 'SIGNED_OUT') })
+    const localSignOut = authService.onLocalSignOut(() => { if (active) setState('SIGNED_OUT') })
+    return () => { active = false; authChanges.unsubscribe(); localSignOut.unsubscribe() }
+  }, [])
+  if (state === 'CHECKING') return <main className="app-shell"><InfrastructureDiagnostic supabaseState="CONFIGURED" /><p className="auth-status" role="status">Validando sesión…</p></main>
+  if (state === 'SIGNED_OUT') return <LoginScreen onSignedIn={() => setState('SIGNED_IN')} />
+  return <AuthenticatedRuntime />
+}
+
+function AuthenticatedRuntime() {
   const [countingRuntime, setCountingRuntime] = useState<CountingRuntime | null>(null)
   const [syncCoordinator, setSyncCoordinator] = useState<SyncCoordinator | null>(null)
   const [startupSyncMessage, setStartupSyncMessage] = useState('')
@@ -36,17 +56,13 @@ function RuntimeApp() {
 
   const runHealth = useCallback(async (mode: DeviceHealthMode) => {
     const run = ++healthRun.current
-    setHealthLoading(true)
-    setHealthError(null)
-    setHealthReport(null)
+    setHealthLoading(true); setHealthError(null); setHealthReport(null)
     try {
       const result = await runDeviceHealthCheck(mode, { createService: createDeviceHealthService, createCountingRuntime })
       if (run !== healthRun.current) return
-      setHealthReport(result.report)
-      setCountingRuntime(result.runtime)
+      setHealthReport(result.report); setCountingRuntime(result.runtime)
     } catch {
       if (run !== healthRun.current) return
-      // A failed refresh cannot reuse an earlier READY as capture authority.
       setHealthError('No fue posible comprobar el dispositivo. Actualice el diagnóstico antes de capturar.')
     } finally {
       if (run === healthRun.current) setHealthLoading(false)
@@ -69,25 +85,27 @@ function RuntimeApp() {
     }
     const bootstrap = async () => { await prepareSync(); if (active) void runHealth('LIGHT') }
     void bootstrap()
-    const clearSessionState = () => {
+    const localSignOut = authService.onLocalSignOut(() => {
+      if (!active) return
       healthRun.current += 1
-      setHealthReport(null); setHealthError(null); setHealthLoading(false)
-      setCountingRuntime(null); setSyncCoordinator(null); setStartupSyncMessage('')
-    }
-    const localSignOut = authService.onLocalSignOut(() => { if (active) { void cache.clear(); clearSessionState() } })
-    const authChanges = authService.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') { void cache.clear(); if (active) clearSessionState(); return }
-      if (event === 'SIGNED_IN' && active) void bootstrap()
+      setHealthReport(null); setHealthError(null); setHealthLoading(false); setCountingRuntime(null); setSyncCoordinator(null); setStartupSyncMessage('')
+      void cache.clear()
     })
-    return () => { active = false; localSignOut.unsubscribe(); authChanges.unsubscribe() }
+    return () => { active = false; localSignOut.unsubscribe() }
   }, [runHealth])
-  const platform = Capacitor.getPlatform()
-  const status = [
-    ['Plataforma', platform === 'web' ? 'Web' : platform],
-    ['Storage', 'READY'],
-    ['Supabase', isSupabaseConfigured ? 'CONFIGURED' : 'NOT CONFIGURED'],
-    ['Versión', version],
-  ] as const
+
   const captureGate = createCaptureGate(healthReport, healthLoading, healthError)
-  return <main className="app-shell"><section className="diagnostic" aria-labelledby="app-title"><h1 id="app-title">INVEN3</h1><p className="diagnostic__subtitle">Entorno: {import.meta.env.DEV ? 'Development' : 'Production'}</p><dl className="status-grid">{status.map(([label, value]) => <div className="status-card" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section><DeviceHealthScreen report={healthReport} loading={healthLoading} error={healthError} onRefresh={() => void runHealth('LIGHT')} onFullCheck={() => void runHealth('FULL')} /><SupervisionScreen /><CutsScreen /><MasterSkuScreen /><CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} captureGate={captureGate} /></main>
+  return <main className="app-shell">
+    <InfrastructureDiagnostic supabaseState="CONFIGURED" />
+    <div className="session-actions"><button className="button-secondary" type="button" onClick={() => void authService.signOut()}>CERRAR SESIÓN</button></div>
+    <DeviceHealthScreen report={healthReport} loading={healthLoading} error={healthError} onRefresh={() => void runHealth('LIGHT')} onFullCheck={() => void runHealth('FULL')} />
+    <SupervisionScreen /><CutsScreen /><MasterSkuScreen />
+    <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} captureGate={captureGate} />
+  </main>
+}
+
+function InfrastructureDiagnostic({ supabaseState }: { supabaseState: 'CONFIGURED' | 'NOT CONFIGURED' }) {
+  const platform = Capacitor.getPlatform()
+  const status = [['Plataforma', platform === 'web' ? 'Web' : platform], ['Storage', 'READY'], ['Supabase', supabaseState], ['Versión', version]] as const
+  return <section className="diagnostic" aria-labelledby="app-title"><h1 id="app-title">INVEN3</h1><p className="diagnostic__subtitle">Entorno: {import.meta.env.DEV ? 'Development' : 'Production'}</p><dl className="status-grid">{status.map(([label, value]) => <div className="status-card" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>
 }

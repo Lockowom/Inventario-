@@ -9,11 +9,22 @@ export type AuthSessionListener = (event: AuthChangeEvent, session: Session | nu
 
 export class AuthService {
   private readonly localSignOutListeners = new Set<() => void>()
+
   public async getSession(): Promise<Session | null> {
     const client = getSupabaseClient()
     if (!client) return null
     const { data, error } = await client.auth.getSession()
     if (error) throw error
+    return data.session
+  }
+
+  public async signIn(email: string, password: string): Promise<Session> {
+    const client = getSupabaseClient()
+    if (!client) throw new Error('Supabase no configurado.')
+    const normalizedEmail = email.trim().toLowerCase()
+    if (!normalizedEmail || !password) throw new Error('Correo y contraseña son obligatorios.')
+    const { data, error } = await client.auth.signInWithPassword({ email: normalizedEmail, password })
+    if (error || !data.session) throw new Error('Credenciales inválidas o sesión no disponible.')
     return data.session
   }
 
@@ -45,7 +56,6 @@ export class AuthService {
     return client.auth.onAuthStateChange(listener).data.subscription
   }
 
-  /** Lets composition revoke in-memory capability when explicit logout starts. */
   public onLocalSignOut(listener: () => void): AuthSubscription {
     this.localSignOutListeners.add(listener)
     return { unsubscribe: () => this.localSignOutListeners.delete(listener) }

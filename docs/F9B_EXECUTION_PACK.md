@@ -1,12 +1,13 @@
-# Paquete de ejecución manual/externa — Fase 9B.1
+# Paquete de ejecución manual/externa — Fase 9B
 
-Este paquete está preparado para coordinar gates que CI no puede ejecutar. No contiene evidencia de ejecución, no aprueba gates y no autoriza producción, rollout ni Fase 10.
+Este paquete coordina los gates que CI no puede completar por sí sola y el QA remoto ya autorizado. No aprueba Android/iOS físicos, RP real, beta, producción, rollout ni Fase 10.
 
-## Baseline autorizado
+## Baseline y estado de candidato
 
-- Candidate SHA: `82a92f60f14a9e56014cf4825fafb7bdf7b9582e`
-- Baseline funcional: `8790127f7b676612d888936627233431efe93ac4`
-- CI final: [`36211601887`](https://github.com/Lockowom/Inventario-/actions/runs/36211601887)
+- Baseline funcional automatizado: `8790127f7b676612d888936627233431efe93ac4`.
+- Baseline de provisión remota documentada: `24cdf452bb333fdaa1271d6305fc41c6c8475adc`.
+- CI de ese baseline remoto: `36219870396`, completa en verde.
+- `FINAL_RELEASE_CANDIDATE_SHA = NOT_FROZEN`; se fijará sólo después de cerrar QA remoto y los gates manuales/externos aplicables.
 
 ## Gates pendientes
 
@@ -37,3 +38,10 @@ Los estados de ejecución permitidos en los registros son `NOT_RUN`, `PASS`, `FA
 - [BETA_ACCEPTANCE_V1.md](BETA_ACCEPTANCE_V1.md): aceptación interna no productiva.
 
 No se ejecuta una importación de RP, beta, instalación física ni acción de Supabase remoto como parte de este paquete.
+
+
+## Estado remoto ejecutado
+
+La fixture `INVEN3-QA` ya cubre Auth/profiles/assignments, maestro SERIAL/PARTIDA/LEGACY, ciclo hasta `ABIERTO`, tres conteos, replay idempotente, rechazos contractuales, RLS y `CORTE 001` en `SNAPSHOT_CREATED`. Las cuatro Edge Functions están activas con JWT obligatorio.
+
+La siguiente frontera remota es autenticar una sesión QA real desde el runtime, generar el XLSX del corte, verificar SHA/tamaño/Storage y comprobar descarga firmada. Ver [REMOTE_QA_EXECUTION_STATUS.md](f9b/REMOTE_QA_EXECUTION_STATUS.md).

@@ -1,8 +1,8 @@
 # Evidencia F9B
 
-Este directorio contiene esquemas y plantillas vacías para los gates manuales/externos de Fase 9. No contiene evidencia real ni cambia el estado de ningún gate.
+Este directorio contiene las plantillas de los gates manuales/externos y el estado operativo del QA remoto de Fase 9. Los gates físicos, RP real y beta siguen sin aprobarse.
 
-La secuencia futura para un QA remoto autorizado, sus cuatro Edge Functions, configuración pública de build, usuarios y fixture sintética está en [REMOTE_QA_PROVISIONING_MANIFEST.md](REMOTE_QA_PROVISIONING_MANIFEST.md). Es planificación: no contiene secretos ni autoriza acciones remotas.
+La provisión y sus controles están en [REMOTE_QA_PROVISIONING_MANIFEST.md](REMOTE_QA_PROVISIONING_MANIFEST.md). El estado ejecutado y los pendientes actuales están en [REMOTE_QA_EXECUTION_STATUS.md](REMOTE_QA_EXECUTION_STATUS.md). Ningún documento contiene secretos.
 
 Usar un archivo JSON por ejecución basado en [EVIDENCE_SCHEMA.md](EVIDENCE_SCHEMA.md) y la plantilla del gate. Validar localmente con:
 
