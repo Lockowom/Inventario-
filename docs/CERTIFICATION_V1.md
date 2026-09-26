@@ -1,4 +1,4 @@
-# Certificación INVEN3 v1 — Fase 9A
+# Certificación INVEN3 v1 — Fase 9A / paquete F9B.1
 
 Este documento es la fuente autoritativa de certificación F9. Un estado `PASS` requiere ejecución y evidencia reproducible; los gates físicos, de RP y beta no se reinterpretan como automatizados.
 
@@ -17,15 +17,15 @@ Certified CI run: [`36211223328`](https://github.com/Lockowom/Inventario-/action
 | OFFLINE | freeze con pendientes conocidos | AUTOMATED | F4/F6 y pgTAP existentes | bloquea >0; se resuelve tras reportar 0 | CI 36189000875/database-checks | PASS |
 | DEVICES | build, Capacitor, plugins y configuración | AUTOMATED | `app-checks` + inspección estática | Android/iOS sync; SQLite y scanner configurados | CI 36189000875/app-checks | PASS |
 | DEVICES | Device Health Check | AUTOMATED | DeviceHealthScreen, gate de captura y fixtures DEV | LIGHT/FULL, 11 checks, labels contractuales; BLOCKED sólo bloquea nueva captura; READY/OFFLINE/WARN permiten guardar | CI 36211223328/app-checks + phase-9-e2e-visual: 184 unit, 35 E2E, 4 visual | PASS |
-| DEVICES | cámara, scanner, SQLite y safe areas reales | MANUAL_PHYSICAL | `DEVICE_QA_V1.md` | checklist por Android/iOS ejecutado en hardware | evidencia QA | MANUAL_REQUIRED |
+| DEVICES | cámara, scanner, SQLite y safe areas reales | MANUAL_PHYSICAL | `F9B_EXECUTION_PACK.md`, `DEVICE_QA_V1.md`, `f9b/` | checklist por Android/iOS ejecutado en hardware | evidencia QA | MANUAL_REQUIRED |
 | VISUAL | viewports 320,360,390,412,420,430,600,768,900,1024,1440 | AUTOMATED | Playwright e2e sobre flujo real de Cortes | sin overflow horizontal; `VER DETALLE`, detalle inmutable, rectificación y artefacto visibles | CI 36189000875/phase-9-e2e-visual | PASS |
 | VISUAL | conteo 320,390,412,430 | AUTOMATED | Playwright e2e | sin overflow; Guardar visible; mensajes 40/45/50 y `Mis conteos`; bloqueo en 50 | CI 36189000875/phase-9-e2e-visual | PASS |
 | VISUAL | conteo, mis conteos, supervisión, cortes, detalle, rectificación, evidencias y maestro | AUTOMATED | fixture determinista | headings, labels y controles críticos visibles | CI 36189000875/phase-9-e2e-visual | PASS |
 | VISUAL | snapshots representativos | AUTOMATED | Playwright visual | snapshots estables 320/768/1440, sin animación/datos variables | CI 36189000875/phase-9-e2e-visual | PASS |
 | VISUAL | smoke de accesibilidad | AUTOMATED | roles, labels, fieldset, aria-live y tab stops | controles principales encontrables | CI 36189000875/phase-9-e2e-visual | PASS |
 | RP | XLSX oficial Edge→Storage→download | AUTOMATED | F7 harness | 9 columnas, orden, ceros, fecha, blanks, cantidad, sin fórmulas, SHA | CI 36189000875/phase-7-edge-storage | PASS |
-| RP | importación real Softland/RP | EXTERNAL_RP | `RP_ACCEPTANCE_V1.md` | importación controlada documentada | evidencia RP | BLOCKED_EXTERNAL |
-| BETA | aceptación interna no productiva | BETA | `BETA_ACCEPTANCE_V1.md` | checklist humano sobre fixtures | evidencia beta | MANUAL_REQUIRED |
+| RP | importación real Softland/RP | EXTERNAL_RP | `F9B_EXECUTION_PACK.md`, `RP_ACCEPTANCE_V1.md`, `f9b/` | importación controlada documentada | evidencia RP | BLOCKED_EXTERNAL |
+| BETA | aceptación interna no productiva | BETA | `F9B_EXECUTION_PACK.md`, `BETA_ACCEPTANCE_V1.md`, `f9b/` | checklist humano sobre fixtures | evidencia beta | MANUAL_REQUIRED |
 | SECURITY | RLS/advisors/audit | AUTOMATED | pgTAP, advisors, npm audit | sin regresión de seguridad ni vulnerabilidades prod | CI 36189000875/database-checks + app-checks | PASS |
 | REGRESSION | F0–F8 | AUTOMATED | jobs existentes | unit, pgTAP, F4/F6, F7, F8 conservados | CI 36189000875/app-checks + database-checks + phase-7-edge-storage + phase-8-edge-storage | PASS |
 
@@ -35,6 +35,7 @@ Certified CI run: [`36211223328`](https://github.com/Lockowom/Inventario-/action
 - La carga usa datos efímeros de Supabase local y no enlaza, aplica ni consulta Supabase remoto.
 - El benchmark registra integridad como criterio primario; tiempo, records/s y RSS son observaciones, no SLA contractual.
 - Device Health automated = `PASS` en CI 36211223328; Android/iOS físicos para cámara, scanner y SQLite permanecen `MANUAL_REQUIRED`. F9A.4B no agrega RLS adicional, telemetría ni backend.
+- El paquete F9B.1 prepara evidencia manual y externa en `F9B_EXECUTION_PACK.md` y `docs/f9b/`; no ejecuta gates ni cambia `ANDROID_PHYSICAL`, `IOS_PHYSICAL`, `RP_REAL_IMPORT` o `BETA_MANUAL`.
 - La cobertura visual usa el fixture de compilación `VITE_CERTIFICATION_FIXTURE=1` sólo cuando `import.meta.env.DEV` es verdadero; un build productivo siempre renderiza `RuntimeApp`. Sus datos sintéticos son deterministas y contractualmente válidos.
 - `SUPERVISION_LAYOUT_SMOKE = PASS` en CI 36189000875/phase-9-e2e-visual. Los estados de datos de supervisión se certifican por las pruebas unitarias e integración existentes, no se declaran ejecutados por Playwright.
 

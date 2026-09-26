@@ -1,27 +1,38 @@
 # QA físico de dispositivos — Fase 9
 
-Estado inicial de todos los ítems: `MANUAL_REQUIRED`. CI sólo certifica build, configuración y sincronización Capacitor; no certifica hardware físico.
+Estado de certificación: `ANDROID_PHYSICAL = MANUAL_REQUIRED`; `IOS_PHYSICAL = MANUAL_REQUIRED`. Estado inicial de cada ejecución: `NOT_RUN`. CI certifica build, configuración y sincronización Capacitor, pero no hardware físico. La guía coordinada y las plantillas vacías están en [F9B_EXECUTION_PACK.md](F9B_EXECUTION_PACK.md) y [docs/f9b](f9b/README.md).
 
-## ANDROID
+## Reglas de ejecución
 
-- [ ] Instalación e inicio de build candidato.
-- [ ] Login con usuario de prueba y maestro offline disponible.
-- [ ] SQLite: guardar conteo offline, cerrar/reabrir e inspeccionar pendiente.
-- [ ] Reconectar y confirmar sync sin cambiar UUID.
-- [ ] Permiso de cámara: aceptar y rechazar de forma controlada.
-- [ ] Abrir scanner, QR, Code128, linterna cuando exista, cancelar y volver al formulario.
-- [ ] Teclado no oculta guardar; safe area/barra gestual correctas.
-- [ ] Rotación soportada y viewport angosto/estándar/grande verificadas.
+- Usar sólo usuarios, inventarios y datos de prueba.
+- Registrar modelo, versión SO, SHA candidato/build, app version, fecha UTC, responsable, estado, defectos y referencias de evidencia.
+- Sin dispositivo físico, registrar `BLOCKED`; un emulador o Simulator nunca satisface este gate.
+- Estados permitidos del registro: `NOT_RUN`, `PASS`, `FAIL`, `BLOCKED`. No declarar `PASS` con un defecto `BLOCKER` o `CRITICAL` abierto.
 
-## IOS
+## Matriz Android
 
-- [ ] Instalación e inicio desde Xcode/App Store Connect de prueba.
-- [ ] Login con usuario de prueba y maestro offline disponible.
-- [ ] SQLite: guardar conteo offline, cerrar/reabrir e inspeccionar pendiente.
-- [ ] Reconectar y confirmar sync sin cambiar UUID.
-- [ ] Permiso de cámara: aceptar y rechazar de forma controlada.
-- [ ] Abrir scanner, QR, Code128, linterna cuando exista, cancelar y volver al formulario.
-- [ ] Teclado, notch/Dynamic Island, safe area y barra gestual no ocultan controles.
-- [ ] Rotación soportada y iPhone compacto/estándar/grande/iPad verificados.
+| Categoría | Estado inicial | Registro |
+|---|---|---|
+| Android angosto | `NOT_RUN` | [plantilla Android](f9b/ANDROID_EXECUTION_TEMPLATE.md) |
+| Android estándar | `NOT_RUN` | [plantilla Android](f9b/ANDROID_EXECUTION_TEMPLATE.md) |
+| Android grande | `NOT_RUN` | [plantilla Android](f9b/ANDROID_EXECUTION_TEMPLATE.md) |
+| Android alta densidad | `NOT_RUN` | [plantilla Android](f9b/ANDROID_EXECUTION_TEMPLATE.md) |
+| Tablet Android | `NOT_RUN` | [plantilla Android](f9b/ANDROID_EXECUTION_TEMPLATE.md) |
 
-Registrar para cada ejecución: modelo, versión SO, build/SHA, fecha, responsable, resultado y evidencia. Usar sólo usuarios e inventarios de prueba.
+## Matriz iOS
+
+| Categoría | Estado inicial | Registro |
+|---|---|---|
+| iPhone compacto | `NOT_RUN` | [plantilla iOS](f9b/IOS_EXECUTION_TEMPLATE.md) |
+| iPhone estándar | `NOT_RUN` | [plantilla iOS](f9b/IOS_EXECUTION_TEMPLATE.md) |
+| iPhone grande | `NOT_RUN` | [plantilla iOS](f9b/IOS_EXECUTION_TEMPLATE.md) |
+| iPad | `NOT_RUN` | [plantilla iOS](f9b/IOS_EXECUTION_TEMPLATE.md) |
+
+## Checklist común obligatorio
+
+1. Ejecutar Device Health `LIGHT` y `FULL`: `APP_VERSION`, `AUTH_USER`, `INVENTORY_CONTEXT`, `MASTER_SNAPSHOT`, `LOCAL_DATABASE`, `LOCAL_STORAGE`, `BACKEND_CONNECTIVITY`, `DEVICE_TIME`, `CAMERA_AVAILABLE`, `CAMERA_PERMISSION` y `SCANNER_AVAILABLE`.
+2. Offline/SQLite: guardar offline, ver `PENDING`, cerrar/reabrir, reiniciar dispositivo, confirmar persistencia, reconectar, sincronizar el mismo `client_count_id` y confirmar cero pérdida.
+3. Capacidad offline: 39 normal, 40 warning, 45 critical, 50 bloquea nueva captura; nunca eliminar pendientes.
+4. Scanner: QR, Code128 y GS1-128/EAN-128 cuando exista muestra; cancelar, volver al formulario y confirmar que no auto-guarda. Probar restauración `READY`, `BLOCKED` y `BLOCKED → READY` una sola vez.
+5. UI: cero overflow horizontal, teclado no tapa `GUARDAR`, safe areas, barra gestual, notch/Dynamic Island cuando corresponda, orientación soportada, touch targets, fuentes grandes y textos largos.
+6. Rendimiento: medir SQLite <300 ms, lookup SKU <300 ms, abrir formulario <1 s y sync sin bloquear captura con un método reproducible. Si falta, registrar `MEASUREMENT_METHOD_REQUIRED`; no agregar telemetría productiva.
