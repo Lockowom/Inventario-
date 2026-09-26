@@ -1,6 +1,6 @@
 # Health Check del dispositivo v1 — contrato cerrado
 
-Estado: `CONTRACT_READY / NOT_IMPLEMENTED`. Este documento fija las políticas funcionales para una implementación futura; no crea UI, adapters, permisos, RPC, migraciones, RLS, telemetría ni cambios en la captura.
+Estado: `CONTRACT_READY / NOT_IMPLEMENTED`. F9A.4A incorpora exclusivamente dominio, adapters no visuales y la RPC mínima de hora para certificar el contrato; no crea UI, permisos activos, telemetría ni cambios en la captura.
 
 ## Alcance y autoridad existente
 
@@ -11,7 +11,7 @@ Health Check no es una nueva fuente de autorización ni de datos. Debe consumir 
 - El maestro se consulta sólo mediante `MasterSkuRepository`, metadata y lookup existentes; no habrá una copia de maestro para Health Check.
 - Cámara y scanner reutilizarán `src/scanner/` y `SCANNER_V1.md`; no habrá un segundo scanner.
 
-No se modifican en esta fase `authorized-counting-context.ts`, `resolve-counting-context.ts`, `counting-runtime.ts`, `barcode-scanner.ts`, `SCANNER_V1.md` ni `DEVICE_SYNC_V1.md`.
+No se modifican los comportamientos de `authorized-counting-context.ts`, `resolve-counting-context.ts`, `barcode-scanner.ts`, `SCANNER_V1.md` ni `DEVICE_SYNC_V1.md`. La composición no visual reutiliza las instancias locales ya existentes sin alterar la captura.
 
 ## Estados y resultado global
 
@@ -67,18 +67,18 @@ Por tanto, si `AUTH_USER`, `INVENTORY_CONTEXT`, `MASTER_SNAPSHOT`, `LOCAL_DATABA
 
 ## Probe de base local y almacenamiento
 
-Se revisaron los adapters actuales. El mecanismo mínimo común propuesto es un puerto de infraestructura semántico, por ejemplo `LocalHealthProbe`, que exponga sólo abrir, lectura y transacción/write; el dominio no conocerá SQL ni Dexie.
+Los adapters actuales implementan el puerto de infraestructura semántico `LocalHealthProbe`, que expone sólo apertura, lectura y transacción/write; el dominio no conoce SQL ni Dexie.
 
 - **Dexie:** abre `Inven3WebDatabase`, lee `runtimeState` y, dentro de una transacción `rw`, escribe, lee y elimina una clave técnica con prefijo reservado `health_probe:`. La transacción confirma sin residuo persistente.
 - **SQLite:** inicializa la conexión y migraciones existentes, lee `pragma user_version` y ejecuta una transacción sobre una tabla temporal de nombre técnico, por ejemplo `health_probe`. Inserta/lee un marcador estático y la elimina antes de commit.
 
-Ambos mecanismos demuestran apertura, lectura y capacidad transaccional de escritura sin crear `count_record`, `client_count_id`, pendiente, auditoría ni esquema persistente. No se crea tabla, migración ni código ahora. La estimación de cuota es informativa y distinta de la persistencia operativa crítica.
+Ambos mecanismos demuestran apertura, lectura y capacidad transaccional de escritura sin crear `count_record`, `client_count_id`, pendiente, auditoría ni esquema persistente. No se crea tabla de Health Check ni se modifica una migración SQLite; la RPC de hora se versiona en una migración PostgreSQL forward-only. La estimación de cuota es informativa y distinta de la persistencia operativa crítica.
 
 ## Política de tiempo
 
 Health Check detecta, informa y bloquea cuando corresponde; nunca corrige la hora del sistema operativo. No obtiene “ahora” desde `iat`/`exp` de JWT, `last_sign_in_at`, `captured_at`, `received_at` histórico ni otra fecha previa.
 
-La referencia preferida para una implementación futura es una RPC mínima `get_server_time()` que devuelva exclusivamente `clock_timestamp()`:
+La referencia implementada para el diagnóstico no visual es la RPC mínima `get_server_time()` que devuelve exclusivamente `clock_timestamp()`:
 
 ```text
 SECURITY INVOKER
@@ -109,4 +109,4 @@ Los objetivos físicos futuros no son SLA de CI de escritorio: guardado SQLite y
 
 ## Límites de esta fase
 
-Este cierre es exclusivamente documental. Device Health está contractualmente listo, pero todavía no implementado; no se implementa Device Health, F9B ni Fase 10.
+El contrato permanece `CONTRACT_READY / NOT_IMPLEMENTED`: F9A.4A no implementa pantalla, gatillo de captura ni permiso activo de Device Health. Sólo deja certificados el dominio, adapters no visuales y la referencia de hora; no se implementa F9B ni Fase 10.

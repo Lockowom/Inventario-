@@ -11,6 +11,10 @@ import { DexieCountingContextRepository } from '../../storage/web-indexeddb/dexi
 import type { CountingContextRepository } from '../../domain/ports/counting-context-repository'
 import type { CountingRuntime } from './counting-screen'
 import type { CountRepository } from '../../domain/ports/count-repository'
+import type { MasterSkuRepository } from '../../domain/ports/master-sku-repository'
+import type { LocalHealthProbe } from '../../domain/device-health/contracts'
+import { DexieLocalHealthProbe } from '../../storage/web-indexeddb/dexie-local-health-probe'
+import { SqliteLocalHealthProbe } from '../../storage/mobile-sqlite/sqlite-local-health-probe'
 import { SyncCoordinator } from '../../domain/sync/sync-coordinator'
 import { SupabaseSyncGateway } from '../../services/supabase-sync-gateway'
 import { isSupabaseConfigured } from '../../services/supabase'
@@ -34,16 +38,21 @@ export function getCountRepository(): CountRepository {
   return Capacitor.getPlatform() === 'web' ? new DexieCountRepository(getWebDatabase()) : new SqliteCountRepository(getMobileDatabase())
 }
 
+/** Reuses the same local database singleton as capture and sync. */
+export function getMasterSkuRepository(): MasterSkuRepository {
+  return Capacitor.getPlatform() === 'web' ? new DexieMasterSkuRepository(getWebDatabase()) : new SqliteMasterSkuRepository(getMobileDatabase())
+}
+
+/** Technical probe composition only; it does not alter count runtime behavior. */
+export function getLocalHealthProbe(): LocalHealthProbe {
+  return Capacitor.getPlatform() === 'web' ? new DexieLocalHealthProbe(getWebDatabase()) : new SqliteLocalHealthProbe(getMobileDatabase())
+}
+
 /** App composition for sync; it has no dependency on an ABIERTO CaptureRuntime. */
 export function createSyncCoordinator(userId: string): SyncCoordinator {
   return new SyncCoordinator(userId, getCountRepository(), isSupabaseConfigured ? new SupabaseSyncGateway() : null)
 }
 
 export function createCountingRuntime(context: ActiveCountingContext): CountingRuntime {
-  if (Capacitor.getPlatform() === 'web') {
-    const database = getWebDatabase()
-    return { context, masters: new DexieMasterSkuRepository(database), counts: new DexieCountRepository(database) }
-  }
-  const database = getMobileDatabase()
-  return { context, masters: new SqliteMasterSkuRepository(database), counts: new SqliteCountRepository(database) }
+  return { context, masters: getMasterSkuRepository(), counts: getCountRepository() }
 }
