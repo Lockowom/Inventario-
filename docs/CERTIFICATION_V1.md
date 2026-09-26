@@ -24,6 +24,8 @@ Certified CI run: [`36211223328`](https://github.com/Lockowom/Inventario-/action
 | VISUAL | snapshots representativos | AUTOMATED | Playwright visual | snapshots estables 320/768/1440, sin animación/datos variables | CI 36189000875/phase-9-e2e-visual | PASS |
 | VISUAL | smoke de accesibilidad | AUTOMATED | roles, labels, fieldset, aria-live y tab stops | controles principales encontrables | CI 36189000875/phase-9-e2e-visual | PASS |
 | RP | XLSX oficial Edge→Storage→download | AUTOMATED | F7 harness | 9 columnas, orden, ceros, fecha, blanks, cantidad, sin fórmulas, SHA | CI 36189000875/phase-7-edge-storage | PASS |
+| REMOTE_QA | Corte 001 RP autenticado | REMOTE_QA | `npm run certify:f9b:remote-rp` | sesión QA real; corte READY; signed download; SHA/tamaño; contrato XLSX | `F9B_REMOTE_RP_PASS`, 2026-09-26; SHA `ece3d3d966c9287d591e9d7636fe2752417e4cecb982f62020966a667951019c`, 17302 bytes | PASS |
+| REMOTE_QA | F8 rectificación y artefactos | REMOTE_QA | `npm run certify:f9b:remote-f8` | SNAPSHOT, RECTIFICATION_XLSX, CUT_READY_BACKUP, idempotencia, as-of, signed download, SHA/tamaño, RLS/Storage y audit | `F9B_REMOTE_F8_PASS`, 2026-09-26; evidencia en `docs/f9b/REMOTE_QA_EXECUTION_STATUS.md` | PASS |
 | RP | importación real Softland/RP | EXTERNAL_RP | `F9B_EXECUTION_PACK.md`, `RP_ACCEPTANCE_V1.md`, `f9b/` | importación controlada documentada | evidencia RP | BLOCKED_EXTERNAL |
 | BETA | aceptación interna no productiva | BETA | `F9B_EXECUTION_PACK.md`, `BETA_ACCEPTANCE_V1.md`, `f9b/` | checklist humano sobre fixtures | evidencia beta | MANUAL_REQUIRED |
 | SECURITY | RLS/advisors/audit | AUTOMATED | pgTAP, advisors, npm audit | sin regresión de seguridad ni vulnerabilidades prod | CI 36189000875/database-checks + app-checks | PASS |
@@ -35,7 +37,8 @@ Certified CI run: [`36211223328`](https://github.com/Lockowom/Inventario-/action
 - La carga usa datos efímeros de Supabase local y no enlaza, aplica ni consulta Supabase remoto.
 - El benchmark registra integridad como criterio primario; tiempo, records/s y RSS son observaciones, no SLA contractual.
 - Device Health automated = `PASS` en CI 36211223328; Android/iOS físicos para cámara, scanner y SQLite permanecen `MANUAL_REQUIRED`. F9A.4B no agrega RLS adicional, telemetría ni backend.
-- El paquete F9B.1 prepara evidencia manual y externa en `F9B_EXECUTION_PACK.md` y `docs/f9b/`; no ejecuta gates ni cambia `ANDROID_PHYSICAL`, `IOS_PHYSICAL`, `RP_REAL_IMPORT` o `BETA_MANUAL`.
+- El paquete F9B.1 prepara evidencia manual y externa en `F9B_EXECUTION_PACK.md` y `docs/f9b/`. Los gates remotos RP y F8 ya fueron ejecutados en `INVEN3-QA` y están PASS; `ANDROID_PHYSICAL`, `IOS_PHYSICAL`, `RP_REAL_IMPORT` y `BETA_MANUAL` conservan sus estados manuales/externos.
+- Durante la provisión QA se detectó un estado Auth inválido causado por insert SQL directo en `auth.users` (`instance_id = NULL`). Se aplicó forward-fix sólo en QA y el procedimiento ahora exige Auth Admin API/Dashboard para creación/actualización de usuarios.
 - La cobertura visual usa el fixture de compilación `VITE_CERTIFICATION_FIXTURE=1` sólo cuando `import.meta.env.DEV` es verdadero; un build productivo siempre renderiza `RuntimeApp`. Sus datos sintéticos son deterministas y contractualmente válidos.
 - `SUPERVISION_LAYOUT_SMOKE = PASS` en CI 36189000875/phase-9-e2e-visual. Los estados de datos de supervisión se certifican por las pruebas unitarias e integración existentes, no se declaran ejecutados por Playwright.
 
