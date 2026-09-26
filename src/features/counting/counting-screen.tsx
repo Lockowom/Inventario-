@@ -10,8 +10,9 @@ import { getCapacityStatus } from './capacity-status'
 import type { SyncCoordinator } from '../../domain/sync/sync-coordinator'
 
 export interface CountingRuntime extends SavePhysicalCountDependencies { context: ActiveCountingContext }
+export interface CaptureGate { blocked: boolean; message: string | null }
 
-export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage }: { runtime: CountingRuntime | null; syncCoordinator?: SyncCoordinator | null; startupSyncMessage?: string }) {
+export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, captureGate }: { runtime: CountingRuntime | null; syncCoordinator?: SyncCoordinator | null; startupSyncMessage?: string; captureGate?: CaptureGate }) {
   const [draft, setDraft] = useState<PhysicalCountDraft>(emptyPhysicalCountDraft)
   const [master, setMaster] = useState<MasterSku | null>(null)
   const [masterAvailable, setMasterAvailable] = useState<boolean | null>(null)
@@ -22,6 +23,7 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage }:
   const [syncMessage, setSyncMessage] = useState('')
   const [syncing, setSyncing] = useState(false)
   const codeInput = useRef<HTMLInputElement>(null)
+  const healthBlocked = captureGate?.blocked === true
 
   useEffect(() => {
     if (!runtime) return
@@ -61,10 +63,19 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage }:
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [runtime])
 
-  if (!runtime) return <section className="counting-screen" aria-labelledby="counting-title"><p className="eyebrow">Fase 4 · Captura bloqueada</p><h1 id="counting-title">CONTEO FÍSICO</h1><p role="status">Captura no disponible: seleccione un inventario ABIERTO desde el contexto autenticado.</p>{startupSyncMessage && <section className="sync-status" aria-label="Estado de sincronización pendiente"><p role="status">{startupSyncMessage}</p></section>}</section>
+  async function runOutstandingSync() {
+    if (!syncCoordinator || syncing) return
+    setSyncing(true)
+    try {
+      const summary = await syncCoordinator.runOutstanding()
+      setSyncMessage(summary.scopes === 0 ? 'No hay conteos elegibles para sincronizar.' : `Sincronización: ${summary.confirmed} confirmados, ${summary.rejected} requieren revisión, ${summary.failed} para reintentar.`)
+    } catch { setSyncMessage('No fue posible sincronizar ahora. Sus conteos locales siguen protegidos.') } finally { setSyncing(false) }
+  }
+
+  if (!runtime) return <section className="counting-screen" aria-labelledby="counting-title"><p className="eyebrow">Fase 4 · Captura bloqueada</p><h1 id="counting-title">CONTEO FÍSICO</h1><p className="form-error" role="alert">{captureGate?.message ?? 'Captura no disponible: seleccione un inventario ABIERTO desde el contexto autenticado.'}</p><section className="sync-status" aria-label="Estado de sincronización pendiente"><p role="status">{syncMessage || startupSyncMessage || 'Los conteos locales pendientes permanecen protegidos y disponibles para sincronización.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runOutstandingSync()}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section></section>
   const activeRuntime = runtime
   const capacity = pending === null ? null : pendingCapacity(pending)
-  const disabled = masterAvailable !== true || saving || pending === null || capacity === 'BLOCKED'
+  const disabled = healthBlocked || masterAvailable !== true || saving || pending === null || capacity === 'BLOCKED'
 
   async function resolveSku(code = draft.codigo) {
     const resolution = await resolveCountSku(activeRuntime.context.inventoryId, code, draft, activeRuntime.masters)
@@ -77,6 +88,7 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage }:
     setDraft((current) => ({ ...current, codigo: value }))
   }
   async function scan(field: ScanField) {
+    if (healthBlocked) return
     const result = await scanBarcodeField(field)
     if (result.error) { setMessage(result.error); return }
     if (!result.value) return
@@ -84,6 +96,7 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage }:
     else setDraft((current) => ({ ...current, [field]: result.value! }))
   }
   async function save() {
+    if (healthBlocked) { setMessage(captureGate?.message ?? 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.'); return }
     if (capacity === 'BLOCKED') { setMessage('Se alcanzó el límite de 50 conteos pendientes en este dispositivo. Sincronice antes de continuar.'); return }
     setSaving(true); setMessage('')
     try {
@@ -113,9 +126,10 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage }:
 
   return <section className="counting-screen" aria-labelledby="counting-title">
     <p className="eyebrow">Offline-first · Inventario ABIERTO</p><h1 id="counting-title">CONTEO FÍSICO</h1>
+    {healthBlocked && <p className="form-error" role="alert">{captureGate?.message ?? 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.'}</p>}
     {masterAvailable === false && <p className="form-error" role="alert">No existe un maestro SKU disponible en este dispositivo. Actualice el maestro antes de iniciar el conteo.</p>}
     <CapacityStatus pending={pending} capacity={capacity} />
-    <section className="sync-status" aria-label="Estado de sincronización"><p role="status">{syncMessage || 'Sincronización preparada. Los conteos locales permanecen disponibles sin conexión.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runSync()}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section>
+    <section className="sync-status" aria-label="Estado de sincronización"><p role="status">{syncMessage || startupSyncMessage || 'Sincronización preparada. Los conteos locales permanecen disponibles sin conexión.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runSync()}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section>
     {message && <p className={message === 'CONTEO GUARDADO' ? 'form-success' : 'form-error'} role="status">{message}</p>}
     <div className="counting-form" aria-disabled={disabled}>
       <Field label="UBICACION"><TextInput value={draft.ubicacion} onChange={(value) => setDraft((current) => ({ ...current, ubicacion: value }))} disabled={disabled} /><ScanButton field="ubicacion" onScan={scan} disabled={disabled} /></Field>

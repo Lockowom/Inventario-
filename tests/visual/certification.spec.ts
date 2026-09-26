@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 
 const snapshots = [
   { name: 'counting-blocked-mobile', width: 320, height: 900, state: 'counting-blocked', ready: 'Debe sincronizar antes de continuar; GUARDAR está bloqueado.' },
+  { name: 'device-health-blocked-mobile', width: 320, height: 900, state: 'health-blocked', ready: 'REVISIÓN REQUERIDA' },
   { name: 'rectification-tablet', width: 768, height: 1000, state: 'rectification', ready: 'RECTIFICAR' },
   { name: 'cuts-artifacts-desktop', width: 1440, height: 1100, state: 'artifacts', ready: 'EVIDENCIAS Y RESPALDOS' },
 ]

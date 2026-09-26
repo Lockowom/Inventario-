@@ -1,0 +1,48 @@
+import { render, screen, waitFor } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
+import { CountingScreen, type CountingRuntime } from '../../src/features/counting/counting-screen'
+import type { LocalCountRecord } from '../../src/domain/count/contracts'
+import type { SyncCoordinator } from '../../src/domain/sync/sync-coordinator'
+
+const inventoryId = '11111111-1111-4111-8111-111111111111'
+const userId = '22222222-2222-4222-8222-222222222222'
+const deviceId = '33333333-3333-4333-8333-333333333333'
+function record(syncStatus: LocalCountRecord['syncStatus']): LocalCountRecord {
+  return { id: `${syncStatus}-id`, clientCountId: `${syncStatus}-client`, inventoryId, userId, deviceId, ubicacion: 'A-01', codigo: '00001', serie: null, partida: 'P-1', piezaProducto: null, fechaVencimiento: null, talla: null, color: null, cantidadContada: 1, descripcion: 'Producto', controlType: 'PARTIDA', capturedAt: '2026-09-25T12:00:00.000Z', createdAt: '2026-09-25T12:00:00.000Z', syncStatus, syncAttempts: 0, lastSyncError: null, syncStartedAt: null, nextRetryAt: null, confirmedAt: null, serverCountId: null, lastSyncAt: null }
+}
+
+function runtime(): CountingRuntime {
+  const counts = [record('PENDING'), record('CONFIRMED'), record('FAILED')]
+  return {
+    context: { inventoryId, userId, inventoryStatus: 'ABIERTO' },
+    masters: { getMetadata: async () => ({ inventoryId, masterVersion: 1, rowCount: 1, fingerprint: 'a'.repeat(64), cachedAt: '2026-09-25T12:00:00.000Z' }), findByCode: async () => null, listByInventory: async () => [], replaceSnapshot: async () => undefined },
+    counts: { getOrCreateDeviceId: async () => deviceId, countPendingByDevice: async () => 1, listOwnCounts: async () => counts },
+  } as unknown as CountingRuntime
+}
+
+const coordinator = { runInventorySync: async () => ({ claimed: 0, confirmed: 0, rejected: 0, failed: 0, conflicts: 0, diagnostic: null }), runOutstanding: async () => ({ scopes: 1, claimed: 0, confirmed: 0, rejected: 0, failed: 0, conflicts: 0, diagnostic: null }) } as unknown as SyncCoordinator
+
+describe('CountingScreen Device Health capture gate', () => {
+  it('blocks only new capture while preserving my counts, search, and sync', async () => {
+    render(<CountingScreen runtime={runtime()} syncCoordinator={coordinator} captureGate={{ blocked: true, message: 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.' }} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeDisabled())
+    expect(screen.getAllByRole('button', { name: /Escanear/i }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true)
+    expect(screen.getByRole('heading', { name: 'MIS CONTEOS' })).toBeVisible()
+    expect(screen.getByLabelText('Buscar por código, serie, partida o ubicación')).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'SINCRONIZAR AHORA' })).toBeEnabled()
+    expect(screen.getByText('Pendiente de sincronización')).toBeVisible()
+    expect(screen.getByText('Confirmado en servidor')).toBeVisible()
+    expect(screen.getByText('Pendiente de reintento')).toBeVisible()
+  })
+
+  it.each(['READY', 'READY_OFFLINE', 'READY_WITH_WARNINGS'])('does not disable saving because Health is %s', async () => {
+    render(<CountingScreen runtime={runtime()} syncCoordinator={coordinator} captureGate={{ blocked: false, message: null }} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeEnabled())
+  })
+
+  it('keeps app-level runOutstanding available when authorization has no capture runtime', () => {
+    render(<CountingScreen runtime={null} syncCoordinator={coordinator} captureGate={{ blocked: true, message: 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.' }} />)
+    expect(screen.getByRole('button', { name: 'SINCRONIZAR AHORA' })).toBeEnabled()
+    expect(screen.getByText(/Captura bloqueada por Health Check/)).toBeVisible()
+  })
+})

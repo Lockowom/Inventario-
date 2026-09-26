@@ -3,6 +3,53 @@ import { expect, test } from '@playwright/test'
 const viewports = [320, 360, 390, 412, 420, 430, 600, 768, 900, 1024, 1440]
 
 test.describe('F9A certificación responsive y accesible', () => {
+  for (const [state, label] of [
+    ['health-ready', 'DISPOSITIVO LISTO PARA INVENTARIO'],
+    ['health-offline', 'DISPOSITIVO LISTO PARA INVENTARIO OFFLINE'],
+    ['health-warning', 'DISPOSITIVO LISTO CON ADVERTENCIAS'],
+    ['health-blocked', 'REVISIÓN REQUERIDA'],
+  ] as const) {
+    test(`Device Health muestra ${state} con contrato y sin overflow`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 })
+      await page.goto(`/?fixture=${state}`)
+      await expect(page.getByRole('heading', { name: 'HEALTH CHECK DEL DISPOSITIVO' })).toBeVisible()
+      await expect(page.getByText(label)).toBeVisible()
+      await expect(page.getByText('Versión de la aplicación')).toBeVisible()
+      await expect(page.getByText('Scanner', { exact: true })).toBeVisible()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    })
+  }
+
+  for (const width of [320, 390, 412, 430, 768, 1024, 1440]) {
+    test(`Device Health es responsive a ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 1000 })
+      await page.goto('/?fixture=health-blocked')
+      await expect(page.getByRole('heading', { name: 'HEALTH CHECK DEL DISPOSITIVO' })).toBeVisible()
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    })
+  }
+
+  test('Health BLOCKED conserva MIS CONTEOS y sincronización, pero bloquea nueva captura', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 900 })
+    await page.goto('/?fixture=counting-health-blocked')
+    await expect(page.getByText('REVISIÓN REQUERIDA')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'CONTEO FÍSICO' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeDisabled()
+    await expect(page.getByRole('button', { name: 'Escanear ubicacion' })).toBeDisabled()
+    await expect(page.getByRole('heading', { name: 'MIS CONTEOS' })).toBeVisible()
+    await expect(page.getByText('Pendiente de sincronización').first()).toBeVisible()
+    await expect(page.getByText('Confirmado en servidor')).toBeVisible()
+    await expect(page.getByText('Pendiente de reintento')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'SINCRONIZAR AHORA' })).toBeEnabled()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  })
+
+  test('READY_OFFLINE permite captura con runtime válido', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/?fixture=counting-health-offline')
+    await expect(page.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeEnabled()
+  })
+
   for (const width of viewports) {
     test(`CutsScreen READY real no tiene overflow operativo a ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 1000 })

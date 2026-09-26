@@ -3,6 +3,7 @@ import { SupervisionScreen } from '../features/supervision/supervision-screen'
 import { MasterSkuScreen } from '../features/master/master-sku-screen'
 import { CountingScreen, type CountingRuntime } from '../features/counting/counting-screen'
 import { CutsScreen } from '../features/cuts/cuts-screen'
+import { DeviceHealthScreen } from '../features/device-health/device-health-screen'
 import { PendingCountCapacityError, type CountListFilter, type CountRepository } from '../domain/ports/count-repository'
 import type { MasterSkuRepository } from '../domain/ports/master-sku-repository'
 import type { LocalCountRecord } from '../domain/count/contracts'
@@ -10,6 +11,8 @@ import type { MasterSku } from '../domain/master/contracts'
 import type { ArtifactGeneration, CutRectification, RectificationsRepository } from '../features/rectifications/contracts'
 import { SupabaseCutsRepository } from '../services/supabase-cuts-repository'
 import { readCertificationFixtureState } from './certification-fixture-state'
+import type { DeviceHealthCheck, DeviceHealthReport } from '../domain/device-health/contracts'
+import type { SyncCoordinator } from '../domain/sync/sync-coordinator'
 
 const inventoryId = '11111111-1111-4111-8111-111111111111'
 const userId = '22222222-2222-4222-8222-222222222222'
@@ -71,6 +74,43 @@ function countingRuntime(pending: number): CountingRuntime {
   return { context: { inventoryId, userId, inventoryStatus: 'ABIERTO' }, masters, counts: new FixtureCountRepository(records), now: () => new Date(fixedAt), createUuid: () => uuid(90_000) }
 }
 
+const healthBaseChecks: readonly DeviceHealthCheck[] = [
+  { key: 'APP_VERSION', status: 'PASS', blocking: false, message: 'Versión instalada identificada.' },
+  { key: 'AUTH_USER', status: 'PASS', blocking: true, message: 'Usuario local válido.' },
+  { key: 'INVENTORY_CONTEXT', status: 'PASS', blocking: true, message: 'Inventario abierto autorizado.' },
+  { key: 'MASTER_SNAPSHOT', status: 'PASS', blocking: true, message: 'Maestro local disponible.' },
+  { key: 'LOCAL_DATABASE', status: 'PASS', blocking: true, message: 'La base local está disponible.' },
+  { key: 'LOCAL_STORAGE', status: 'PASS', blocking: true, message: 'El almacenamiento local está disponible.' },
+  { key: 'BACKEND_CONNECTIVITY', status: 'PASS', blocking: false, message: 'Servidor disponible.' },
+  { key: 'DEVICE_TIME', status: 'PASS', blocking: true, message: 'La hora del dispositivo coincide con el servidor.' },
+  { key: 'CAMERA_AVAILABLE', status: 'PASS', blocking: false, message: 'Cámara disponible.' },
+  { key: 'CAMERA_PERMISSION', status: 'PASS', blocking: false, message: 'Permiso de cámara concedido.' },
+  { key: 'SCANNER_AVAILABLE', status: 'PASS', blocking: false, message: 'Scanner disponible.' },
+]
+
+type HealthFixtureState = 'health-ready' | 'health-offline' | 'health-warning' | 'health-blocked' | 'counting-health-blocked' | 'counting-health-offline'
+
+function healthReport(state: HealthFixtureState): DeviceHealthReport {
+  const offline = state === 'health-offline' || state === 'counting-health-offline'
+  const blocked = state === 'health-blocked' || state === 'counting-health-blocked'
+  const warning = state === 'health-warning'
+  const checks = healthBaseChecks.map((check) => {
+    if (offline && check.key === 'BACKEND_CONNECTIVITY') return { ...check, status: 'WARN' as const, message: 'Servidor no disponible ahora. Puede trabajar offline y sincronizar después.' }
+    if (offline && check.key === 'DEVICE_TIME') return { ...check, status: 'WARN' as const, blocking: false, message: 'No fue posible comparar la hora del dispositivo con el servidor.' }
+    if (warning && check.key === 'LOCAL_STORAGE') return { ...check, status: 'WARN' as const, blocking: false, message: 'No fue posible observar el espacio libre del dispositivo.' }
+    if (warning && check.key === 'CAMERA_PERMISSION') return { ...check, status: 'UNAVAILABLE' as const, blocking: false, message: 'Permiso de cámara no concedido; puede ingresar los datos manualmente.' }
+    if (warning && check.key === 'SCANNER_AVAILABLE') return { ...check, status: 'WARN' as const, blocking: false, message: 'Scanner no disponible; puede ingresar los datos manualmente.' }
+    if (blocked && check.key === 'DEVICE_TIME') return { ...check, status: 'FAIL' as const, blocking: true, message: 'La hora del dispositivo difiere del servidor. Corríjala antes de capturar.' }
+    return check
+  })
+  return { mode: 'LIGHT', overall: blocked ? 'BLOCKED' : offline ? 'READY_OFFLINE' : warning ? 'READY_WITH_WARNINGS' : 'READY', checks, resolvedContext: offline ? { kind: 'OFFLINE', context: { inventoryId, userId, inventoryStatus: 'ABIERTO' } } : { kind: 'ONLINE', context: { inventoryId, userId, inventoryStatus: 'ABIERTO' } }, checkedAt: fixedAt }
+}
+
+const fixtureSyncCoordinator = {
+  runInventorySync: async () => ({ claimed: 0, confirmed: 0, rejected: 0, failed: 0, conflicts: 0, diagnostic: null }),
+  runOutstanding: async () => ({ scopes: 1, claimed: 0, confirmed: 0, rejected: 0, failed: 0, conflicts: 0, diagnostic: null }),
+} as unknown as SyncCoordinator
+
 const values = { ubicacion: 'A-01-01', codigo: '00001', serie: '', partida: '00725', pieza_producto: '001234', fecha_vencimiento: '2027-04-10', talla: 'L', color: 'Negro', cantidad_contada: 3, descripcion: 'Producto de certificación' }
 const correctedValues = { ...values, cantidad_contada: 4 }
 const rectification: CutRectification = { id: rectificationId, cut_id: cutId, count_record_id: recordId, rectification_number: 1, old_values: values, new_values: correctedValues, reason: 'Corrección sintética certificable', created_at: fixedAt, created_by: userId }
@@ -102,9 +142,12 @@ export function CertificationFixture() {
   const state = readCertificationFixtureState(window.location.search)
   const capacity = state === 'counting-warning' ? 40 : state === 'counting-critical' ? 45 : state === 'counting-blocked' ? 50 : 39
   const runtime = useMemo(() => countingRuntime(capacity), [capacity])
+  const healthState: HealthFixtureState | null = state === 'counting-health-blocked' || state === 'counting-health-offline' ? state : state.startsWith('health-') ? state as HealthFixtureState : null
+  const report = healthState ? healthReport(healthState) : null
   return <main className="app-shell certification-fixture">
     <header><p className="eyebrow">Fase 9 · fixture DEV determinista</p><h1>INVEN3 CERTIFICATION</h1><p>Datos sintéticos contractualmente válidos para regresión visual y accesibilidad.</p></header>
-    {state.startsWith('counting-') && <CountingScreen runtime={runtime} />}
+    {report && <DeviceHealthScreen report={report} loading={false} error={null} onRefresh={() => undefined} onFullCheck={() => undefined} />}
+    {state.startsWith('counting-') && <CountingScreen runtime={runtime} syncCoordinator={fixtureSyncCoordinator} captureGate={state === 'counting-health-blocked' ? { blocked: true, message: 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.' } : undefined} />}
     {state === 'layout' && <><SupervisionScreen /><MasterSkuScreen /></>}
     {['cuts-ready', 'rectification', 'artifacts'].includes(state) && <CutsScreen cutsRepository={fixtureCutsRepository} rectificationsRepository={repository} />}
   </main>
