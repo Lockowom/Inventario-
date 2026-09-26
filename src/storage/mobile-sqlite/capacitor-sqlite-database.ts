@@ -3,16 +3,15 @@ import type { SqliteDatabase, SqliteResult } from './sqlite-database'
 
 export class CapacitorSqliteDatabase implements SqliteDatabase {
   private connection: SQLiteDBConnection | undefined
+  private initialization: Promise<void> | undefined
   private readonly sqlite = new SQLiteConnection(CapacitorSQLite)
 
   public constructor(private readonly databaseName: string) {}
 
   public async initialize(): Promise<void> {
     if (this.connection) return
-    const consistency = await this.sqlite.checkConnectionsConsistency()
-    if (!consistency.result) await this.sqlite.closeAllConnections()
-    this.connection = await this.sqlite.createConnection(this.databaseName, false, 'no-encryption', 1, false)
-    await this.connection.open()
+    this.initialization ??= this.openConnection().finally(() => { this.initialization = undefined })
+    await this.initialization
   }
 
   public async transaction<T>(operation: () => Promise<T>): Promise<T> {
@@ -38,10 +37,24 @@ export class CapacitorSqliteDatabase implements SqliteDatabase {
   }
 
   public async close(): Promise<void> {
+    if (this.initialization) await this.initialization.catch(() => undefined)
     if (!this.connection) return
     await this.connection.close()
     await this.sqlite.closeConnection(this.databaseName, false)
     this.connection = undefined
+  }
+
+  private async openConnection(): Promise<void> {
+    const consistency = await this.sqlite.checkConnectionsConsistency()
+    if (!consistency.result) await this.sqlite.closeAllConnections()
+    const connection = await this.sqlite.createConnection(this.databaseName, false, 'no-encryption', 1, false)
+    try {
+      await connection.open()
+      this.connection = connection
+    } catch (error: unknown) {
+      await this.sqlite.closeConnection(this.databaseName, false).catch(() => undefined)
+      throw error
+    }
   }
 
   private requireConnection(): SQLiteDBConnection {
