@@ -61,7 +61,8 @@ function AuthenticatedRuntime() {
       const result = await runDeviceHealthCheck(mode, { createService: createDeviceHealthService, createCountingRuntime })
       if (run !== healthRun.current) return
       setHealthReport(result.report); setCountingRuntime(result.runtime)
-    } catch {
+    } catch (error: unknown) {
+      console.error('DEVICE_HEALTH_RUNTIME_FAIL', error)
       if (run !== healthRun.current) return
       setHealthError('No fue posible comprobar el dispositivo. Actualice el diagnóstico antes de capturar.')
     } finally {
@@ -81,7 +82,10 @@ function AuthenticatedRuntime() {
         if (!active || summary.scopes === 0) return
         const work = summary.confirmed + summary.rejected + summary.failed
         setStartupSyncMessage(summary.diagnostic ? `Sincronización pendiente requiere revisión: ${summary.diagnostic}.` : work === 0 ? 'Conteos pendientes de sincronización.' : `Sincronización pendiente: ${summary.confirmed} confirmados, ${summary.rejected} requieren revisión, ${summary.failed} para reintentar.`)
-      }).catch(() => { if (active) setStartupSyncMessage('No fue posible reconciliar los conteos pendientes. Permanecen protegidos localmente.') })
+      }).catch((error: unknown) => {
+        console.error('STARTUP_SYNC_FAIL', error)
+        if (active) setStartupSyncMessage('No fue posible reconciliar los conteos pendientes. Permanecen protegidos localmente.')
+      })
     }
     const bootstrap = async () => { await prepareSync(); if (active) void runHealth('LIGHT') }
     void bootstrap()
