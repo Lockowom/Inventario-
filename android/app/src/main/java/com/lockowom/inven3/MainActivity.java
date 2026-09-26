@@ -3,6 +3,7 @@ package com.lockowom.inven3;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
+import android.view.ViewGroup;
 
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -27,7 +28,19 @@ public class MainActivity extends BridgeActivity {
                 Insets bars = windowInsets.getInsets(
                     WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout()
                 );
-                view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+                ViewGroup.LayoutParams rawParams = view.getLayoutParams();
+                if (rawParams instanceof ViewGroup.MarginLayoutParams) {
+                    ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) rawParams;
+                    if (
+                        params.leftMargin != bars.left
+                        || params.topMargin != bars.top
+                        || params.rightMargin != bars.right
+                        || params.bottomMargin != bars.bottom
+                    ) {
+                        params.setMargins(bars.left, bars.top, bars.right, bars.bottom);
+                        view.setLayoutParams(params);
+                    }
+                }
                 return windowInsets;
             });
             ViewCompat.requestApplyInsets(webView);
