@@ -103,7 +103,11 @@ export class SqliteCountRepository implements CountRepository {
     await this.initialize()
     const result = await this.database.query<TotalRow>("select count(*) as total from local_count_records where inventory_id = ? and user_id = ? and sync_status = 'SYNCING' and sync_started_at <= ?", [input.inventoryId, input.userId, input.before])
     const recovered = Number(result.values[0]?.total ?? 0)
-    if (recovered) await this.database.execute("update local_count_records set sync_status = 'FAILED', sync_attempts = sync_attempts + 1, sync_started_at = null, next_retry_at = ?, last_sync_error = 'SYNC_RECOVERED_AFTER_CRASH', last_sync_at = ? where inventory_id = ? and user_id = ? and sync_status = 'SYNCING' and sync_started_at <= ?", [input.now, input.now, input.inventoryId, input.userId, input.before])
+    if (recovered) {
+      await this.database.transaction(async () => {
+        await this.database.execute("update local_count_records set sync_status = 'FAILED', sync_attempts = sync_attempts + 1, sync_started_at = null, next_retry_at = ?, last_sync_error = 'SYNC_RECOVERED_AFTER_CRASH', last_sync_at = ? where inventory_id = ? and user_id = ? and sync_status = 'SYNCING' and sync_started_at <= ?", [input.now, input.now, input.inventoryId, input.userId, input.before])
+      })
+    }
     return recovered
   }
 
