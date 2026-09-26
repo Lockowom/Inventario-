@@ -86,7 +86,7 @@ select ok(not exists (
 ), 'service_role preserves critical server-only RPC grants');
 
 select is((select public from storage.buckets where id = 'inventory-rp'), false, 'inventory-rp remains private');
-select is((select file_size_limit from storage.buckets where id = 'inventory-rp'), 52428800, 'inventory-rp remains limited to 50 MiB');
+select is((select file_size_limit from storage.buckets where id = 'inventory-rp'), 52428800::bigint, 'inventory-rp remains limited to 50 MiB');
 select is((select allowed_mime_types from storage.buckets where id = 'inventory-rp'), array['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/json', 'application/zip']::text[], 'inventory-rp MIME contract remains unchanged');
 
 create table public.phase_9_anon_default_table_probe (id bigint primary key);
