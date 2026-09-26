@@ -55,7 +55,20 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = [
   },
 ]
 
+const migrationRuns = new WeakMap<SqliteDatabase, Promise<void>>()
+
 export async function applySqliteMigrations(database: SqliteDatabase, migrations: readonly SqliteMigration[] = SQLITE_MIGRATIONS): Promise<void> {
+  const active = migrationRuns.get(database)
+  if (active) return active
+
+  const run = applySqliteMigrationsOnce(database, migrations).finally(() => {
+    if (migrationRuns.get(database) === run) migrationRuns.delete(database)
+  })
+  migrationRuns.set(database, run)
+  return run
+}
+
+async function applySqliteMigrationsOnce(database: SqliteDatabase, migrations: readonly SqliteMigration[]): Promise<void> {
   const ordered = [...migrations].sort((left, right) => left.version - right.version)
   if (ordered.length === 0 || ordered.some((migration, index) => migration.version !== index + 1)) throw new Error('La lista de migraciones SQLite no es contigua.')
   const current = (await database.query<SqliteVersionRow>('pragma user_version')).values[0]?.user_version ?? 0
