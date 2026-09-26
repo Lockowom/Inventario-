@@ -59,6 +59,26 @@ describe('SyncManager', () => {
     expect(outbox.records.every((item) => item.syncStatus === 'CONFIRMED' && item.confirmedAt !== null)).toBe(true)
   })
 
+  it('acepta timestamps PostgreSQL con offset y los normaliza a UTC', async () => {
+    const outbox = new MemoryOutbox([record(1)])
+    gatewayInstance = gateway((records) => records.map((item) => ({
+      client_count_id: item.clientCountId,
+      result_status: 'ACCEPTED',
+      server_count_id: serverId,
+      received_at: '2026-09-17T13:00:00.123456+00:00',
+      reason: null,
+    })))
+
+    const result = await new SyncManager({ inventoryId, userId }, outbox, gatewayInstance).run()
+
+    expect(result).toMatchObject({ confirmed: 1, rejected: 0 })
+    expect(outbox.records[0]).toMatchObject({
+      syncStatus: 'CONFIRMED',
+      confirmedAt: '2026-09-17T13:00:00.123Z',
+      serverCountId: serverId,
+    })
+  })
+
   it('no confirma una respuesta parcial: deja el faltante REJECTED para revisión de contrato', async () => {
     const outbox = new MemoryOutbox([record(1), record(2)])
     gatewayInstance = gateway((records) => [{ client_count_id: records[0]!.clientCountId, result_status: 'ACCEPTED', server_count_id: serverId, received_at: '2026-09-17T13:00:00.000Z', reason: null }])
