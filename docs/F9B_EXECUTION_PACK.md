@@ -42,16 +42,24 @@ No se ejecuta una importación de RP, beta, instalación física ni acción de S
 
 ## Estado remoto ejecutado
 
-La fixture `INVEN3-QA` ya cubre Auth/profiles/assignments, maestro SERIAL/PARTIDA/LEGACY, ciclo hasta `ABIERTO`, tres conteos, replay idempotente, rechazos contractuales, RLS y `CORTE 001` en `SNAPSHOT_CREATED`. Las cuatro Edge Functions están activas con JWT obligatorio.
+La fixture `INVEN3-QA` ya cubre Auth/profiles/assignments, maestro SERIAL/PARTIDA/LEGACY, ciclo hasta `ABIERTO`, tres conteos, replay idempotente, rechazos contractuales, RLS y `CORTE 001` en `READY`. Las cuatro Edge Functions están activas con JWT obligatorio.
 
-La siguiente frontera remota es autenticar una sesión QA real desde el runtime, generar el XLSX del corte, verificar SHA/tamaño/Storage y comprobar descarga firmada. Ver [REMOTE_QA_EXECUTION_STATUS.md](f9b/REMOTE_QA_EXECUTION_STATUS.md).
+Los gates remotos F9B ya ejecutados son:
 
-## Ejecución RP remota autenticada
+- `F9B_REMOTE_RP_PASS`: CUT_XLSX oficial, Storage privado, signed download, SHA-256, tamaño y contrato XLSX.
+- `F9B_REMOTE_F8_PASS`: SNAPSHOT, RECTIFICATION_XLSX, CUT_READY_BACKUP, idempotencia, contratos JSON/XLSX/ZIP, as-of, RLS/Storage denials y auditoría.
 
-Cuando las credenciales sintéticas estén disponibles en el entorno local del operador, ejecutar:
+La evidencia consolidada está en [REMOTE_QA_EXECUTION_STATUS.md](f9b/REMOTE_QA_EXECUTION_STATUS.md).
+
+## Ejecución remota autenticada
+
+Los runners quedan disponibles para reproducción controlada exclusivamente contra `INVEN3-QA`:
 
 ```text
 npm run certify:f9b:remote-rp
+npm run certify:f9b:remote-f8
 ```
 
-El proceso requiere sesión real de `QA ANALISTA`, no admite service-role como sustituto y se niega a ejecutar fuera de `INVEN3-QA`. Las credenciales y URLs firmadas no se incluyen en evidencia ni se pegan en tickets/chat.
+`remote-rp` requiere sesión real de `QA ANALISTA`. `remote-f8` requiere sesiones reales de `QA ANALISTA` y `QA ADMIN` porque los technical backups son admin-only. Ninguno admite service-role como sustituto de sesión de usuario y ambos se niegan a ejecutar fuera de `INVEN3-QA`.
+
+Las credenciales, JWT, keys administrativas y URLs firmadas no se incluyen en evidencia ni se pegan en tickets/chat. La fixture principal permanece `ABIERTO`; no se cierra ni congela hasta completar los gates físicos/manuales que dependen de ella.
