@@ -21,6 +21,11 @@ export class SqliteCountingContextRepository implements CountingContextRepositor
       await this.database.execute("insert into local_counting_context (context_key, user_id, inventory_id, inventory_status, verified_at) values ('active', ?, ?, ?, ?)", [valid.userId, valid.inventoryId, valid.inventoryStatus, valid.verifiedAt])
     })
   }
-  public async clear(): Promise<void> { await this.initialize(); await this.database.execute("delete from local_counting_context where context_key = 'active'") }
+  public async clear(): Promise<void> {
+    await this.initialize()
+    await this.database.transaction(async () => {
+      await this.database.execute("delete from local_counting_context where context_key = 'active'")
+    })
+  }
   private async initialize(): Promise<void> { if (this.initialized) return; await this.database.initialize(); await applySqliteMigrations(this.database); this.initialized = true }
 }
