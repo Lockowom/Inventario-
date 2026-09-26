@@ -14,6 +14,7 @@ export interface DeviceHealthDependencies {
   appVersion: AppVersionProvider
   serverTime: ServerTimeGateway
   scanner: PassiveScannerHealthProbe
+  hydrateMasterSnapshot?(inventoryId: string): Promise<void>
   now?: () => Date
 }
 
@@ -24,6 +25,9 @@ export class DeviceHealthService {
     const now = this.dependencies.now ?? (() => new Date(Date.now()))
     const checkedAt = validIso(now())
     const context = await this.dependencies.resolveContext()
+    if (context.kind === 'ONLINE' && this.dependencies.hydrateMasterSnapshot) {
+      await safely(() => this.dependencies.hydrateMasterSnapshot!(context.context.inventoryId))
+    }
     const localUserId = await safely(this.dependencies.getLocalSessionUserId)
     const checks: DeviceHealthCheck[] = []
 
