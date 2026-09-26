@@ -103,3 +103,7 @@ Auth login; perfiles/roles; assignments/RLS; maestro; sync y reconnect offline; 
 | Divergencia de historial/schema | detener antes de deploy, conservar evidencia, analizar diff y solicitar decisión autorizada |
 
 Blockers actuales: no existe project ref ni autorización para un QA remoto, no existen credenciales QA ni usuarios/dataset QA autorizados y no hay build físico configurado. Si sólo se ofrece producción, permanece `REMOTE_QA_ENVIRONMENT = BLOCKED_PENDING_AUTHORIZATION`.
+
+## Seguimiento F9B.3
+
+La revisión posterior de default privileges está documentada en [REMOTE_QA_SECURITY_REVIEW.md](REMOTE_QA_SECURITY_REVIEW.md). Su migración de hardening sigue pendiente de aplicación autorizada; no cambia el estado de los gates manuales.
