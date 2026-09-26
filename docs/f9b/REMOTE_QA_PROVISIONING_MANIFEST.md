@@ -73,7 +73,11 @@ La provisión ejecutada creó exactamente tres identidades sintéticas; las cred
 | `qa-analista` | un `auth.users` confirmado | `display_name = 'QA ANALISTA'`, `role = ANALISTA`, `active = true` | Supervisión, cortes, RP y autorizaciones analíticas dentro del inventario asignado. |
 | `qa-admin` | un `auth.users` confirmado | `display_name = 'QA ADMIN'`, `role = ADMIN`, `active = true` | Crear/preparar/abrir el inventario y cargar maestro sintético. |
 
-El operador debe recuperar el UUID creado por Auth y asociarlo al `profiles.user_id` correcto, verificar `active = true`, y no decidir el rol desde `raw_user_meta_data`. La creación ya fue autorizada y ejecutada en QA; cualquier recreación, rotación de credenciales o provisión adicional requiere una decisión nueva y no forma parte de este manifiesto.
+El operador debe recuperar el UUID creado por Auth y asociarlo al `profiles.user_id` correcto, verificar `active = true`, y no decidir el rol desde `raw_user_meta_data`.
+
+**Regla obligatoria de provisión Auth:** crear y actualizar usuarios exclusivamente mediante Supabase Auth Admin API/Dashboard autorizado. No insertar ni editar directamente `auth.users` por SQL. La ejecución F9B detectó que un insert manual había dejado `instance_id = NULL` y strings internos de Auth en `NULL`, haciendo que los registros existieran en Table Editor pero fueran invisibles para Auth. El forward-fix QA normalizó `instance_id` al UUID cero y los strings internos requeridos a `''`, preservando UUID, identities, profiles y assignments. Para cualquier reprovisión futura, usar Admin Auth API evita este estado inválido.
+
+La creación ya fue autorizada y ejecutada en QA; cualquier recreación, rotación de credenciales o provisión adicional requiere una decisión nueva y no forma parte de este manifiesto.
 
 ## F. Profiles
 
@@ -160,6 +164,7 @@ La matriz debe producir evidencia real para `READY`, `READY_OFFLINE`, `READY_WIT
 | Bundle QA configurado contra endpoint equivocado | Invalidar artefacto y reconstruir con variables del entorno correcto; no rotar ni revelar claves como atajo. |
 | Error de función, RPC, Storage o firma | Detener la operación afectada, preservar IDs/estado/error seguro, corregir mediante commit y CI, y redeploy autorizado; no editar Edge remoto manualmente. |
 | Fixture sintética errónea | Corregir por procedimiento QA aprobado o recrear el ambiente/dataset sintético; nunca borrar datos operacionales ni copiar producción. |
+| Usuario Auth existe en tabla pero no autentica/no aparece en Dashboard | Detener provisión; revisar integridad Auth. No insertar ni reparar `auth.users` manualmente como procedimiento normal. Reprovisionar mediante Auth Admin API o aplicar un forward-fix QA revisado que preserve UUID/identities/profiles/assignments. |
 | DDL, grants o RLS | Sólo migración forward-fix revisada. No `migration repair`, squash ni edición de historia. |
 
 ## M. Evidence to capture
