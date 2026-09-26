@@ -111,6 +111,30 @@ describe('DeviceHealthService', () => {
     await expect(health.check()).resolves.toMatchObject({ overall: 'READY' })
   })
 
+  it('hydrates the local master once while online before validating the snapshot', async () => {
+    const masters = new MemoryMasters()
+    masters.currentMetadata = null
+    masters.items = []
+    masters.lookup = null
+    const hydrateMasterSnapshot = vi.fn(async (targetInventoryId: string) => {
+      expect(targetInventoryId).toBe(inventoryId)
+      masters.currentMetadata = metadata
+      masters.items = [item]
+      masters.lookup = item
+    })
+    const { health } = service({ masters, hydrateMasterSnapshot })
+    const report = await health.check()
+    expect(hydrateMasterSnapshot).toHaveBeenCalledTimes(1)
+    expect(check(report, 'MASTER_SNAPSHOT').status).toBe('PASS')
+  })
+
+  it('does not hydrate the master during an offline health run', async () => {
+    const hydrateMasterSnapshot = vi.fn(async () => undefined)
+    const { health } = service({ resolveContext: async () => offline, hydrateMasterSnapshot })
+    await health.check()
+    expect(hydrateMasterSnapshot).not.toHaveBeenCalled()
+  })
+
   it('allows a valid cached context as READY_OFFLINE', async () => {
     const { health } = service({ resolveContext: async () => offline })
     const report = await health.check()
