@@ -111,4 +111,4 @@ Los objetivos físicos futuros no son SLA de CI de escritorio: guardado SQLite y
 
 ## Límites de esta fase
 
-La automatización de Device Health está implementada y certificada en `d50be9e2f7ad59e1561317bbc546af060803988f` / CI [`36208026455`](https://github.com/Lockowom/Inventario-/actions/runs/36208026455). La validación física de cámara, scanner y SQLite en Android/iOS permanece `MANUAL_REQUIRED`. No se implementa F9B ni Fase 10.
+La automatización de Device Health está implementada y certificada en `8790127f7b676612d888936627233431efe93ac4` / CI [`36211223328`](https://github.com/Lockowom/Inventario-/actions/runs/36211223328). La validación física de cámara, scanner y SQLite en Android/iOS permanece `MANUAL_REQUIRED`. No se implementa F9B ni Fase 10.
