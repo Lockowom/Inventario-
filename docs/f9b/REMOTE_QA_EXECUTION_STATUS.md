@@ -37,3 +37,11 @@ El runtime incorpora login por email/contraseña con Supabase Auth y cierre de s
 - Congelar un único release-candidate SHA y exigir CI final verde antes del PR F9 → `main`.
 
 No declarar F9 completa ni iniciar F10 hasta cerrar esos gates.
+
+## Runner remoto RP
+
+El gate RP remoto se ejecuta con `npm run certify:f9b:remote-rp`. El runner está bloqueado al project ref `uazunvlxlszdyweddxtb`, usa una sesión real de ANALISTA/ADMIN, genera el corte mediante la Edge Function oficial, descarga por signed URL y vuelve a calcular SHA-256/tamaño antes de validar el contrato XLSX.
+
+Variables requeridas localmente y nunca registradas en Git/evidencia: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` y `F9B_QA_ANALYST_PASSWORD`. Son opcionales los overrides `F9B_QA_ANALYST_EMAIL`, `F9B_INVENTORY_ID` y `F9B_CUT_ID`; por defecto apuntan exclusivamente a la fixture F9B.4 documentada.
+
+El runner no imprime contraseña, JWT, anon key ni signed URL. Su salida aprobada es un resumen sanitizado `F9B_REMOTE_RP_PASS` con cut, archivo, SHA-256, tamaño y filas.

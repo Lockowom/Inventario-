@@ -45,3 +45,13 @@ No se ejecuta una importación de RP, beta, instalación física ni acción de S
 La fixture `INVEN3-QA` ya cubre Auth/profiles/assignments, maestro SERIAL/PARTIDA/LEGACY, ciclo hasta `ABIERTO`, tres conteos, replay idempotente, rechazos contractuales, RLS y `CORTE 001` en `SNAPSHOT_CREATED`. Las cuatro Edge Functions están activas con JWT obligatorio.
 
 La siguiente frontera remota es autenticar una sesión QA real desde el runtime, generar el XLSX del corte, verificar SHA/tamaño/Storage y comprobar descarga firmada. Ver [REMOTE_QA_EXECUTION_STATUS.md](f9b/REMOTE_QA_EXECUTION_STATUS.md).
+
+## Ejecución RP remota autenticada
+
+Cuando las credenciales sintéticas estén disponibles en el entorno local del operador, ejecutar:
+
+```text
+npm run certify:f9b:remote-rp
+```
+
+El proceso requiere sesión real de `QA ANALISTA`, no admite service-role como sustituto y se niega a ejecutar fuera de `INVEN3-QA`. Las credenciales y URLs firmadas no se incluyen en evidencia ni se pegan en tickets/chat.
