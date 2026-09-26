@@ -70,6 +70,20 @@ Resultado físico posterior al upgrade in-place:
 
 Este incidente queda cerrado como PASS de recuperación/idempotencia del defecto descubierto; la prueba offline completa con cierre/reinicio físico continúa pendiente.
 
+## Hallazgo de fallback offline tras FULL
+
+Después de obtener `FULL = READY_WITH_WARNINGS` en línea, al activar modo avión y refrescar Health la captura quedó bloqueada. La inspección mostró que Supabase Auth representa la caída de red como `AuthRetryableFetchError`; el clasificador local sólo reconocía `TypeError: Failed to fetch`, por lo que el error se convertía en `AMBIGUOUS`, limpiaba la cache de contexto y bloqueaba la captura fail-closed.
+
+Forward-fix preparado:
+
+- `AuthRetryableFetchError` se clasifica como `UNAVAILABLE`;
+- con cache válida y mismo usuario local, `resolveCountingContext` retorna `OFFLINE`;
+- la cache no se elimina durante esta caída de red explícitamente retryable;
+- el Health esperado pasa a `READY_OFFLINE`, con backend/hora en WARN no bloqueante;
+- tests de regresión cubren clasificación y preservación del contexto.
+
+Para repetir la prueba física se debe volver online primero, ejecutar LIGHT/FULL para repoblar la cache autorizada y luego activar modo avión.
+
 ## Pendientes de esta ejecución
 
 - Device Health `FULL`.
