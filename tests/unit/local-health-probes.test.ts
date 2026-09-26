@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { DexieLocalHealthProbe } from '../../src/storage/web-indexeddb/dexie-local-health-probe'
 import { Inven3WebDatabase } from '../../src/storage/web-indexeddb/inven3-web-database'
 import { SqliteLocalHealthProbe } from '../../src/storage/mobile-sqlite/sqlite-local-health-probe'
