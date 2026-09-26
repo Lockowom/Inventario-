@@ -6,15 +6,20 @@ import { getCountingContextRepository, getLocalHealthProbe, getMasterSkuReposito
 import { CapacitorAppVersionProvider } from '../../services/app-version-provider'
 import { SupabaseServerTimeGateway } from '../../services/supabase-server-time-gateway'
 import { CapacitorScannerHealthProbe } from '../../scanner/scanner-health-probe'
+import { SupabaseMasterSkuRepository } from '../../services/supabase-master-sku-repository'
+import { hydrateLocalMasterSnapshot } from './master-snapshot-hydration'
 
 /** Infrastructure composition for F9A.4A. No screen or capture gating consumes it yet. */
 export function createDeviceHealthService(mode: DeviceHealthMode): DeviceHealthService {
   const cache = getCountingContextRepository()
+  const masters = getMasterSkuRepository()
+  const remoteMasters = new SupabaseMasterSkuRepository()
   return new DeviceHealthService({
     mode,
     resolveContext: () => resolveCountingContext({ verifyServer: verifyServerCountingContext, getLocalSessionUserId }, cache),
     getLocalSessionUserId,
-    masters: getMasterSkuRepository(),
+    masters,
+    hydrateMasterSnapshot: (inventoryId) => hydrateLocalMasterSnapshot(inventoryId, masters, remoteMasters),
     localHealth: getLocalHealthProbe(),
     appVersion: new CapacitorAppVersionProvider(),
     serverTime: new SupabaseServerTimeGateway(),
