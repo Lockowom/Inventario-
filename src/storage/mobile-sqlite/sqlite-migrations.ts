@@ -53,6 +53,18 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = [
       await database.execute('create index if not exists local_count_records_sync_eligible_idx on local_count_records (user_id, sync_status, next_retry_at, captured_at)')
     },
   },
+  {
+    version: 6,
+    up: async (database) => {
+      // F9B physical QA exposed a client-side timestamp parser defect after the
+      // server had already accepted the count. Requeue only this synthetic
+      // client-contract failure; replay is safe because client_count_id is
+      // idempotent server-side and will resolve as ALREADY_ACCEPTED.
+      await database.execute(
+        "update local_count_records set sync_status = 'FAILED', sync_started_at = null, next_retry_at = null, last_sync_error = 'SYNC_RESPONSE_COMPATIBILITY_RECOVERY' where sync_status = 'REJECTED' and last_sync_error = 'SYNC_RESPONSE_INCOMPATIBLE' and server_count_id is null"
+      )
+    },
+  },
 ]
 
 const migrationRuns = new WeakMap<SqliteDatabase, Promise<void>>()
