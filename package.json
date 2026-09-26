@@ -17,7 +17,8 @@
     "cap:sync": "npm run build && cap sync",
     "cap:android": "npm run build && cap sync android",
     "cap:ios": "npm run build && cap sync ios",
-    "certify:f9b:remote-rp": "node scripts/f9b-remote-rp-certification.mjs"
+    "certify:f9b:remote-rp": "node scripts/f9b-remote-rp-certification.mjs",
+    "certify:f9b:remote-f8": "node --experimental-strip-types scripts/f9b-remote-f8-certification.mjs"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^8.1.1",
