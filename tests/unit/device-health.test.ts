@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { DeviceHealthService, FIVE_MINUTES_MS } from '../../src/domain/device-health/device-health-service'
+import { evaluateDeviceHealthOverall } from '../../src/domain/device-health/evaluate-overall'
 import type { DeviceHealthCheck, LocalHealthProbe, LocalHealthProbeResult } from '../../src/domain/device-health/contracts'
 import type { ResolvedCountingContext } from '../../src/domain/count/resolve-counting-context'
 import type { MasterMetadata, MasterSku } from '../../src/domain/master/contracts'
@@ -12,6 +13,9 @@ const online: ResolvedCountingContext = { kind: 'ONLINE', context: { inventoryId
 const offline: ResolvedCountingContext = { kind: 'OFFLINE', context: { inventoryId, userId, inventoryStatus: 'ABIERTO' } }
 const item: MasterSku = { inventoryId, codigo: '000123', descripcion: 'Producto', controlType: 'PARTIDA', cachedAt: now.toISOString() }
 const metadata: MasterMetadata = { inventoryId, masterVersion: 1, rowCount: 1, fingerprint: 'a'.repeat(64), cachedAt: now.toISOString() }
+const blocked = (reason: 'NOT_AUTHORIZED' | 'AMBIGUOUS' | 'CACHE_MISMATCH'): ResolvedCountingContext => ({ kind: 'BLOCKED', reason })
+const passingCheck: DeviceHealthCheck = { key: 'APP_VERSION', status: 'PASS', blocking: false, message: 'ok' }
+const allPassingChecks: readonly DeviceHealthCheck[] = [passingCheck, { key: 'AUTH_USER', status: 'PASS', blocking: true, message: 'ok' }]
 
 class MemoryMasters implements MasterSkuRepository {
   public currentMetadata: MasterMetadata | null = metadata
@@ -61,6 +65,33 @@ function check(report: Awaited<ReturnType<DeviceHealthService['check']>>, key: D
   if (!value) throw new Error(`Missing ${key}`)
   return value
 }
+
+describe('evaluateDeviceHealthOverall', () => {
+  it.each(['NOT_AUTHORIZED', 'AMBIGUOUS', 'CACHE_MISMATCH'] as const)('returns BLOCKED for %s even when every check passes', (reason) => {
+    expect(evaluateDeviceHealthOverall(allPassingChecks, blocked(reason))).toBe('BLOCKED')
+  })
+
+  it('returns READY online when all checks pass', () => {
+    expect(evaluateDeviceHealthOverall(allPassingChecks, online)).toBe('READY')
+  })
+
+  it('returns READY_WITH_WARNINGS for online non-blocking warnings and failures', () => {
+    expect(evaluateDeviceHealthOverall([{ ...passingCheck, status: 'WARN' }], online)).toBe('READY_WITH_WARNINGS')
+    expect(evaluateDeviceHealthOverall([{ ...passingCheck, status: 'UNAVAILABLE' }], online)).toBe('READY_WITH_WARNINGS')
+    expect(evaluateDeviceHealthOverall([{ ...passingCheck, status: 'FAIL' }], online)).toBe('READY_WITH_WARNINGS')
+  })
+
+  it('blocks any blocking failure before evaluating connectivity', () => {
+    const failure = { ...passingCheck, status: 'FAIL' as const, blocking: true }
+    expect(evaluateDeviceHealthOverall([failure], online)).toBe('BLOCKED')
+    expect(evaluateDeviceHealthOverall([failure], offline)).toBe('BLOCKED')
+  })
+
+  it('returns READY_OFFLINE only for an offline context without blocking failures', () => {
+    expect(evaluateDeviceHealthOverall(allPassingChecks, offline)).toBe('READY_OFFLINE')
+    expect(evaluateDeviceHealthOverall([{ ...passingCheck, status: 'WARN' }], offline)).toBe('READY_OFFLINE')
+  })
+})
 
 describe('DeviceHealthService', () => {
   it('produces READY with exactly one authorization resolution and preserves it', async () => {
