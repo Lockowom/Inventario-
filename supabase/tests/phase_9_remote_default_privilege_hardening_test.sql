@@ -23,7 +23,9 @@ select ok(not exists (
   select 1
   from pg_class relation
   join pg_namespace namespace on namespace.oid = relation.relnamespace
-  cross join lateral values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE') operation(privilege_type)
+  cross join lateral (
+    values ('SELECT'), ('INSERT'), ('UPDATE'), ('DELETE')
+  ) operation(privilege_type)
   where namespace.nspname = 'public'
     and relation.relkind in ('r', 'p')
     and has_table_privilege('anon', relation.oid, operation.privilege_type)
@@ -33,7 +35,9 @@ select ok(not exists (
   select 1
   from pg_class sequence
   join pg_namespace namespace on namespace.oid = sequence.relnamespace
-  cross join lateral values ('USAGE'), ('SELECT'), ('UPDATE') operation(privilege_type)
+  cross join lateral (
+    values ('USAGE'), ('SELECT'), ('UPDATE')
+  ) operation(privilege_type)
   where namespace.nspname = 'public'
     and sequence.relkind = 'S'
     and has_sequence_privilege('anon', sequence.oid, operation.privilege_type)
