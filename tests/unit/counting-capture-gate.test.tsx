@@ -1,5 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CountingScreen, type CountingRuntime } from '../../src/features/counting/counting-screen'
 import type { LocalCountRecord } from '../../src/domain/count/contracts'
 import type { SyncCoordinator } from '../../src/domain/sync/sync-coordinator'
@@ -20,9 +20,15 @@ function runtime(): CountingRuntime {
   } as unknown as CountingRuntime
 }
 
+function runtimeWithSkuLookup(findByCode = vi.fn(async () => null)): CountingRuntime {
+  const value = runtime()
+  return { ...value, masters: { ...value.masters, findByCode } } as CountingRuntime
+}
+
 const coordinator = { runInventorySync: async () => ({ claimed: 0, confirmed: 0, rejected: 0, failed: 0, conflicts: 0, diagnostic: null }), runOutstanding: async () => ({ scopes: 1, claimed: 0, confirmed: 0, rejected: 0, failed: 0, conflicts: 0, diagnostic: null }) } as unknown as SyncCoordinator
 
 describe('CountingScreen Device Health capture gate', () => {
+  afterEach(() => localStorage.removeItem('inven3.restored-scan-result'))
   it('blocks only new capture while preserving my counts, search, and sync', async () => {
     render(<CountingScreen runtime={runtime()} syncCoordinator={coordinator} captureGate={{ blocked: true, message: 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.' }} />)
     await waitFor(() => expect(screen.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeDisabled())
@@ -44,5 +50,25 @@ describe('CountingScreen Device Health capture gate', () => {
     render(<CountingScreen runtime={null} syncCoordinator={coordinator} captureGate={{ blocked: true, message: 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.' }} />)
     expect(screen.getByRole('button', { name: 'SINCRONIZAR AHORA' })).toBeEnabled()
     expect(screen.getByText(/Captura bloqueada por Health Check/)).toBeVisible()
+  })
+
+  it('keeps a restored scanner result durable while blocked, then applies it exactly once after READY', async () => {
+    const findByCode = vi.fn(async () => null)
+    const currentRuntime = runtimeWithSkuLookup(findByCode)
+    localStorage.setItem('inven3.restored-scan-result', JSON.stringify({ field: 'codigo', value: '00001', error: null }))
+    const view = render(<CountingScreen runtime={currentRuntime} syncCoordinator={coordinator} captureGate={{ blocked: true, message: 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.' }} />)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeDisabled())
+    expect(screen.getByLabelText('CODIGO')).toHaveValue('')
+    expect(findByCode).not.toHaveBeenCalled()
+    expect(localStorage.getItem('inven3.restored-scan-result')).not.toBeNull()
+
+    view.rerender(<CountingScreen runtime={currentRuntime} syncCoordinator={coordinator} captureGate={{ blocked: false, message: null }} />)
+    await waitFor(() => expect(screen.getByLabelText('CODIGO')).toHaveValue('00001'))
+    expect(findByCode).toHaveBeenCalledTimes(1)
+    expect(localStorage.getItem('inven3.restored-scan-result')).toBeNull()
+
+    view.rerender(<CountingScreen runtime={currentRuntime} syncCoordinator={coordinator} captureGate={{ blocked: false, message: null }} />)
+    expect(findByCode).toHaveBeenCalledTimes(1)
   })
 })

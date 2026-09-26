@@ -43,25 +43,27 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
   useEffect(() => {
     let active = true
     let unsubscribe: (() => Promise<void>) | undefined
-    const applyRestoredResult = (result: { field: ScanField | null; value: string | null; error: string | null }) => {
-      if (!active || !runtime) return
+    const applyRestoredResult = (result: { field: ScanField | null; value: string | null; error: string | null }, consumePersisted: boolean) => {
+      // Keep recovery durable while Health denies new capture. A future READY
+      // lifecycle will consume this exact persisted result once.
+      if (!active || !runtime || healthBlocked) return
       // The event processor persists a recovery result for a cold start; once
       // this live form consumes it, remove the duplicate copy.
-      consumeRestoredScannerResult()
+      if (consumePersisted) consumeRestoredScannerResult()
       if (result.error) { setMessage(result.error); return }
       if (!result.field || !result.value) return
       if (result.field === 'codigo') void resolveSku(result.value)
       else setDraft((current) => ({ ...current, [result.field!]: result.value! }))
     }
-    if (runtime) {
+    if (runtime && !healthBlocked) {
       const recovered = consumeRestoredScannerResult()
-      if (recovered) applyRestoredResult(recovered)
+      if (recovered) applyRestoredResult(recovered, false)
     }
-    void subscribeToScannerRestoration(applyRestoredResult).then((remove) => { unsubscribe = remove })
+    void subscribeToScannerRestoration((result) => applyRestoredResult(result, true)).then((remove) => { unsubscribe = remove })
     return () => { active = false; if (unsubscribe) void unsubscribe() }
   // The runtime controls the authorized inventory; scanner recovery must not outlive it.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [runtime])
+  }, [runtime, healthBlocked])
 
   async function runOutstandingSync() {
     if (!syncCoordinator || syncing) return
