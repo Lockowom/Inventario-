@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto'
+import process from 'node:process'
 import { createClient } from '@supabase/supabase-js'
 import * as XLSX from '@e965/xlsx'
 
@@ -19,7 +20,7 @@ function assert(condition, message) {
 }
 
 function validateProject(url) {
-  const parsed = new URL(url)
+  const parsed = new globalThis.URL(url)
   assert(parsed.protocol === 'https:', 'F9B QA URL must use HTTPS.')
   assert(parsed.hostname === `${EXPECTED_PROJECT_REF}.supabase.co`, 'Refusing to run outside the approved INVEN3-QA project.')
 }
@@ -98,7 +99,7 @@ async function main() {
     const download = await supabase.functions.invoke('download-cut-rp-xlsx', { body: { cutId } })
     assert(!download.error && !download.data?.error && typeof download.data?.signedUrl === 'string', 'Signed RP download could not be prepared.')
 
-    const response = await fetch(download.data.signedUrl, { redirect: 'follow' })
+    const response = await globalThis.fetch(download.data.signedUrl, { redirect: 'follow' })
     assert(response.ok, 'Signed RP download failed.')
     const bytes = new Uint8Array(await response.arrayBuffer())
     const sha256 = createHash('sha256').update(bytes).digest('hex')
@@ -106,7 +107,7 @@ async function main() {
     assert(sha256 === targetAfter.file_hash, 'Downloaded RP SHA-256 does not match official metadata.')
     validateWorkbook(bytes)
 
-    console.log(JSON.stringify({
+    globalThis.console.log(JSON.stringify({
       result: 'F9B_REMOTE_RP_PASS',
       projectRef: EXPECTED_PROJECT_REF,
       inventoryId,
@@ -125,6 +126,6 @@ async function main() {
 
 main().catch((error) => {
   const message = error instanceof Error ? error.message : 'F9B remote RP certification failed safely.'
-  console.error(`F9B_REMOTE_RP_FAIL: ${message}`)
+  globalThis.console.error(`F9B_REMOTE_RP_FAIL: ${message}`)
   process.exitCode = 1
 })
