@@ -46,6 +46,19 @@ La captura física demuestra además que el runtime ya no cae en el error genér
 - Etiqueta diagnóstica ambigua “Entorno: Production”.
 - Insets Android 15/16 para mantener el WebView fuera de las barras del sistema.
 
+## Hallazgo offline/sync en hardware
+
+Durante el conteo físico real se generaron dos registros sintéticos `A-01-03 / 001234 / 1` en el Xiaomi. El servidor recibió ambos exactamente una vez, pero el cliente mostró uno como `SYNC_RESPONSE_INCOMPATIBLE` y otro como `PENDING`.
+
+La verificación directa en `INVEN3-QA` confirmó:
+
+- ambos `client_count_id` fueron insertados una sola vez en `count_records`;
+- mismo usuario QA ANALISTA y mismo dispositivo físico;
+- no hubo pérdida ni duplicación remota;
+- el defecto estaba en el parser cliente de `received_at timestamptz`.
+
+Se preparó forward-fix cliente para normalizar timestamps PostgreSQL de ACK a UTC y migración SQLite v6 que reencola exclusivamente falsos `SYNC_RESPONSE_INCOMPATIBLE`. El replay conserva `client_count_id` y depende de la idempotencia remota para resolver como `ALREADY_ACCEPTED`.
+
 ## Pendientes de esta ejecución
 
 - Device Health `FULL`.
