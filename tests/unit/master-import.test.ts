@@ -41,6 +41,26 @@ describe('maestro SKU: normalización e importación', () => {
     expect(validMasterItems(preview).map((item) => item.codigo)).toEqual(['00725', '00001', '001234', '725'])
   })
 
+  it('acepta encabezados nativos del stock RP y preserva el contrato de control', async () => {
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ['Cod. Producto', 'Producto', 'Cod. U. Medida', 'Disponible', 'Reserva', 'Transitoria', 'Consignación', 'Stock Total'],
+      ['001234', 'Producto legacy', 'UNI', 1, 0, 0, 0, 1],
+      ['000725P', 'Producto partida', 'UNI', 2, 0, 0, 0, 2],
+      ['000123S', 'Producto serial', 'UNI', 1, 0, 0, 0, 1],
+    ])
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, sheet, 'STOCK TOTAL')
+    const bytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
+    const preview = await parseMasterXlsx(bytes)
+
+    expect(preview.rejectedRows).toBe(0)
+    expect(validMasterItems(preview)).toEqual([
+      { codigo: '001234', descripcion: 'Producto legacy', controlType: 'LEGACY' },
+      { codigo: '000725P', descripcion: 'Producto partida', controlType: 'PARTIDA' },
+      { codigo: '000123S', descripcion: 'Producto serial', controlType: 'SERIAL' },
+    ])
+  })
+
   it('genera el mismo fingerprint para la misma semántica sin importar el orden', async () => {
     const first = [{ codigo: '00001', descripcion: 'Uno', controlType: 'LEGACY' as const }, { codigo: 'ABCSP', descripcion: 'Dos', controlType: 'PARTIDA' as const }]
     const second = [...first].reverse()
