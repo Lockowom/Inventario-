@@ -18,6 +18,8 @@ Esta ejecución valida como dataset de prueba un libro real exportado desde RP/S
 | Control | Resultado |
 |---|---|
 | STOCK TOTAL | 2453 filas / 2453 SKU únicos |
+| maestro INVEN3 desde STOCK TOTAL | 2453 válidos / 0 rechazados |
+| clasificación control | 1295 PARTIDA / 82 SERIAL / 1076 LEGACY |
 | STOCK CON P | 3054 filas / mismos 2453 SKU |
 | STOCK CON S | 4050 filas / mismos 2453 SKU |
 | conciliación por SKU | 0 diferencias en Disponible/Reserva/Transitoria/Consignación/Stock Total |
