@@ -74,15 +74,25 @@ Este incidente queda cerrado como PASS de recuperación/idempotencia del defecto
 
 Después de obtener `FULL = READY_WITH_WARNINGS` en línea, al activar modo avión y refrescar Health la captura quedó bloqueada. La inspección mostró que Supabase Auth representa la caída de red como `AuthRetryableFetchError`; el clasificador local sólo reconocía `TypeError: Failed to fetch`, por lo que el error se convertía en `AMBIGUOUS`, limpiaba la cache de contexto y bloqueaba la captura fail-closed.
 
-Forward-fix preparado:
+Primer forward-fix:
 
 - `AuthRetryableFetchError` se clasifica como `UNAVAILABLE`;
-- con cache válida y mismo usuario local, `resolveCountingContext` retorna `OFFLINE`;
-- la cache no se elimina durante esta caída de red explícitamente retryable;
-- el Health esperado pasa a `READY_OFFLINE`, con backend/hora en WARN no bloqueante;
-- tests de regresión cubren clasificación y preservación del contexto.
+- con cache válida y mismo usuario local, `resolveCountingContext` puede retornar `OFFLINE`;
+- la cache no se elimina durante esta caída de red explícitamente retryable.
 
-Para repetir la prueba física se debe volver online primero, ejecutar LIGHT/FULL para repoblar la cache autorizada y luego activar modo avión.
+La repetición física del 2026-09-27 expuso un segundo defecto: cuando el access token está vencido, `supabase.auth.getSession()` intenta refresh; sin red devuelve sesión nula + error retryable aunque Supabase conserve la sesión persistida. INVEN3 usaba ese resultado como identidad local, por lo que `AUTH_USER` fallaba y `INVENTORY_CONTEXT`/`MASTER_SNAPSHOT` caían en cascada.
+
+Segundo forward-fix:
+
+- la identidad local (sólo UUID de usuario, nunca token) se persiste separadamente al autenticar/recuperar sesión;
+- un refresh retryable sin red puede reutilizar exclusivamente ese UUID persistido;
+- una respuesta autoritativa de sesión inexistente no reutiliza la identidad;
+- `SIGNED_OUT` y logout explícito eliminan la identidad persistida;
+- el arranque offline puede mantener `AuthenticatedRuntime` aun cuando el JWT requiera refresh remoto;
+- autorización de inventario continúa dependiendo del último contexto server-authoritative cacheado y la coincidencia de usuario;
+- tests cubren boot offline, refresh retryable y no-reutilización ante sesión realmente ausente.
+
+El Health esperado después de una verificación online válida pasa a `READY_OFFLINE`, con backend/hora en WARN no bloqueante.
 
 ## Pendientes de esta ejecución
 
