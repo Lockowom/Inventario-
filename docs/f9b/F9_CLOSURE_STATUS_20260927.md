@@ -21,6 +21,8 @@
 | RP CUT_XLSX remoto | PASS | contrato/SHA/tamaño |
 | F8 artefactos/rectificación | PASS | snapshot/xlsx/backup |
 | Android físico | PASS | Xiaomi 15T |
+| iOS virtual matrix | PASS | 23/23 perfiles WebKit iPhone 11→18; touch/overflow/Health/Conteo PASS |
+| iOS native simulator build | PENDING | requiere macOS/Xcode cloud; workflow y fallback Codemagic preparados |
 | iOS físico | MANUAL_REQUIRED | no certificado todavía |
 | RP real import | PASS_WITH_WARNINGS | archivo real RP certificado como gate oficial RP→INVEN3; conciliación 0 diferencias; evidencia `RP-SOURCE-20260927T162115.json` |
 | Beta interna | PASS | sign-off humano final aprobado; evidencia `BETA-F9B-20260927T154621.json` |
