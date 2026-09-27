@@ -12,5 +12,15 @@ export default defineConfig({
   projects: [
     { name: 'chromium', testDir: './tests/e2e', use: { ...devices['Desktop Chrome'] } },
     { name: 'visual', testDir: './tests/visual', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'ios-webkit',
+      testDir: './tests/ios-virtual',
+      use: {
+        ...devices['iPhone 15'],
+        browserName: 'webkit',
+        locale: 'es-CL',
+        colorScheme: 'dark',
+      },
+    },
   ],
 })
