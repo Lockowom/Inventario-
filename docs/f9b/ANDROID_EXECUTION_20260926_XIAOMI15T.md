@@ -158,3 +158,25 @@ Verificación remota en `INVEN3-QA`:
 - duplicados: `0`.
 
 Resultado: PASS de sincronización post-offline e idempotencia remota para este conteo físico.
+
+
+## Automatización de capacidad/offline — 2026-09-27
+
+Se agregó un runner único:
+
+`npm run certify:f9b:auto-offline`
+
+Cobertura automática:
+
+- typecheck;
+- persistencia lógica de 50 conteos a través de reapertura de storage;
+- caída transitoria y recuperación;
+- sincronización por lotes 20 + 20 + 10;
+- estados de capacidad 39 NORMAL / 40 WARNING / 45 CRITICAL / 50 BLOCKED;
+- bloqueo del conteo 51 conservando exactamente 50 pendientes;
+- UI de capacidad y botón GUARDAR bloqueado en 50;
+- outbox/sync/idempotencia de cliente;
+- boot/autorización offline;
+- scanner health no bloqueante.
+
+Esta automatización elimina la necesidad de generar manualmente 50 conteos sólo para validar la lógica de capacidad. La certificación física conserva únicamente los checks irreducibles de hardware: persistencia tras reinicio real del dispositivo y scanner/cámara/UI física.
