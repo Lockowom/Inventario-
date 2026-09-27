@@ -48,7 +48,6 @@ function service(overrides: Partial<ConstructorParameters<typeof DeviceHealthSer
   const dependencies = {
     mode: 'LIGHT' as const,
     resolveContext,
-    getLocalSessionUserId: async () => userId,
     masters: new MemoryMasters(),
     localHealth: probe(),
     appVersion: { getVersion: async () => '1.2.3' },
