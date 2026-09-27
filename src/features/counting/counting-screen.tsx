@@ -69,7 +69,7 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     if (!syncCoordinator || syncing) return
     setSyncing(true)
     try {
-      const summary = await syncCoordinator.runOutstanding()
+      const summary = await syncCoordinator.runOutstanding({ forceRetry: true })
       setSyncMessage(summary.scopes === 0 ? 'No hay conteos elegibles para sincronizar.' : `Sincronización: ${summary.confirmed} confirmados, ${summary.rejected} requieren revisión, ${summary.failed} para reintentar.`)
     } catch { setSyncMessage('No fue posible sincronizar ahora. Sus conteos locales siguen protegidos.') } finally { setSyncing(false) }
   }
@@ -116,11 +116,11 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     } finally { setSaving(false) }
   }
 
-  async function runSync() {
+  async function runSync(forceRetry = false) {
     if (!syncCoordinator || syncing) return
     setSyncing(true)
     try {
-      const summary = await syncCoordinator.runInventorySync(activeRuntime.context.inventoryId)
+      const summary = await syncCoordinator.runInventorySync(activeRuntime.context.inventoryId, { forceRetry })
       setSyncMessage(summary.claimed === 0 ? (summary.diagnostic ? `Sincronización requiere revisión: ${summary.diagnostic}.` : 'No hay conteos elegibles para sincronizar.') : `Sincronización: ${summary.confirmed} confirmados, ${summary.rejected} requieren revisión, ${summary.failed} para reintentar.`)
       setRefreshCounts((value) => value + 1)
     } catch { setSyncMessage('No fue posible sincronizar ahora. Sus conteos locales siguen protegidos.') } finally { setSyncing(false) }
@@ -131,7 +131,7 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     {healthBlocked && <p className="form-error" role="alert">{captureGate?.message ?? 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.'}</p>}
     {masterAvailable === false && <p className="form-error" role="alert">No existe un maestro SKU disponible en este dispositivo. Actualice el maestro antes de iniciar el conteo.</p>}
     <CapacityStatus pending={pending} capacity={capacity} />
-    <section className="sync-status" aria-label="Estado de sincronización"><p role="status">{syncMessage || startupSyncMessage || 'Sincronización preparada. Los conteos locales permanecen disponibles sin conexión.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runSync()}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section>
+    <section className="sync-status" aria-label="Estado de sincronización"><p role="status">{syncMessage || startupSyncMessage || 'Sincronización preparada. Los conteos locales permanecen disponibles sin conexión.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runSync(true)}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section>
     {message && <p className={message === 'CONTEO GUARDADO' ? 'form-success' : 'form-error'} role="status">{message}</p>}
     <div className="counting-form" aria-disabled={disabled}>
       <Field label="UBICACION"><TextInput value={draft.ubicacion} onChange={(value) => setDraft((current) => ({ ...current, ubicacion: value }))} disabled={disabled} /><ScanButton field="ubicacion" onScan={scan} disabled={disabled} /></Field>
