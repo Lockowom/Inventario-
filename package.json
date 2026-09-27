@@ -29,7 +29,9 @@
     "test:ios:virtual": "playwright test --project=ios-webkit",
     "preview:ios": "node scripts/ios-virtual-preview.mjs",
     "setup:ios:virtual": "playwright install webkit",
-    "preview:ios:lab": "node scripts/ios-device-lab.mjs"
+    "preview:ios:lab": "node scripts/ios-device-lab.mjs",
+    "preview:ios:matrix": "node scripts/ios-device-matrix.mjs",
+    "certify:f9b:ios-matrix": "node scripts/f9b-ios-matrix-certification.mjs"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^8.1.1",
