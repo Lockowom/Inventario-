@@ -3,8 +3,7 @@ import { profileSchema, type AppRole, type Profile } from '../../domain/auth/con
 import { getSupabaseClient } from '../../services/supabase'
 import { getCountingContextRepository } from '../counting/counting-runtime'
 import { signOutAndClearCountingContext } from '../../domain/count/sign-out-counting-context'
-import { clearPersistedAuthUserId, persistAuthUserId, readPersistedAuthUserId } from '../../services/local-auth-identity'
-import { classifyAuthError } from '../counting/supabase-error-classification'
+import { clearPersistedAuthUserId, persistAuthUserId } from '../../services/local-auth-identity'
 
 export interface AuthSubscription { unsubscribe(): void }
 export type AuthSessionListener = (event: AuthChangeEvent, session: Session | null) => void
@@ -22,19 +21,21 @@ export class AuthService {
   }
 
   public async hasRuntimeIdentity(): Promise<boolean> {
+    const cache = getCountingContextRepository()
     const client = getSupabaseClient()
-    if (!client) return false
+    if (!client) return (await cache.get()) !== null
+
     try {
-      const { data, error } = await client.auth.getSession()
+      const { data } = await client.auth.getSession()
       if (data.session?.user?.id) {
         persistAuthUserId(data.session.user.id)
         return true
       }
-      if (error && classifyAuthError(error).kind === 'UNAVAILABLE') return readPersistedAuthUserId() !== null
-      return readPersistedAuthUserId() !== null
-    } catch (error: unknown) {
-      return classifyAuthError(error).kind === 'UNAVAILABLE' && readPersistedAuthUserId() !== null
+    } catch {
+      // Offline boot is decided by the durable server-verified counting context below.
     }
+
+    return (await cache.get()) !== null
   }
 
   public async signIn(email: string, password: string): Promise<Session> {
