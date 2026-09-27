@@ -108,6 +108,29 @@ test.describe('F9A certificación responsive y accesible', () => {
     })
   }
 
+  test('READY_OFFLINE mantiene GUARDAR alcanzable con viewport reducido tipo teclado', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 500 })
+    await page.goto('/?fixture=counting-health-offline')
+    const section = page.locator('section.counting-screen')
+    const code = section.locator('label.field').filter({ hasText: /^CODIGO/ }).locator('input').first()
+    await code.focus()
+    const save = section.getByRole('button', { name: 'GUARDAR CONTEO' })
+    await save.scrollIntoViewIfNeeded()
+    await expect(save).toBeVisible()
+    expect(await save.evaluate((element) => {
+      const rect = element.getBoundingClientRect()
+      return rect.top < window.innerHeight && rect.bottom > 0
+    })).toBe(true)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  })
+
+  test('READY_OFFLINE no desborda en landscape móvil', async ({ page }) => {
+    await page.setViewportSize({ width: 844, height: 390 })
+    await page.goto('/?fixture=counting-health-offline')
+    await expect(page.getByRole('heading', { name: 'CONTEO FÍSICO' })).toBeVisible()
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  })
+
   test('CutsScreen real muestra el flujo READY y rectificación efectiva', async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 1000 })
     await page.goto('/?fixture=rectification')
