@@ -71,11 +71,13 @@ try {
       width: innerWidth,
       height: innerHeight,
       scrollWidth: document.documentElement.scrollWidth,
-      touchPoints: navigator.maxTouchPoints,
+      touchPointsReported: navigator.maxTouchPoints,
       userAgent: navigator.userAgent,
     }))
     checks.healthNoOverflow = healthMetrics.scrollWidth <= healthMetrics.width
-    checks.touch = healthMetrics.touchPoints > 0
+    checks.touch = await page.getByRole('heading', { name: 'HEALTH CHECK DEL DISPOSITIVO' }).first().tap()
+      .then(() => true)
+      .catch(() => false)
     checks.iPhoneUA = healthMetrics.userAgent.includes('iPhone')
 
     await page.screenshot({
@@ -108,9 +110,10 @@ try {
 
   const failed = results.filter((r) => !r.passed)
   const evidence = {
-    schema: 'inven3.f9b.ios-matrix-certification.v1',
+    schema: 'inven3.f9b.ios-matrix-certification.v2',
     generated_at: new Date().toISOString(),
     engine: 'Playwright WebKit',
+    touch_probe: 'playwright_locator_tap',
     device_profiles: results.length,
     passed: results.length - failed.length,
     failed: failed.length,
