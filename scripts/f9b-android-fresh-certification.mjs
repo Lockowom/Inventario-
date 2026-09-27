@@ -16,12 +16,15 @@ const apk = join(ROOT, 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'ap
 function run(command, args, options = {}) {
   console.log('')
   console.log(`[RUN] ${command} ${args.join(' ')}`)
+  const requiresWindowsShell = isWin && /\.(cmd|bat)$/i.test(command)
   const result = spawnSync(command, args, {
     cwd: options.cwd ?? ROOT,
     env: options.env ?? process.env,
     encoding: 'utf8',
     stdio: 'inherit',
     timeout: options.timeout ?? 600000,
+    shell: requiresWindowsShell,
+    windowsHide: true,
   })
   if (result.error) throw result.error
   if (result.status !== 0) throw new Error(`${command} ${args.join(' ')} falló con código ${result.status}`)
