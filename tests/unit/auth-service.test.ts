@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   getSession: vi.fn(),
   signOut: vi.fn(),
   onAuthStateChange: vi.fn(() => ({ data: { subscription: { unsubscribe: vi.fn() } } })),
+  getCachedContext: vi.fn(),
+  clearCachedContext: vi.fn(),
 }))
 
 vi.mock('../../src/services/supabase', () => ({
@@ -18,10 +20,24 @@ vi.mock('../../src/services/supabase', () => ({
   }),
 }))
 
+vi.mock('../../src/features/counting/counting-runtime', () => ({
+  getCountingContextRepository: () => ({
+    get: mocks.getCachedContext,
+    clear: mocks.clearCachedContext,
+    save: vi.fn(),
+  }),
+}))
+
 import { AuthService } from '../../src/features/auth/auth-service'
-import { persistAuthUserId, readPersistedAuthUserId } from '../../src/services/local-auth-identity'
+import { readPersistedAuthUserId } from '../../src/services/local-auth-identity'
 
 const userId = '22222222-2222-4222-8222-222222222222'
+const cachedContext = {
+  userId,
+  inventoryId: '11111111-1111-4111-8111-111111111111',
+  inventoryStatus: 'ABIERTO' as const,
+  verifiedAt: '2026-09-27T10:00:00.000Z',
+}
 
 describe('AuthService', () => {
   beforeEach(() => {
@@ -30,6 +46,10 @@ describe('AuthService', () => {
     mocks.getSession.mockReset()
     mocks.signOut.mockReset()
     mocks.onAuthStateChange.mockClear()
+    mocks.getCachedContext.mockReset()
+    mocks.clearCachedContext.mockReset()
+    mocks.getCachedContext.mockResolvedValue(null)
+    mocks.clearCachedContext.mockResolvedValue(undefined)
   })
 
   it('normaliza el correo, exige una sesión real y persiste sólo el UUID local', async () => {
@@ -45,25 +65,33 @@ describe('AuthService', () => {
   it('falla de forma segura cuando Auth no entrega sesión', async () => {
     mocks.signInWithPassword.mockResolvedValue({ data: { session: null, user: null }, error: { message: 'bad credentials' } })
     await expect(new AuthService().signIn('qa@inven3.test', 'mala')).rejects.toThrow('Credenciales inválidas o sesión no disponible.')
-    expect(readPersistedAuthUserId()).toBeNull()
   })
 
-  it('mantiene runtime autenticado offline cuando el refresh falla de forma retryable', async () => {
-    persistAuthUserId(userId)
-    mocks.getSession.mockResolvedValue({
-      data: { session: null },
-      error: { name: 'AuthRetryableFetchError', status: 0, message: 'Failed to fetch' },
-    })
-
+  it('prefiere una sesión Supabase válida cuando está disponible', async () => {
+    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: userId } } }, error: null })
     await expect(new AuthService().hasRuntimeIdentity()).resolves.toBe(true)
-    expect(readPersistedAuthUserId()).toBe(userId)
+    expect(mocks.getCachedContext).not.toHaveBeenCalled()
   })
 
-  it('conserva identidad persistida cuando getSession queda nulo durante un reinicio offline', async () => {
-    persistAuthUserId(userId)
+  it('arranca offline desde el contexto server-verified persistido aunque getSession sea null', async () => {
     mocks.getSession.mockResolvedValue({ data: { session: null }, error: null })
+    mocks.getCachedContext.mockResolvedValue(cachedContext)
 
     await expect(new AuthService().hasRuntimeIdentity()).resolves.toBe(true)
-    expect(readPersistedAuthUserId()).toBe(userId)
+    expect(mocks.getCachedContext).toHaveBeenCalledTimes(1)
+  })
+
+  it('arranca offline desde SQLite aunque getSession falle por red', async () => {
+    mocks.getSession.mockRejectedValue(new TypeError('Failed to fetch'))
+    mocks.getCachedContext.mockResolvedValue(cachedContext)
+
+    await expect(new AuthService().hasRuntimeIdentity()).resolves.toBe(true)
+  })
+
+  it('bloquea el runtime si no hay sesión ni contexto autorizado persistido', async () => {
+    mocks.getSession.mockResolvedValue({ data: { session: null }, error: null })
+    mocks.getCachedContext.mockResolvedValue(null)
+
+    await expect(new AuthService().hasRuntimeIdentity()).resolves.toBe(false)
   })
 })
