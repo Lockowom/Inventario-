@@ -87,6 +87,61 @@ function waitForBoot() {
   throw new Error('Android no completó el boot dentro de 180 s.')
 }
 
+function isUserUnlocked() {
+  const direct = runAdb(['shell', 'cmd', 'user', 'is-user-unlocked', '0'], { allowFailure: true, timeout: 10000 }).stdout.trim().toLowerCase()
+  if (direct === 'true') return true
+  if (direct === 'false') return false
+
+  const dump = runAdb(['shell', 'dumpsys', 'user'], { allowFailure: true, timeout: 15000 }).stdout
+  return /RUNNING_UNLOCKED|unlocked\s*=\s*true|State:\s*RUNNING_UNLOCKED/i.test(dump)
+}
+
+function waitForUserUnlock() {
+  const deadline = Date.now() + 240000
+  if (isUserUnlocked()) {
+    console.log('[INFO] Usuario Android ya está desbloqueado después del reboot.')
+    return
+  }
+
+  console.log('')
+  console.log('============================================================')
+  console.log(' ACCIÓN FÍSICA ÚNICA REQUERIDA')
+  console.log(' Desbloquea el Xiaomi una vez con tu PIN/huella.')
+  console.log(' Android mantiene SQLite credential-encrypted hasta ese paso.')
+  console.log(' El runner continuará automáticamente cuando detecte UNLOCKED.')
+  console.log('============================================================')
+  console.log('')
+
+  while (Date.now() < deadline) {
+    runAdb(['shell', 'input', 'keyevent', '224'], { allowFailure: true, timeout: 10000 })
+    if (isUserUnlocked()) {
+      console.log('[PASS] USER_UNLOCKED: almacenamiento de usuario disponible.')
+      return
+    }
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000)
+  }
+
+  throw new Error('El usuario Android no fue desbloqueado dentro de 240 s después del reboot.')
+}
+
+async function startAppAndWaitForPid({ forceStop = true, timeoutMs = 45000 } = {}) {
+  if (forceStop) runAdb(['shell', 'am', 'force-stop', PACKAGE], { allowFailure: true, timeout: 10000 })
+
+  const deadline = Date.now() + timeoutMs
+  let lastStart = ''
+  while (Date.now() < deadline) {
+    const pid = runAdb(['shell', 'pidof', PACKAGE], { allowFailure: true, timeout: 10000 }).stdout.split(/\s+/)[0]
+    if (pid) return pid
+
+    const start = runAdb(['shell', 'am', 'start', '-W', '-n', COMPONENT], { allowFailure: true, timeout: 20000 })
+    lastStart = [start.stdout, start.stderr].filter(Boolean).join(' | ')
+    await sleep(1200)
+  }
+
+  const users = runAdb(['shell', 'dumpsys', 'user'], { allowFailure: true, timeout: 15000 }).stdout
+  throw new Error(`INVEN3 no obtuvo PID después de ${timeoutMs} ms. Último am start: ${lastStart || 'sin salida'}. Usuario desbloqueado=${isUserUnlocked()}. dumpsys user=${users.slice(0, 1200)}`)
+}
+
 function stage(name) {
   console.log(`[STAGE] ${name}`)
 }
@@ -109,30 +164,41 @@ async function withTimeout(promise, ms, label) {
   }
 }
 
-function findWebViewSocket() {
-  const pid = runAdb(['shell', 'pidof', PACKAGE], { allowFailure: true, timeout: 10000 }).stdout.split(/\s+/)[0]
-  if (!pid) throw new Error(`No se encontró PID para ${PACKAGE}`)
-  const sockets = runAdb(['shell', 'cat', '/proc/net/unix'], { allowFailure: true, timeout: 10000 }).stdout
-  const candidates = sockets
-    .split(/\r?\n/)
-    .map((line) => line.match(/@?(webview_devtools_remote[^\s]*)/)?.[1])
-    .filter(Boolean)
-  const preferred = candidates.find((socket) => socket.includes(pid)) ?? (candidates.length === 1 ? candidates[0] : null)
-  if (!preferred) {
-    throw new Error('WebView DevTools socket no disponible. Verifique que la APK instalada sea debug y WebView debugging esté habilitado.')
+async function findWebViewSocket(timeoutMs = 30000) {
+  const deadline = Date.now() + timeoutMs
+  let lastPid = null
+  let lastCandidates = []
+
+  while (Date.now() < deadline) {
+    const pid = runAdb(['shell', 'pidof', PACKAGE], { allowFailure: true, timeout: 10000 }).stdout.split(/\s+/)[0]
+    lastPid = pid || null
+    if (pid) {
+      const sockets = runAdb(['shell', 'cat', '/proc/net/unix'], { allowFailure: true, timeout: 10000 }).stdout
+      const candidates = sockets
+        .split(/\r?\n/)
+        .map((line) => line.match(/@?(webview_devtools_remote[^\s]*)/)?.[1])
+        .filter(Boolean)
+      lastCandidates = candidates
+      const preferred = candidates.find((socket) => socket.includes(pid)) ?? (candidates.length === 1 ? candidates[0] : null)
+      if (preferred) return { pid, socket: preferred }
+    }
+    await sleep(500)
   }
-  return { pid, socket: preferred }
+
+  throw new Error(`WebView DevTools no apareció en ${timeoutMs} ms. pid=${lastPid ?? 'none'} sockets=${JSON.stringify(lastCandidates)}`)
 }
 
 async function connectWebView({ restartApp = true } = {}) {
   stage(restartApp ? 'Iniciando INVEN3 y conectando WebView por CDP' : 'Reconectando WebView por CDP')
   if (restartApp) {
-    runAdb(['shell', 'am', 'force-stop', PACKAGE], { allowFailure: true })
-    runAdb(['shell', 'am', 'start', '-n', COMPONENT])
+    await startAppAndWaitForPid({ forceStop: true })
+  } else {
+    const existingPid = runAdb(['shell', 'pidof', PACKAGE], { allowFailure: true, timeout: 10000 }).stdout.split(/\s+/)[0]
+    if (!existingPid) await startAppAndWaitForPid({ forceStop: false })
   }
-  await sleep(1800)
+  await sleep(800)
 
-  const { pid, socket } = findWebViewSocket()
+  const { pid, socket } = await findWebViewSocket()
   runAdb(['forward', '--remove', `tcp:${CDP_PORT}`], { allowFailure: true, timeout: 10000 })
   runAdb(['forward', `tcp:${CDP_PORT}`, `localabstract:${socket}`], { timeout: 10000 })
 
@@ -455,8 +521,17 @@ try {
   console.log('El teléfono puede tardar hasta 3 minutos en volver a estar disponible…')
   runAdb(['reboot'], { allowFailure: true, timeout: 10000 })
   waitForBoot()
+  stage('Esperando primer desbloqueo del usuario después del reboot')
+  waitForUserUnlock()
+
+  // HyperOS can restore radios asynchronously after boot. Reassert the
+  // certification network state before starting INVEN3.
+  if (!setAirplane(true)) throw new Error('Modo avión no pudo restablecerse después del reboot.')
+  runAdb(['shell', 'svc', 'wifi', 'disable'], { allowFailure: true })
+  check('AIRPLANE_MODE_POST_REBOOT', 'PASS')
+
   runAdb(['shell', 'wm', 'dismiss-keyguard'], { allowFailure: true })
-  runAdb(['shell', 'am', 'start', '-n', COMPONENT], { allowFailure: true })
+  await startAppAndWaitForPid({ forceStop: false })
   launched = await connectWebView({ restartApp: false })
   browser = launched.browser
   await assertReadyOffline(launched.page)
