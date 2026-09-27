@@ -45,8 +45,9 @@ function cellText(value: unknown): string {
 function buildPreview(rows: CellRow[]): MasterImportPreview {
   const [header = [], ...dataRows] = rows
   const headerMap = new Map(header.map((value, index) => [cellText(value).trim().toUpperCase(), index]))
-  const codigoColumn = headerMap.get('CODIGO')
-  const descripcionColumn = headerMap.get('DESCRIPCION')
+  const firstColumn = (...aliases: string[]) => aliases.map((alias) => headerMap.get(alias)).find((index) => index !== undefined)
+  const codigoColumn = firstColumn('CODIGO', 'COD. PRODUCTO', 'COD PRODUCTO')
+  const descripcionColumn = firstColumn('DESCRIPCION', 'PRODUCTO')
   if (codigoColumn === undefined || descripcionColumn === undefined) {
     const invalidRows = dataRows.map((row, index) => ({ rowNumber: index + 2, codigo: cellText(row[0]), descripcion: cellText(row[1]), normalizedCodigo: '', normalizedDescripcion: '', errors: ['FORMATO NO SOPORTADO'] }))
     return masterImportPreviewSchema.parse({ totalRows: dataRows.length, validRows: 0, rejectedRows: invalidRows.length, duplicateRows: 0, emptyRows: 0, rows: invalidRows })
