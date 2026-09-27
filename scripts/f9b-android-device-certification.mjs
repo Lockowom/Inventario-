@@ -1,4 +1,4 @@
-import { _android as android } from 'playwright'
+import { chromium } from 'playwright'
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url'
 
 const PACKAGE = 'com.lockowom.inven3'
 const COMPONENT = 'com.lockowom.inven3/.MainActivity'
+const CDP_PORT = 9223
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const RUN_ID = new Date().toISOString().replace(/[:.]/g, '-')
 const EVIDENCE_DIR = join(ROOT, 'artifacts', 'f9b-android-device', RUN_ID)
@@ -86,24 +87,80 @@ function waitForBoot() {
   throw new Error('Android no completó el boot dentro de 180 s.')
 }
 
-async function connectDevice() {
-  const devices = await android.devices()
-  if (devices.length !== 1) throw new Error(`Playwright requiere exactamente 1 Android; encontrados: ${devices.length}`)
-  devices[0].setDefaultTimeout(30000)
-  return devices[0]
+function stage(name) {
+  console.log(`[STAGE] ${name}`)
 }
 
-async function launchWebView(device) {
-  await device.shell(`am force-stop ${PACKAGE}`)
-  await device.shell(`am start -n ${COMPONENT}`)
-  const webview = await device.webView({ pkg: PACKAGE }, { timeout: 60000 })
-  const page = await webview.page()
-  await page.waitForLoadState('domcontentloaded')
-  return { webview, page }
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-async function screenshot(device, name) {
-  await device.screenshot({ path: join(EVIDENCE_DIR, `${name}.png`) })
+async function withTimeout(promise, ms, label) {
+  let timer
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`${label} excedió ${ms} ms`)), ms)
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+function findWebViewSocket() {
+  const pid = runAdb(['shell', 'pidof', PACKAGE], { allowFailure: true, timeout: 10000 }).stdout.split(/\s+/)[0]
+  if (!pid) throw new Error(`No se encontró PID para ${PACKAGE}`)
+  const sockets = runAdb(['shell', 'cat', '/proc/net/unix'], { allowFailure: true, timeout: 10000 }).stdout
+  const candidates = sockets
+    .split(/\r?\n/)
+    .map((line) => line.match(/@?(webview_devtools_remote[^\s]*)/)?.[1])
+    .filter(Boolean)
+  const preferred = candidates.find((socket) => socket.includes(pid)) ?? candidates[0]
+  if (!preferred) {
+    throw new Error('WebView DevTools socket no disponible. Verifique que la APK instalada sea debug y WebView debugging esté habilitado.')
+  }
+  return { pid, socket: preferred }
+}
+
+async function connectWebView({ restartApp = true } = {}) {
+  stage(restartApp ? 'Iniciando INVEN3 y conectando WebView por CDP' : 'Reconectando WebView por CDP')
+  if (restartApp) {
+    runAdb(['shell', 'am', 'force-stop', PACKAGE], { allowFailure: true })
+    runAdb(['shell', 'am', 'start', '-n', COMPONENT])
+  }
+  await sleep(1800)
+
+  const { pid, socket } = findWebViewSocket()
+  runAdb(['forward', '--remove', `tcp:${CDP_PORT}`], { allowFailure: true, timeout: 10000 })
+  runAdb(['forward', `tcp:${CDP_PORT}`, `localabstract:${socket}`], { timeout: 10000 })
+
+  const browser = await withTimeout(
+    chromium.connectOverCDP(`http://127.0.0.1:${CDP_PORT}`),
+    20000,
+    'Conexión CDP al WebView',
+  )
+  const context = browser.contexts()[0]
+  if (!context) throw new Error('CDP conectado pero sin BrowserContext.')
+  let pages = context.pages()
+  if (!pages.length) {
+    await sleep(1000)
+    pages = context.pages()
+  }
+  const page = pages[0]
+  if (!page) throw new Error('CDP conectado pero sin página WebView.')
+  page.setDefaultTimeout(30000)
+  await withTimeout(page.waitForLoadState('domcontentloaded'), 20000, 'Carga del WebView')
+  console.log(`[CDP] pid=${pid} socket=${socket} url=${page.url()}`)
+  return { browser, page }
+}
+
+async function screenshot(_unused, name) {
+  const remote = `/sdcard/${name}.png`
+  runAdb(['shell', 'screencap', '-p', remote], { allowFailure: true, timeout: 15000 })
+  runAdb(['pull', remote, join(EVIDENCE_DIR, `${name}.png`)], { allowFailure: true, timeout: 30000 })
+  runAdb(['shell', 'rm', '-f', remote], { allowFailure: true, timeout: 10000 })
 }
 
 async function healthSection(page) {
@@ -216,7 +273,7 @@ async function syncOutstanding(page) {
   throw new Error('La sincronización no confirmó todos los outstanding dentro de 45 s.')
 }
 
-async function scannerCancelCheck(device, page) {
+async function scannerCancelCheck(browser, page) {
   const section = page.locator('section.counting-screen')
   const beforeItems = await section.locator('.my-counts li').count()
   const scan = section.getByRole('button', { name: 'Escanear codigo' })
@@ -227,13 +284,15 @@ async function scannerCancelCheck(device, page) {
   await new Promise((resolve) => setTimeout(resolve, 1500))
   let activePage = page
   if (page.isClosed()) {
-    const webview = await device.webView({ pkg: PACKAGE }, { timeout: 30000 })
-    activePage = await webview.page()
+    try { await browser.close() } catch {}
+    const reconnected = await connectWebView({ restartApp: false })
+    browser = reconnected.browser
+    activePage = reconnected.page
   }
   const currentSection = activePage.locator('section.counting-screen')
   const afterItems = await currentSection.locator('.my-counts li').count()
   if (afterItems !== beforeItems) throw new Error(`Cancelar scanner cambió conteos: ${beforeItems} -> ${afterItems}`)
-  return activePage
+  return { browser, page: activePage }
 }
 
 async function orientationCheck(page) {
@@ -253,7 +312,7 @@ async function orientationCheck(page) {
   }
 }
 
-let device
+let browser
 let originalAirplane
 let originalWifi
 try {
@@ -272,44 +331,46 @@ try {
   runAdb(['shell', 'svc', 'wifi', 'disable'], { allowFailure: true })
   check('AIRPLANE_MODE', 'PASS', 'Modo avión activo y Wi-Fi deshabilitado.')
 
-  device = await connectDevice()
-  let launched = await launchWebView(device)
+  stage('Conectando a INVEN3 offline')
+  let launched = await connectWebView()
+  browser = launched.browser
   await refreshHealth(launched.page)
   await assertReadyOffline(launched.page)
   check('READY_OFFLINE', 'PASS')
-  await screenshot(device, '01-ready-offline')
+  await screenshot(null, '01-ready-offline')
 
   const created = await createPending(launched.page)
   check('CREATE_PENDING', 'PASS', `${created.before} -> ${created.after}`)
-  await screenshot(device, '02-pending-created')
+  await screenshot(null, '02-pending-created')
 
-  await device.close()
-  runAdb(['shell', 'am', 'force-stop', PACKAGE])
-  runAdb(['shell', 'am', 'start', '-n', COMPONENT])
-  device = await connectDevice()
-  launched = await launchWebView(device)
+  stage('Probando persistencia tras cierre/reapertura de proceso')
+  try { await browser.close() } catch {}
+  runAdb(['forward', '--remove', `tcp:${CDP_PORT}`], { allowFailure: true })
+  launched = await connectWebView()
+  browser = launched.browser
   await assertReadyOffline(launched.page)
   await assertOutstanding(launched.page)
   check('PROCESS_RESTART_PERSISTENCE', 'PASS')
-  await screenshot(device, '03-after-process-restart')
+  await screenshot(null, '03-after-process-restart')
 
-  await device.close()
-  device = undefined
+  try { await browser.close() } catch {}
+  browser = undefined
+  runAdb(['forward', '--remove', `tcp:${CDP_PORT}`], { allowFailure: true })
   console.log('Reiniciando físicamente Android por ADB…')
   runAdb(['reboot'], { allowFailure: true, timeout: 10000 })
   waitForBoot()
   runAdb(['shell', 'wm', 'dismiss-keyguard'], { allowFailure: true })
   runAdb(['shell', 'am', 'start', '-n', COMPONENT], { allowFailure: true })
-  device = await connectDevice()
-  launched = await launchWebView(device)
+  launched = await connectWebView({ restartApp: false })
+  browser = launched.browser
   await assertReadyOffline(launched.page)
   await assertOutstanding(launched.page)
   check('PHYSICAL_REBOOT_PERSISTENCE', 'PASS')
-  await screenshot(device, '04-after-device-reboot')
+  await screenshot(null, '04-after-device-reboot')
 
   const keyboard = await keyboardCheck(launched.page)
   check('KEYBOARD_LAYOUT', 'PASS', JSON.stringify(keyboard))
-  await screenshot(device, '05-keyboard-layout')
+  await screenshot(null, '05-keyboard-layout')
 
   const portrait = await assertNoHorizontalOverflow(launched.page, 'PORTRAIT')
   check('PORTRAIT_OVERFLOW', 'PASS', JSON.stringify(portrait))
@@ -321,11 +382,13 @@ try {
   await launched.page.waitForTimeout(12000)
   await syncOutstanding(launched.page)
   check('POST_REBOOT_SYNC', 'PASS')
-  await screenshot(device, '06-synced')
+  await screenshot(null, '06-synced')
 
-  launched.page = await scannerCancelCheck(device, launched.page)
+  const scannerResult = await scannerCancelCheck(browser, launched.page)
+  browser = scannerResult.browser
+  launched.page = scannerResult.page
   check('SCANNER_CANCEL_NO_AUTOSAVE', 'PASS')
-  await screenshot(device, '07-scanner-cancelled')
+  await screenshot(null, '07-scanner-cancelled')
 
   evidence.status = 'PASS'
 } catch (error) {
@@ -339,7 +402,8 @@ try {
     if (originalWifi === '1') runAdb(['shell', 'svc', 'wifi', 'enable'], { allowFailure: true })
     else if (originalWifi === '0') runAdb(['shell', 'svc', 'wifi', 'disable'], { allowFailure: true })
   } catch {}
-  try { if (device) await device.close() } catch {}
+  try { if (browser) await browser.close() } catch {}
+  try { runAdb(['forward', '--remove', `tcp:${CDP_PORT}`], { allowFailure: true, timeout: 10000 }) } catch {}
   saveEvidence()
   console.log(`Evidencia: ${EVIDENCE_DIR}`)
 }
