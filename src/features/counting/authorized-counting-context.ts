@@ -59,7 +59,7 @@ export async function getLocalSessionUserId(): Promise<string | null> {
       return userId
     }
     if (error && classifyAuthError(error).kind === 'UNAVAILABLE') return readPersistedAuthUserId()
-    return null
+    return readPersistedAuthUserId()
   } catch (error: unknown) {
     return classifyAuthError(error).kind === 'UNAVAILABLE' ? readPersistedAuthUserId() : null
   }
