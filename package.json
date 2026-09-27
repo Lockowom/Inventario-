@@ -25,7 +25,10 @@
     "certify:f9b:complete": "npm run certify:f9b:auto-all && npm run certify:f9b:android-device",
     "certify:f9b:android-fresh": "node scripts/f9b-android-fresh-certification.mjs",
     "certify:f9b:beta-signoff": "node scripts/f9b-beta-manual-signoff.mjs",
-    "certify:f9b:rp-source": "node scripts/f9b-rp-source-certification.mjs"
+    "certify:f9b:rp-source": "node scripts/f9b-rp-source-certification.mjs",
+    "test:ios:virtual": "playwright test --project=ios-webkit",
+    "preview:ios": "node scripts/ios-virtual-preview.mjs",
+    "setup:ios:virtual": "playwright install webkit"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^8.1.1",
