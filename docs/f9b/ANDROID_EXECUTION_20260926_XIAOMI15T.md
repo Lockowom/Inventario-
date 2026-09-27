@@ -180,3 +180,17 @@ Cobertura automática:
 - scanner health no bloqueante.
 
 Esta automatización elimina la necesidad de generar manualmente 50 conteos sólo para validar la lógica de capacidad. La certificación física conserva únicamente los checks irreducibles de hardware: persistencia tras reinicio real del dispositivo y scanner/cámara/UI física.
+
+
+## PASS automático — F9B offline/capacidad — 2026-09-27
+
+Ejecución local confirmada por operador:
+
+- comando: `npm run certify:f9b:auto-offline`;
+- Test Files: `7 passed (7)`;
+- Tests: `42 passed (42)`;
+- fallos: `0`.
+
+Cobertura cerrada automáticamente: capacidad 39/40/45/50, bloqueo de conteo 51, persistencia lógica de outbox, recuperación tras caída, sync por lotes, auth boundary offline y scanner health contractual.
+
+HEAD de rama al registrar evidencia: `822e0d13abfc3130b626216bd4c3f92b3d54d1af`.
