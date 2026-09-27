@@ -230,17 +230,50 @@ async function createPending(page) {
 
   await location.fill('A-01-03')
   await code.fill('001234')
-  await code.press('Tab')
 
-  stage('Esperando resolución del SKU y capacidad local')
-  await withTimeout((async () => {
-    while (true) {
-      const description = await section.locator('label.field').filter({ hasText: /^DESCRIPCION/ }).locator('textarea').inputValue().catch(() => '')
-      const enabled = await save.isEnabled().catch(() => false)
-      if (description.trim() && enabled) return
-      await page.waitForTimeout(250)
+  // React resolves the local master on CODIGO onBlur. Android WebView does not
+  // reliably synthesize that lifecycle from a Tab key, so force a real blur
+  // and move focus to the next stable field.
+  await code.blur().catch(() => {})
+  await code.evaluate((input) => input.blur()).catch(() => {})
+  await location.focus().catch(() => {})
+
+  const descriptionField = section.locator('label.field').filter({ hasText: /^DESCRIPCION/ }).locator('textarea')
+  stage('Esperando resolución local del SKU 001234')
+  try {
+    await withTimeout((async () => {
+      while (true) {
+        const description = await descriptionField.inputValue().catch(() => '')
+        if (description.trim()) return
+        await page.waitForTimeout(250)
+      }
+    })(), 15000, 'Resolución local del SKU 001234')
+  } catch (error) {
+    const diagnostic = {
+      codigo: await code.inputValue().catch(() => null),
+      descripcion: await descriptionField.inputValue().catch(() => null),
+      errores: await section.locator('.form-error').allTextContents().catch(() => []),
+      estados: await section.locator('[role="status"]').allTextContents().catch(() => []),
+      guardarDisabled: await save.isDisabled().catch(() => null),
     }
-  })(), 30000, 'Resolución de SKU/capacidad para GUARDAR')
+    throw new Error(`SKU 001234 no resolvió. Diagnóstico: ${JSON.stringify(diagnostic)}. Causa: ${error instanceof Error ? error.message : String(error)}`)
+  }
+
+  stage('Esperando capacidad local y habilitación de GUARDAR')
+  try {
+    await withTimeout((async () => {
+      while (!(await save.isEnabled().catch(() => false))) await page.waitForTimeout(250)
+    })(), 15000, 'Habilitación de GUARDAR')
+  } catch (error) {
+    const diagnostic = {
+      descripcion: await descriptionField.inputValue().catch(() => null),
+      errores: await section.locator('.form-error').allTextContents().catch(() => []),
+      warnings: await section.locator('.form-warning').allTextContents().catch(() => []),
+      estados: await section.locator('[role="status"]').allTextContents().catch(() => []),
+      guardarDisabled: await save.isDisabled().catch(() => null),
+    }
+    throw new Error(`GUARDAR no se habilitó. Diagnóstico: ${JSON.stringify(diagnostic)}. Causa: ${error instanceof Error ? error.message : String(error)}`)
+  }
 
   if (await quantity.isEnabled()) await quantity.fill('1')
 
