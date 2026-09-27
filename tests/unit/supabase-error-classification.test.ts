@@ -31,7 +31,6 @@ describe('clasificación fail-closed de Supabase', () => {
     const serverResult = classifyAuthError({ name: 'AuthRetryableFetchError', status: 0, message: 'Failed to fetch' })
     await expect(resolveCountingContext({
       verifyServer: async () => serverResult,
-      getLocalSessionUserId: async () => cached.userId,
     }, cache)).resolves.toEqual({
       kind: 'OFFLINE',
       context: { userId: cached.userId, inventoryId: cached.inventoryId, inventoryStatus: 'ABIERTO' },
@@ -70,7 +69,7 @@ describe('clasificación fail-closed de Supabase', () => {
   it('42501 elimina cache y bloquea, nunca usa fallback offline', async () => {
     const cache = new MemoryContextRepository()
     const serverResult = classifyPostgrestError({ error: { code: '42501', message: 'permission denied' }, status: 403 })
-    await expect(resolveCountingContext({ verifyServer: async () => serverResult, getLocalSessionUserId: async () => cached.userId }, cache)).resolves.toEqual({ kind: 'BLOCKED', reason: 'NOT_AUTHORIZED' })
+    await expect(resolveCountingContext({ verifyServer: async () => serverResult }, cache)).resolves.toEqual({ kind: 'BLOCKED', reason: 'NOT_AUTHORIZED' })
     expect(cache.value).toBeNull()
   })
 })
