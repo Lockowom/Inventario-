@@ -28,7 +28,8 @@
     "certify:f9b:rp-source": "node scripts/f9b-rp-source-certification.mjs",
     "test:ios:virtual": "playwright test --project=ios-webkit",
     "preview:ios": "node scripts/ios-virtual-preview.mjs",
-    "setup:ios:virtual": "playwright install webkit"
+    "setup:ios:virtual": "playwright install webkit",
+    "preview:ios:lab": "node scripts/ios-device-lab.mjs"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^8.1.1",
