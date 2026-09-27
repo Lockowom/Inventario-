@@ -66,7 +66,7 @@ try {
 
     const checks = {}
     await page.goto(`${baseURL}/?fixture=health-ready&iosMatrixCert=1&model=${encodeURIComponent(name)}`, { waitUntil: 'networkidle' })
-    checks.healthVisible = await page.getByText('HEALTH CHECK DEL DISPOSITIVO', { exact: true }).first().isVisible().catch(() => false)
+    checks.healthVisible = await page.getByRole('heading', { name: 'HEALTH CHECK DEL DISPOSITIVO' }).first().isVisible().catch(() => false)
     const healthMetrics = await page.evaluate(() => ({
       width: innerWidth,
       height: innerHeight,
@@ -85,16 +85,24 @@ try {
     })
 
     await page.goto(`${baseURL}/?fixture=counting-health-offline&iosMatrixCert=1&model=${encodeURIComponent(name)}`, { waitUntil: 'networkidle' })
-    checks.countingVisible = await page.getByText('CONTEO FÍSICO', { exact: true }).first().isVisible().catch(() => false)
+    checks.countingVisible = await page.getByRole('heading', { name: 'CONTEO FÍSICO' }).first().isVisible().catch(() => false)
     const countMetrics = await page.evaluate(() => ({
       width: innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
     }))
     checks.countingNoOverflow = countMetrics.scrollWidth <= countMetrics.width
 
-    const passed = Object.values(checks).every(Boolean)
-    results.push({ name, viewport: { width, height, dpr }, checks, passed })
-    console.log(`[${passed ? 'PASS' : 'FAIL'}] ${name} ${width}x${height} DPR${dpr}`)
+    const failedChecks = Object.entries(checks).filter(([,value]) => !value).map(([key]) => key)
+    const passed = failedChecks.length === 0
+    results.push({
+      name,
+      viewport: { width, height, dpr },
+      metrics: { health: healthMetrics, counting: countMetrics },
+      checks,
+      failedChecks,
+      passed,
+    })
+    console.log(`[${passed ? 'PASS' : 'FAIL'}] ${name} ${width}x${height} DPR${dpr}${failedChecks.length ? ' :: ' + failedChecks.join(', ') : ''}`)
     await context.close()
   }
 
@@ -114,6 +122,13 @@ try {
   console.log('')
   console.log(`[${evidence.status}] IOS_VIRTUAL_DEVICE_MATRIX`)
   console.log(`Perfiles: ${evidence.passed}/${evidence.device_profiles} PASS`)
+  if (failed.length) {
+    const summary = {}
+    for (const item of failed) {
+      for (const key of item.failedChecks) summary[key] = (summary[key] || 0) + 1
+    }
+    console.log('Fallas por check:', JSON.stringify(summary))
+  }
   console.log(`Evidencia: ${path}`)
   if (failed.length) process.exitCode = 2
 } finally {
