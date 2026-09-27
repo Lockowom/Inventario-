@@ -90,7 +90,7 @@ El runtime incorpora login por email/contraseña con Supabase Auth y cierre de s
 ## Estado de gates de cierre F9
 
 - `ANDROID_PHYSICAL = PASS`: Xiaomi 15T certificado con APK fresca, offline, reboot, persistencia SQLite, reconexión/sync, UI móvil y scanner físico.
-- `BETA_MANUAL = READY_FOR_MANUAL_SIGNOFF`: evidencia técnica y funcional consolidada en `BETA_EXECUTION_20260927.md`; falta observación humana final del candidato.
+- `BETA_MANUAL = PASS`: sign-off humano final ejecutado por Cristopher Cabezas; todas las comprobaciones del candidato fueron confirmadas y el runner emitió `[PASS] BETA_MANUAL` con evidencia `BETA-F9B-20260927T154621.json`.
 - `IOS_PHYSICAL = MANUAL_REQUIRED`: sin certificación física todavía.
 - `RP_REAL_IMPORT = BLOCKED_EXTERNAL`: requiere operador autorizado de RP/Softland.
 - CI final del release candidate permanece pendiente hasta resolver los gates obligatorios abiertos.
