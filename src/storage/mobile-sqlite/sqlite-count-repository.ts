@@ -88,11 +88,11 @@ export class SqliteCountRepository implements CountRepository {
     return Number(result.values[0]?.total ?? 0)
   }
 
-  public async claimNextSyncBatch(input: { inventoryId: string; userId: string; max: number; now: string }): Promise<LocalCountRecord[]> {
+  public async claimNextSyncBatch(input: { inventoryId: string; userId: string; max: number; now: string; forceRetry?: boolean }): Promise<LocalCountRecord[]> {
     await this.initialize()
     let claimed: LocalCountRecord[] = []
     await this.database.transaction(async () => {
-      const candidates = await this.database.query<CountRow>("select * from local_count_records where inventory_id = ? and user_id = ? and (sync_status = 'PENDING' or (sync_status = 'FAILED' and (next_retry_at is null or next_retry_at <= ?))) order by captured_at asc limit ?", [input.inventoryId, input.userId, input.now, input.max])
+      const candidates = await this.database.query<CountRow>("select * from local_count_records where inventory_id = ? and user_id = ? and (sync_status = 'PENDING' or (sync_status = 'FAILED' and (? = 1 or next_retry_at is null or next_retry_at <= ?))) order by captured_at asc limit ?", [input.inventoryId, input.userId, input.forceRetry ? 1 : 0, input.now, input.max])
       for (const row of candidates.values) await this.database.execute("update local_count_records set sync_status = 'SYNCING', sync_started_at = ?, last_sync_error = null where client_count_id = ? and sync_status in ('PENDING', 'FAILED')", [input.now, row.client_count_id])
       claimed = candidates.values.map((row) => localCountRecordSchema.parse({ ...parseRow(row), syncStatus: 'SYNCING', syncStartedAt: input.now, lastSyncError: null }))
     })
