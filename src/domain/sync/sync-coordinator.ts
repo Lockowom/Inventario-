@@ -1,6 +1,6 @@
 import type { CountRepository } from '../ports/count-repository'
 import type { SyncRunSummary } from './contracts'
-import { SyncManager, type CountSyncGateway } from './sync-manager'
+import { SyncManager, type CountSyncGateway, type SyncRunOptions } from './sync-manager'
 
 export interface SyncCoordinatorSummary extends SyncRunSummary { scopes: number; diagnostic: string | null }
 
@@ -15,19 +15,22 @@ export class SyncCoordinator {
 
   public async discoverOutstandingScopes() { return this.counts.listOutstandingSyncScopes(this.userId) }
 
-  public runInventorySync(inventoryId: string): Promise<SyncRunSummary> {
+  public runInventorySync(inventoryId: string, options: SyncRunOptions = {}): Promise<SyncRunSummary> {
     const key = `${this.userId}:${inventoryId}`
     const existing = this.active.get(key)
-    if (existing) return existing
-    const run = new SyncManager({ inventoryId, userId: this.userId }, this.counts, this.gateway).run()
+    if (existing) {
+      if (!options.forceRetry) return existing
+      return existing.then(() => this.runInventorySync(inventoryId, options))
+    }
+    const run = new SyncManager({ inventoryId, userId: this.userId }, this.counts, this.gateway).run(options)
       .finally(() => { this.active.delete(key) })
     this.active.set(key, run)
     return run
   }
 
-  public async runOutstanding(): Promise<SyncCoordinatorSummary> {
+  public async runOutstanding(options: SyncRunOptions = {}): Promise<SyncCoordinatorSummary> {
     const scopes = await this.discoverOutstandingScopes()
-    const summaries = await Promise.all(scopes.map((scope) => this.runInventorySync(scope.inventoryId)))
+    const summaries = await Promise.all(scopes.map((scope) => this.runInventorySync(scope.inventoryId, options)))
     return summaries.reduce<SyncCoordinatorSummary>((total, current) => ({
       scopes: total.scopes + 1,
       claimed: total.claimed + current.claimed,
