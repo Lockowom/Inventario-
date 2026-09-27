@@ -13,17 +13,26 @@ const adb = process.env.LOCALAPPDATA
   : 'adb'
 const apk = join(ROOT, 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk')
 
+function quoteWindowsArg(value) {
+  if (!/[\s"&|<>^()]/.test(value)) return value
+  return '"' + value.replace(/"/g, '""') + '"'
+}
+
 function run(command, args, options = {}) {
   console.log('')
   console.log(`[RUN] ${command} ${args.join(' ')}`)
   const requiresWindowsShell = isWin && /\.(cmd|bat)$/i.test(command)
-  const result = spawnSync(command, args, {
+  const executable = requiresWindowsShell ? (process.env.ComSpec || 'cmd.exe') : command
+  const executableArgs = requiresWindowsShell
+    ? ['/d', '/s', '/c', [quoteWindowsArg(command), ...args.map(quoteWindowsArg)].join(' ')]
+    : args
+
+  const result = spawnSync(executable, executableArgs, {
     cwd: options.cwd ?? ROOT,
     env: options.env ?? process.env,
     encoding: 'utf8',
     stdio: 'inherit',
     timeout: options.timeout ?? 600000,
-    shell: requiresWindowsShell,
     windowsHide: true,
   })
   if (result.error) throw result.error
