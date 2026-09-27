@@ -1,6 +1,6 @@
 # Estado de ejecución remota F9B — INVEN3-QA
 
-Fecha de corte: 2026-09-26 UTC.
+Fecha de corte: 2026-09-27 UTC.
 
 ## Alcance
 
@@ -87,15 +87,17 @@ Después del forward-fix, Admin Auth API y login real funcionaron y ambos runner
 
 El runtime incorpora login por email/contraseña con Supabase Auth y cierre de sesión explícito. El historial de cortes expone creador y timestamp UTC utilizando `created_by`/`created_at` y el nombre visible del perfil cuando está disponible. Estos cambios no alteran schema, RLS ni contratos de negocio.
 
-## Pendientes antes de cerrar Fase 9
+## Estado de gates de cierre F9
 
-- Completar `ANDROID_PHYSICAL` con hardware real y evidencia.
-- Completar `IOS_PHYSICAL` con hardware real y evidencia.
-- Completar `RP_REAL_IMPORT` con operador autorizado de RP/Softland; continúa `BLOCKED_EXTERNAL`.
-- Completar `BETA_MANUAL` con evidencia interna.
-- Congelar un único release-candidate SHA y exigir CI final verde antes del PR F9 → `main`.
+- `ANDROID_PHYSICAL = PASS`: Xiaomi 15T certificado con APK fresca, offline, reboot, persistencia SQLite, reconexión/sync, UI móvil y scanner físico.
+- `BETA_MANUAL = READY_FOR_MANUAL_SIGNOFF`: evidencia técnica y funcional consolidada en `BETA_EXECUTION_20260927.md`; falta observación humana final del candidato.
+- `IOS_PHYSICAL = MANUAL_REQUIRED`: sin certificación física todavía.
+- `RP_REAL_IMPORT = BLOCKED_EXTERNAL`: requiere operador autorizado de RP/Softland.
+- CI final del release candidate permanece pendiente hasta resolver los gates obligatorios abiertos.
 
-No declarar F9 completa ni iniciar F10 hasta cerrar esos gates.
+Candidato funcional Android certificado: `2aa6645ab89c5e74dc12c9475019880aca65564f` / `f9b-qa-2aa6645a`.
+
+No declarar F9 completa ni iniciar F10 mientras permanezcan gates obligatorios abiertos, salvo decisión explícita y documentada de alcance/no-aplicabilidad.
 
 ## Variables locales de runners
 
