@@ -22,20 +22,20 @@ export class AuthService {
 
   public async hasRuntimeIdentity(): Promise<boolean> {
     const cache = getCountingContextRepository()
+    const cachedAuthority = await cache.get()
+    if (cachedAuthority) return true
+
     const client = getSupabaseClient()
-    if (!client) return (await cache.get()) !== null
+    if (!client) return false
 
     try {
       const { data } = await client.auth.getSession()
-      if (data.session?.user?.id) {
-        persistAuthUserId(data.session.user.id)
-        return true
-      }
+      if (!data.session?.user?.id) return false
+      persistAuthUserId(data.session.user.id)
+      return true
     } catch {
-      // Offline boot is decided by the durable server-verified counting context below.
+      return false
     }
-
-    return (await cache.get()) !== null
   }
 
   public async signIn(email: string, password: string): Promise<Session> {
@@ -77,7 +77,10 @@ export class AuthService {
     if (!client) return { unsubscribe: () => undefined }
     return client.auth.onAuthStateChange((event, session) => {
       if (session?.user?.id) persistAuthUserId(session.user.id)
-      else if (event === 'SIGNED_OUT') clearPersistedAuthUserId()
+      if (event === 'SIGNED_OUT') {
+        clearPersistedAuthUserId()
+        void getCountingContextRepository().clear()
+      }
       listener(event, session)
     }).data.subscription
   }
