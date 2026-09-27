@@ -117,7 +117,7 @@ function findWebViewSocket() {
     .split(/\r?\n/)
     .map((line) => line.match(/@?(webview_devtools_remote[^\s]*)/)?.[1])
     .filter(Boolean)
-  const preferred = candidates.find((socket) => socket.includes(pid)) ?? candidates[0]
+  const preferred = candidates.find((socket) => socket.includes(pid)) ?? (candidates.length === 1 ? candidates[0] : null)
   if (!preferred) {
     throw new Error('WebView DevTools socket no disponible. Verifique que la APK instalada sea debug y WebView debugging esté habilitado.')
   }
@@ -339,6 +339,7 @@ try {
   check('READY_OFFLINE', 'PASS')
   await screenshot(null, '01-ready-offline')
 
+  stage('Creando conteo offline sintético')
   const created = await createPending(launched.page)
   check('CREATE_PENDING', 'PASS', `${created.before} -> ${created.after}`)
   await screenshot(null, '02-pending-created')
@@ -356,7 +357,8 @@ try {
   try { await browser.close() } catch {}
   browser = undefined
   runAdb(['forward', '--remove', `tcp:${CDP_PORT}`], { allowFailure: true })
-  console.log('Reiniciando físicamente Android por ADB…')
+  stage('Reiniciando físicamente Android por ADB')
+  console.log('El teléfono puede tardar hasta 3 minutos en volver a estar disponible…')
   runAdb(['reboot'], { allowFailure: true, timeout: 10000 })
   waitForBoot()
   runAdb(['shell', 'wm', 'dismiss-keyguard'], { allowFailure: true })
@@ -368,6 +370,7 @@ try {
   check('PHYSICAL_REBOOT_PERSISTENCE', 'PASS')
   await screenshot(null, '04-after-device-reboot')
 
+  stage('Validando teclado y layout móvil')
   const keyboard = await keyboardCheck(launched.page)
   check('KEYBOARD_LAYOUT', 'PASS', JSON.stringify(keyboard))
   await screenshot(null, '05-keyboard-layout')
@@ -377,6 +380,7 @@ try {
   const landscape = await orientationCheck(launched.page)
   check('LANDSCAPE_OVERFLOW', 'PASS', JSON.stringify(landscape))
 
+  stage('Recuperando conectividad y sincronizando outstanding')
   if (!setAirplane(false)) throw new Error('No fue posible desactivar modo avión por ADB para sincronizar.')
   if (originalWifi === '1') runAdb(['shell', 'svc', 'wifi', 'enable'], { allowFailure: true })
   await launched.page.waitForTimeout(12000)
@@ -384,6 +388,7 @@ try {
   check('POST_REBOOT_SYNC', 'PASS')
   await screenshot(null, '06-synced')
 
+  stage('Validando apertura/cancelación del scanner sin autosave')
   const scannerResult = await scannerCancelCheck(browser, launched.page)
   browser = scannerResult.browser
   launched.page = scannerResult.page
