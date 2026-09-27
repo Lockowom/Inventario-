@@ -18,7 +18,6 @@ export class AuthService {
     const { data, error } = await client.auth.getSession()
     if (error) throw error
     if (data.session?.user?.id) persistAuthUserId(data.session.user.id)
-    if (!data.session) clearPersistedAuthUserId()
     return data.session
   }
 
@@ -32,8 +31,7 @@ export class AuthService {
         return true
       }
       if (error && classifyAuthError(error).kind === 'UNAVAILABLE') return readPersistedAuthUserId() !== null
-      if (!error) clearPersistedAuthUserId()
-      return false
+      return readPersistedAuthUserId() !== null
     } catch (error: unknown) {
       return classifyAuthError(error).kind === 'UNAVAILABLE' && readPersistedAuthUserId() !== null
     }
