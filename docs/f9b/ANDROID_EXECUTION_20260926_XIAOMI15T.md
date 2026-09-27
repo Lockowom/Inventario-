@@ -220,3 +220,18 @@ Secuencia automatizada:
 14. capturas y `evidence.json` bajo `artifacts/f9b-android-device/<run-id>`.
 
 Limitación irreducible: una lectura óptica real de QR/Code128 sigue requiriendo presentar físicamente un código a la cámara. El runner sí certifica disponibilidad, apertura/cancelación y ausencia de autosave; el adaptador/restoration están cubiertos además por tests unitarios.
+
+
+## PASS físico — scanner Android — 2026-09-27
+
+Evidencia física aportada por operador en Xiaomi 15T:
+
+- scanner nativo abre correctamente;
+- lectura óptica real realizada correctamente;
+- el código escaneado es reconocido por INVEN3;
+- flujo operativo reportado como funcional;
+- no se observó bloqueo del formulario ni fallo del scanner durante la prueba física.
+
+Resultado: `SCANNER_PHYSICAL = PASS`.
+
+Este PASS complementa la cobertura automática del adaptador, disponibilidad, restauración y cancelación sin autosave. La certificación óptica real queda cubierta por ejecución física en hardware.
