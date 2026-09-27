@@ -6,7 +6,6 @@ import { SupervisionScreen } from '../features/supervision/supervision-screen'
 import { CountingScreen } from '../features/counting/counting-screen'
 import { CutsScreen } from '../features/cuts/cuts-screen'
 import { createCountingRuntime, createSyncCoordinator, getCountingContextRepository } from '../features/counting/counting-runtime'
-import { getLocalSessionUserId } from '../features/counting/authorized-counting-context'
 import { authService } from '../features/auth/auth-service'
 import { LoginScreen } from '../features/auth/login-screen'
 import type { CountingRuntime } from '../features/counting/counting-screen'
@@ -36,7 +35,11 @@ function AuthBoundary() {
   useEffect(() => {
     let active = true
     void authService.hasRuntimeIdentity().then((signedIn) => { if (active) setState(signedIn ? 'SIGNED_IN' : 'SIGNED_OUT') }).catch(() => { if (active) setState('SIGNED_OUT') })
-    const authChanges = authService.onAuthStateChange((_event, session) => { if (active) setState(session ? 'SIGNED_IN' : 'SIGNED_OUT') })
+    const authChanges = authService.onAuthStateChange((event, session) => {
+      if (!active) return
+      if (session) setState('SIGNED_IN')
+      else if (event === 'SIGNED_OUT') setState('SIGNED_OUT')
+    })
     const localSignOut = authService.onLocalSignOut(() => { if (active) setState('SIGNED_OUT') })
     return () => { active = false; authChanges.unsubscribe(); localSignOut.unsubscribe() }
   }, [])
@@ -74,9 +77,9 @@ function AuthenticatedRuntime() {
     let active = true
     const cache = getCountingContextRepository()
     const prepareSync = async () => {
-      const userId = await getLocalSessionUserId()
-      if (!active || !userId) return
-      const coordinator = createSyncCoordinator(userId)
+      const authorized = await cache.get()
+      if (!active || !authorized) return
+      const coordinator = createSyncCoordinator(authorized.userId)
       setSyncCoordinator(coordinator)
       void coordinator.runOutstanding().then((summary) => {
         if (!active || summary.scopes === 0) return
