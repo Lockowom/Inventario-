@@ -106,3 +106,16 @@ El Health esperado después de una verificación online válida pasa a `READY_OF
 - Android angosto y tablet Android permanecen sin ejecución física.
 
 No declarar `ANDROID_PHYSICAL = PASS` hasta cerrar el checklist obligatorio.
+
+
+### Repetición 2026-09-27 — proceso Android destruido / reinicio offline
+
+La prueba con el proceso de app destruido mostró un tercer matiz del mismo defecto: después de reiniciar el proceso en modo avión, Supabase Auth puede exponer temporalmente `getSession() => { session: null, error: null }` aunque la identidad durable local y el contexto autorizado sigan disponibles. El runtime quedaba dentro de la app pero `AUTH_USER` pasaba a FAIL; `INVENTORY_CONTEXT` y `MASTER_SNAPSHOT` fallaban en cascada.
+
+Forward-fix:
+
+- un `session: null` transitorio ya no borra ni invalida el UUID local durable;
+- `getLocalSessionUserId()` reutiliza ese UUID para continuidad offline;
+- logout explícito / evento `SIGNED_OUT` siguen limpiando identidad y contexto;
+- el backend sigue siendo autoritativo al reconectar y puede bloquear el contexto;
+- se agregan tests para reinicio offline con sesión nula sin error.
