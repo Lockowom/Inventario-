@@ -22,7 +22,8 @@
 | F8 artefactos/rectificación | PASS | snapshot/xlsx/backup |
 | Android físico | PASS | Xiaomi 15T |
 | iOS físico | MANUAL_REQUIRED | no certificado todavía |
-| RP real import | BLOCKED_EXTERNAL | requiere operador RP/Softland autorizado |
+| RP source real dataset | PASS_WITH_WARNINGS | archivo real RP certificado; conciliación interna 0 diferencias |
+| RP real import | BLOCKED_EXTERNAL | requiere ejecutar el XLSX generado por INVEN3 dentro de RP/Softland |
 | Beta interna | PASS | sign-off humano final aprobado; evidencia `BETA-F9B-20260927T154621.json` |
 | Release candidate freeze | PASS | `release/f9-rc1` fijada al candidato certificado |
 | CI final release candidate | PENDING | ejecutar cuando los gates obligatorios estén cerrados |
@@ -47,3 +48,10 @@ El cierre humano mínimo de beta quedó guiado y registrable con:
 `npm run certify:f9b:beta-signoff`
 
 El comando no inventa PASS: solicita confirmación S/N de navegación, guardado CONTADOR, Supervisión/Cortes ANALISTA, ausencia de BLOCKER e identidad exacta del candidato; genera evidencia JSON en `artifacts/f9b-beta/`.
+
+
+## Fuente RP real certificada
+
+El dataset real `STOCK RP(2).xlsx` quedó certificado como fuente de prueba con SHA-256 `6b43ab792ca73210888c316c2886d373a7d4b937f22f3b0145ce272c36f54fa3`.
+
+Esto elimina la incertidumbre del formato real de entrada RP y valida el universo de SKU/lotes/series contra el contrato de INVEN3. No altera el estado de `RP_REAL_IMPORT`, que continúa siendo una operación humana dentro de RP.
