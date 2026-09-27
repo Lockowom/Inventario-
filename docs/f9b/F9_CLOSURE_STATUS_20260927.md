@@ -23,7 +23,7 @@
 | Android físico | PASS | Xiaomi 15T |
 | iOS físico | MANUAL_REQUIRED | no certificado todavía |
 | RP real import | BLOCKED_EXTERNAL | requiere operador RP/Softland autorizado |
-| Beta interna | READY_FOR_MANUAL_SIGNOFF | matriz consolidada completa; falta cierre humano |
+| Beta interna | PASS | sign-off humano final aprobado; evidencia `BETA-F9B-20260927T154621.json` |
 | Release candidate freeze | PASS | `release/f9-rc1` fijada al candidato certificado |
 | CI final release candidate | PENDING | ejecutar cuando los gates obligatorios estén cerrados |
 
@@ -33,7 +33,6 @@ F9 no debe declararse completa mientras cualquiera de estos gates siga abierto:
 
 - `IOS_PHYSICAL`;
 - `RP_REAL_IMPORT`;
-- `BETA_MANUAL`;
 - CI final del release candidate.
 
 ## Regla de avance
