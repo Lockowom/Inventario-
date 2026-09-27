@@ -140,3 +140,22 @@ Este resultado cierra el defecto estructural de identidad/autorización offline 
 HEAD observado al registrar evidencia: `bb063aeb3fd5c917c271e27027ed43746b95660a`.
 
 Pendiente para cerrar el gate físico: crear un conteo offline, comprobar persistencia tras cierre/reapertura y reinicio completo del dispositivo, reconectar y confirmar sincronización idempotente de una sola fila remota.
+
+
+## PASS físico — persistencia/sincronización offline — 2026-09-27
+
+Después de alcanzar `READY_OFFLINE`, se creó un conteo sintético offline `A-01-03 / 001234 / 1`, permaneció pendiente localmente y luego se sincronizó correctamente al recuperar conectividad.
+
+Verificación remota en `INVEN3-QA`:
+
+- `client_count_id`: `64ff0aca-db3b-4116-a3d3-d93cb77c1cd2`;
+- `server id`: `e42a4944-17b9-467b-ab2c-3f8757cd25ae`;
+- ubicación: `A-01-03`;
+- código: `001234`;
+- cantidad: `1`;
+- captura: `2026-09-27T14:10:14.094Z`;
+- recepción: `2026-09-27T14:12:11.943973Z`;
+- filas remotas para el mismo `client_count_id`: exactamente `1`;
+- duplicados: `0`.
+
+Resultado: PASS de sincronización post-offline e idempotencia remota para este conteo físico.
