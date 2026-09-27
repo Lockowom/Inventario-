@@ -29,10 +29,10 @@ button{background:#43d39c;color:#07100c;border-color:#43d39c;font-weight:800;cur
 .cutout{position:absolute;z-index:7;top:7px;left:50%;transform:translateX(-50%);background:#000;pointer-events:none}
 .notch{width:83px;height:22px;border-radius:0 0 13px 13px}
 .island{width:70px;height:19px;border-radius:14px}
-.viewport{position:absolute;left:0;right:0;top:29px;bottom:12px;border:0;width:100%;height:auto;background:#0b0d0c}
+.viewport-stage{position:absolute;left:0;right:0;top:29px;bottom:12px;overflow:hidden;background:#0b0d0c}
+.viewport-scale{position:absolute;left:50%;top:0;transform-origin:top center;transform:translateX(-50%) scale(var(--scale));width:calc(var(--vw) * 1px);height:calc(var(--vh) * 1px)}
+.viewport-frame{display:block;border:0;width:calc(var(--vw) * 1px);height:calc(var(--vh) * 1px);background:#0b0d0c}
 .home{position:absolute;z-index:8;bottom:4px;left:50%;transform:translateX(-50%);height:3px;width:72px;border-radius:999px;background:#e9ecea}
-.small{transform:scale(.92);transform-origin:top center}
-.large{transform:scale(1.04);transform-origin:top center}
 .card[data-generation="18"]{border-color:#315542;background:linear-gradient(180deg,rgba(67,211,156,.045),#121613 32%)}
 @media(max-width:700px){header{position:static;align-items:start;flex-direction:column}.matrix{grid-template-columns:1fr;padding:18px}.summary{padding:18px 18px 0}.device-wrap{height:500px}}
 </style>
@@ -68,30 +68,30 @@ button{background:#43d39c;color:#07100c;border-color:#43d39c;font-weight:800;cur
 <main class="matrix" id="matrix"></main>
 <script>
 const models=[
-  {g:11,n:'iPhone 11',d:'6.1"',r:'828×1792',w:198,h:430,c:'notch'},
-  {g:11,n:'iPhone 11 Pro',d:'5.8"',r:'1125×2436',w:190,h:420,c:'notch',s:'small'},
-  {g:11,n:'iPhone 11 Pro Max',d:'6.5"',r:'1242×2688',w:208,h:450,c:'notch',s:'large'},
-  {g:12,n:'iPhone 12',d:'6.1"',r:'1170×2532',w:198,h:432,c:'notch'},
-  {g:12,n:'iPhone 12 Pro',d:'6.1"',r:'1170×2532',w:198,h:432,c:'notch'},
-  {g:12,n:'iPhone 12 Pro Max',d:'6.7"',r:'1284×2778',w:210,h:458,c:'notch',s:'large'},
-  {g:13,n:'iPhone 13',d:'6.1"',r:'1170×2532',w:198,h:432,c:'notch'},
-  {g:13,n:'iPhone 13 Pro',d:'6.1"',r:'1170×2532',w:198,h:432,c:'notch'},
-  {g:13,n:'iPhone 13 Pro Max',d:'6.7"',r:'1284×2778',w:210,h:458,c:'notch',s:'large'},
-  {g:14,n:'iPhone 14',d:'6.1"',r:'1170×2532',w:198,h:432,c:'notch'},
-  {g:14,n:'iPhone 14 Pro',d:'6.1"',r:'1179×2556',w:198,h:434,c:'island'},
-  {g:14,n:'iPhone 14 Pro Max',d:'6.7"',r:'1290×2796',w:210,h:460,c:'island',s:'large'},
-  {g:15,n:'iPhone 15',d:'6.1"',r:'1179×2556',w:198,h:434,c:'island'},
-  {g:15,n:'iPhone 15 Pro',d:'6.1"',r:'1179×2556',w:198,h:434,c:'island'},
-  {g:15,n:'iPhone 15 Pro Max',d:'6.7"',r:'1290×2796',w:210,h:460,c:'island',s:'large'},
-  {g:16,n:'iPhone 16',d:'6.1"',r:'1179×2556',w:198,h:434,c:'island'},
-  {g:16,n:'iPhone 16 Pro',d:'6.3"',r:'1206×2622',w:202,h:440,c:'island'},
-  {g:16,n:'iPhone 16 Pro Max',d:'6.9"',r:'1320×2868',w:216,h:470,c:'island',s:'large'},
-  {g:17,n:'iPhone 17',d:'6.3"',r:'1206×2622',w:202,h:440,c:'island'},
-  {g:17,n:'iPhone 17 Pro',d:'6.3"',r:'1206×2622',w:202,h:440,c:'island'},
-  {g:17,n:'iPhone 17 Pro Max',d:'6.9"',r:'1320×2868',w:216,h:470,c:'island',s:'large'},
-  {g:18,n:'iPhone 18 Pro',d:'6.3"',r:'1206×2622',w:202,h:440,c:'island',badge:'2026'},
-  {g:18,n:'iPhone 18 Pro Max',d:'6.9"',r:'1320×2868',w:216,h:470,c:'island',s:'large',badge:'2026'}
-];
+  {g:11,n:'iPhone 11',d:'6.1"',r:'828×1792',w:198,h:430,vw:414,vh:896,c:'notch'},
+  {g:11,n:'iPhone 11 Pro',d:'5.8"',r:'1125×2436',w:190,h:420,vw:375,vh:812,c:'notch'},
+  {g:11,n:'iPhone 11 Pro Max',d:'6.5"',r:'1242×2688',w:208,h:450,vw:414,vh:896,c:'notch'},
+  {g:12,n:'iPhone 12',d:'6.1"',r:'1170×2532',w:198,h:432,vw:390,vh:844,c:'notch'},
+  {g:12,n:'iPhone 12 Pro',d:'6.1"',r:'1170×2532',w:198,h:432,vw:390,vh:844,c:'notch'},
+  {g:12,n:'iPhone 12 Pro Max',d:'6.7"',r:'1284×2778',w:210,h:458,vw:428,vh:926,c:'notch'},
+  {g:13,n:'iPhone 13',d:'6.1"',r:'1170×2532',w:198,h:432,vw:390,vh:844,c:'notch'},
+  {g:13,n:'iPhone 13 Pro',d:'6.1"',r:'1170×2532',w:198,h:432,vw:390,vh:844,c:'notch'},
+  {g:13,n:'iPhone 13 Pro Max',d:'6.7"',r:'1284×2778',w:210,h:458,vw:428,vh:926,c:'notch'},
+  {g:14,n:'iPhone 14',d:'6.1"',r:'1170×2532',w:198,h:432,vw:390,vh:844,c:'notch'},
+  {g:14,n:'iPhone 14 Pro',d:'6.1"',r:'1179×2556',w:198,h:434,vw:393,vh:852,c:'island'},
+  {g:14,n:'iPhone 14 Pro Max',d:'6.7"',r:'1290×2796',w:210,h:460,vw:430,vh:932,c:'island'},
+  {g:15,n:'iPhone 15',d:'6.1"',r:'1179×2556',w:198,h:434,vw:393,vh:852,c:'island'},
+  {g:15,n:'iPhone 15 Pro',d:'6.1"',r:'1179×2556',w:198,h:434,vw:393,vh:852,c:'island'},
+  {g:15,n:'iPhone 15 Pro Max',d:'6.7"',r:'1290×2796',w:210,h:460,vw:430,vh:932,c:'island'},
+  {g:16,n:'iPhone 16',d:'6.1"',r:'1179×2556',w:198,h:434,vw:393,vh:852,c:'island'},
+  {g:16,n:'iPhone 16 Pro',d:'6.3"',r:'1206×2622',w:202,h:440,vw:402,vh:874,c:'island'},
+  {g:16,n:'iPhone 16 Pro Max',d:'6.9"',r:'1320×2868',w:216,h:470,vw:440,vh:956,c:'island'},
+  {g:17,n:'iPhone 17',d:'6.3"',r:'1206×2622',w:202,h:440,vw:402,vh:874,c:'island'},
+  {g:17,n:'iPhone 17 Pro',d:'6.3"',r:'1206×2622',w:202,h:440,vw:402,vh:874,c:'island'},
+  {g:17,n:'iPhone 17 Pro Max',d:'6.9"',r:'1320×2868',w:216,h:470,vw:440,vh:956,c:'island'},
+  {g:18,n:'iPhone 18 Pro',d:'6.3"',r:'1206×2622',w:202,h:440,vw:402,vh:874,c:'island',badge:'2026'},
+  {g:18,n:'iPhone 18 Pro Max',d:'6.9"',r:'1320×2868',w:216,h:470,vw:440,vh:956,c:'island',badge:'2026'}
+]
 const matrix=document.getElementById('matrix');
 const scenario=document.getElementById('scenario');
 const generation=document.getElementById('generation');
@@ -111,11 +111,15 @@ function render(){
         <div class="meta">${m.d}<br>${m.r}</div>
       </div>
       <div class="device-wrap">
-        <div class="phone ${m.s||''}" style="--pw:${m.w}px;--ph:${m.h}px">
+        <div class="phone" style="--pw:${m.w}px;--ph:${m.h}px">
           <div class="screen">
             <div class="status"><span>9:41</span><span>●●● 5G ▰</span></div>
             <div class="cutout ${m.c}"></div>
-            <iframe loading="lazy" class="viewport" title="${m.n}" src="/?fixture=${encodeURIComponent(fixture)}&iosMatrix=1&model=${encodeURIComponent(m.n)}"></iframe>
+            <div class="viewport-stage">
+              <div class="viewport-scale" style="--vw:${m.vw};--vh:${m.vh};--scale:${Math.min((m.w-14)/m.vw,(m.h-48)/m.vh).toFixed(4)}">
+                <iframe loading="eager" class="viewport-frame" title="${m.n}" src="/?fixture=${encodeURIComponent(fixture)}&iosMatrix=1&model=${encodeURIComponent(m.n)}"></iframe>
+              </div>
+            </div>
             <div class="home"></div>
           </div>
         </div>
