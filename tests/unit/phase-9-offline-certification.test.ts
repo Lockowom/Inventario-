@@ -51,6 +51,17 @@ describe('F9 offline certification', () => {
     await reopenedDatabase.delete()
   })
 
+  it('bloquea el conteo 51 y conserva exactamente los 50 pendientes', async () => {
+    const name = `f9-capacity-${crypto.randomUUID()}`
+    const database = new Inven3WebDatabase(name)
+    const repository = new DexieCountRepository(database)
+    await Promise.all(Array.from({ length: 50 }, (_, index) => repository.savePendingWithCapacity(record(index), 50)))
+    await expect(repository.savePendingWithCapacity(record(51), 50)).rejects.toThrow()
+    expect(await repository.countPendingByDevice(deviceId)).toBe(50)
+    expect(await repository.listOwnCounts({ inventoryId, userId })).toHaveLength(50)
+    await database.delete()
+  })
+
   it('expone mensajes funcionales para 0–39, 40, 45 y 50 sin liberar pendientes', () => {
     expect(getCapacityStatus(39)).toMatchObject({ capacity: 'NORMAL', message: 'Pendientes: 39 / 50' })
     expect(getCapacityStatus(40)).toMatchObject({ capacity: 'WARNING', message: expect.stringContaining('Advertencia:') })
