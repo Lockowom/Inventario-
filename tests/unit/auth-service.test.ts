@@ -59,11 +59,11 @@ describe('AuthService', () => {
     expect(readPersistedAuthUserId()).toBe(userId)
   })
 
-  it('no reutiliza identidad persistida cuando Auth confirma que no existe sesión', async () => {
+  it('conserva identidad persistida cuando getSession queda nulo durante un reinicio offline', async () => {
     persistAuthUserId(userId)
     mocks.getSession.mockResolvedValue({ data: { session: null }, error: null })
 
-    await expect(new AuthService().hasRuntimeIdentity()).resolves.toBe(false)
-    expect(readPersistedAuthUserId()).toBeNull()
+    await expect(new AuthService().hasRuntimeIdentity()).resolves.toBe(true)
+    expect(readPersistedAuthUserId()).toBe(userId)
   })
 })
