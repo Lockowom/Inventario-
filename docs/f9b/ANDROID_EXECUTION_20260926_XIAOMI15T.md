@@ -235,3 +235,34 @@ Evidencia física aportada por operador en Xiaomi 15T:
 Resultado: `SCANNER_PHYSICAL = PASS`.
 
 Este PASS complementa la cobertura automática del adaptador, disponibilidad, restauración y cancelación sin autosave. La certificación óptica real queda cubierta por ejecución física en hardware.
+
+
+## PASS parcial físico + corrección de reintento manual — 2026-09-27
+
+Última ejecución física confirmó:
+
+- `READY_OFFLINE = PASS`;
+- `CREATE_PENDING = PASS`;
+- `PROCESS_RESTART_PERSISTENCE = PASS`;
+- `USER_UNLOCKED_POST_REBOOT = PASS`;
+- `AIRPLANE_MODE_POST_REBOOT = PASS`;
+- `PHYSICAL_REBOOT_PERSISTENCE = PASS`;
+- `KEYBOARD_LAYOUT = PASS`;
+- `PORTRAIT_OVERFLOW = PASS`;
+- `LANDSCAPE_OVERFLOW = PASS`.
+
+Hallazgo final: un conteo que había fallado por modo avión quedaba `FAILED` con `next_retry_at` futuro. El botón manual `SINCRONIZAR AHORA` compartía el selector del auto-sync y respetaba ese backoff, por lo que podía no reclamar inmediatamente el registro aunque la conectividad ya hubiese vuelto.
+
+Corrección aplicada:
+
+- auto-sync mantiene el backoff exponencial;
+- sync manual usa `forceRetry=true` y reclama inmediatamente `FAILED` aunque `next_retry_at` sea futuro;
+- SQLite y Dexie implementan el mismo contrato;
+- se agregó regresión automática de dominio/UI;
+- el runner físico espera conectividad real con Supabase y expone diagnóstico detallado de pendientes/rechazos.
+
+Runner fresco de una sola orden:
+
+`npm run certify:f9b:android-fresh`
+
+Este comando valida tests offline relevantes, recompila, sincroniza Capacitor, genera APK debug, instala con `adb install -r` preservando SQLite y ejecuta la certificación física.
