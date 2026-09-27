@@ -194,3 +194,29 @@ Ejecución local confirmada por operador:
 Cobertura cerrada automáticamente: capacidad 39/40/45/50, bloqueo de conteo 51, persistencia lógica de outbox, recuperación tras caída, sync por lotes, auth boundary offline y scanner health contractual.
 
 HEAD de rama al registrar evidencia: `822e0d13abfc3130b626216bd4c3f92b3d54d1af`.
+
+
+## Runner integral F9B — 2026-09-27
+
+Se agregó un runner integral para eliminar ejecución manual repetitiva:
+
+`npm run certify:f9b:complete`
+
+Secuencia automatizada:
+
+1. typecheck;
+2. todos los unit tests;
+3. E2E responsive/accesibilidad;
+4. regresión visual;
+5. build web;
+6. conexión ADB/Playwright con un Android físico;
+7. activación de modo avión (cuando ADB lo permite) y validación `READY_OFFLINE`;
+8. creación de conteo sintético offline por WebView;
+9. persistencia tras force-stop/reapertura;
+10. reboot físico Android por ADB y verificación post-boot;
+11. validación de teclado/viewport y overflow portrait/landscape;
+12. reconexión y sincronización del outstanding;
+13. apertura/cancelación del scanner nativo verificando cero autosave;
+14. capturas y `evidence.json` bajo `artifacts/f9b-android-device/<run-id>`.
+
+Limitación irreducible: una lectura óptica real de QR/Code128 sigue requiriendo presentar físicamente un código a la cámara. El runner sí certifica disponibilidad, apertura/cancelación y ausencia de autosave; el adaptador/restoration están cubiertos además por tests unitarios.
