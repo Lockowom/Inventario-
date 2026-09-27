@@ -169,13 +169,31 @@ async function healthSection(page) {
   return page.locator('section').filter({ has: heading }).first()
 }
 
-async function refreshHealth(page) {
+async function ensureHealthReady(page) {
   const section = await healthSection(page)
-  const button = section.getByRole('button', { name: 'ACTUALIZAR' })
-  if (await button.count()) {
-    await button.first().click()
-    await page.waitForTimeout(1200)
+  const readyOffline = page.getByText('DISPOSITIVO LISTO PARA INVENTARIO OFFLINE', { exact: false })
+  const refresh = section.getByRole('button', { name: 'ACTUALIZAR' }).first()
+  const deadline = Date.now() + 45000
+
+  stage('Esperando Health Check automático de arranque')
+  while (Date.now() < deadline) {
+    if (await readyOffline.isVisible().catch(() => false)) {
+      console.log('[INFO] Health Check inicial ya resolvió READY_OFFLINE; no se fuerza ACTUALIZAR.')
+      return
+    }
+
+    const enabled = await refresh.isEnabled().catch(() => false)
+    if (enabled) {
+      console.log('[INFO] Health Check inicial terminó sin READY_OFFLINE; ejecutando ACTUALIZAR una vez.')
+      await refresh.click({ timeout: 10000 })
+      return
+    }
+
+    await page.waitForTimeout(500)
   }
+
+  const status = await section.locator('.device-health-overall').textContent().catch(() => null)
+  throw new Error(`Health Check inicial no terminó en 45 s. Estado visible: ${status ?? 'desconocido'}`)
 }
 
 async function assertReadyOffline(page) {
@@ -334,7 +352,7 @@ try {
   stage('Conectando a INVEN3 offline')
   let launched = await connectWebView()
   browser = launched.browser
-  await refreshHealth(launched.page)
+  await ensureHealthReady(launched.page)
   await assertReadyOffline(launched.page)
   check('READY_OFFLINE', 'PASS')
   await screenshot(null, '01-ready-offline')
