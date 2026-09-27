@@ -119,3 +119,24 @@ Forward-fix:
 - logout explícito / evento `SIGNED_OUT` siguen limpiando identidad y contexto;
 - el backend sigue siendo autoritativo al reconectar y puede bloquear el contexto;
 - se agregan tests para reinicio offline con sesión nula sin error.
+
+
+## PASS físico — READY_OFFLINE — 2026-09-27
+
+Evidencia física en Xiaomi 15T después del rediseño de autoridad offline:
+
+- estado general: `DISPOSITIVO LISTO PARA INVENTARIO OFFLINE`;
+- modo Health: `LIGHT`;
+- `APP_VERSION = PASS`;
+- `AUTH_USER = PASS` — “Identidad autorizada disponible localmente”;
+- `INVENTORY_CONTEXT = PASS` — inventario abierto autorizado;
+- `MASTER_SNAPSHOT = PASS` — maestro local disponible;
+- `LOCAL_DATABASE = PASS`;
+- `LOCAL_STORAGE = WARN` — no bloqueante, espacio libre no observable;
+- la app permanece operativa sin depender de `supabase.auth.getSession()` durante la caída de red.
+
+Este resultado cierra el defecto estructural de identidad/autorización offline descubierto durante F9B. El modelo activo queda: servidor autoritativo online + lease de autorización persistido en SQLite para continuidad offline + invalidación en logout/denegación autoritativa.
+
+HEAD observado al registrar evidencia: `bb063aeb3fd5c917c271e27027ed43746b95660a`.
+
+Pendiente para cerrar el gate físico: crear un conteo offline, comprobar persistencia tras cierre/reapertura y reinicio completo del dispositivo, reconectar y confirmar sincronización idempotente de una sola fila remota.
