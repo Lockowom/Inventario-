@@ -92,12 +92,12 @@ El runtime incorpora login por email/contraseña con Supabase Auth y cierre de s
 - `ANDROID_PHYSICAL = PASS`: Xiaomi 15T certificado con APK fresca, offline, reboot, persistencia SQLite, reconexión/sync, UI móvil y scanner físico.
 - `BETA_MANUAL = PASS`: sign-off humano final ejecutado por Cristopher Cabezas; todas las comprobaciones del candidato fueron confirmadas y el runner emitió `[PASS] BETA_MANUAL` con evidencia `BETA-F9B-20260927T154621.json`.
 - `IOS_PHYSICAL = MANUAL_REQUIRED`: sin certificación física todavía.
-- `RP_REAL_IMPORT = BLOCKED_EXTERNAL`: requiere operador autorizado de RP/Softland.
+- `RP_REAL_IMPORT = PASS_WITH_WARNINGS`: archivo real RP/Softland certificado contra INVEN3; 2453 SKU, 0 diferencias de conciliación, 1679 series sin duplicados y evidencia `RP-SOURCE-20260927T162115.json`. Los warnings restantes son de calidad de dato fuente y no bloquean F9.
 - CI final del release candidate permanece pendiente hasta resolver los gates obligatorios abiertos.
 
 Candidato funcional Android certificado: `2aa6645ab89c5e74dc12c9475019880aca65564f` / `f9b-qa-2aa6645a`.
 
-No declarar F9 completa ni iniciar F10 mientras permanezcan gates obligatorios abiertos, salvo decisión explícita y documentada de alcance/no-aplicabilidad.
+No declarar F9 completa ni iniciar F10 mientras permanezca `IOS_PHYSICAL` abierto, salvo decisión explícita y documentada de alcance/no-aplicabilidad. El gate RP ya no es bloqueador.
 
 ## Variables locales de runners
 
