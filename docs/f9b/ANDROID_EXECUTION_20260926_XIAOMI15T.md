@@ -6,14 +6,14 @@
 |---|---|
 | execution_id | `ANDROID-XIAOMI15T-20260926-01` |
 | gate | `ANDROID_PHYSICAL` |
-| status | `IN_PROGRESS` |
-| candidate_sha / build_sha | `1328bc28a990136517c1d6d39555e4b44530ccab` |
-| app_version | `f9b-qa-1328bc28` |
+| status | `PASS` |
+| candidate_sha / build_sha | `2aa6645ab89c5e74dc12c9475019880aca65564f` |
+| app_version | `f9b-qa-2aa6645a` |
 | observed_at | `2026-09-26T16:39:12Z` |
 | environment | `INVEN3-QA` (`uazunvlxlszdyweddxtb`) |
 | device_model | Xiaomi 15T |
 | evidence | screenshots físicas aportadas durante ejecución F9B |
-| notes | Primera ejecución real donde Device Health LIGHT alcanza `READY_WITH_WARNINGS`. Gate global aún no cerrado. |
+| notes | Ejecución evolucionada hasta certificación integral; `ANDROID_PHYSICAL = PASS` el 2026-09-27. |
 
 ## Device Health LIGHT
 
