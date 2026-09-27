@@ -67,25 +67,23 @@ describe('AuthService', () => {
     await expect(new AuthService().signIn('qa@inven3.test', 'mala')).rejects.toThrow('Credenciales inválidas o sesión no disponible.')
   })
 
-  it('prefiere una sesión Supabase válida cuando está disponible', async () => {
-    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: userId } } }, error: null })
+  it('prefiere el contexto autorizado local y no consulta Supabase si ya existe', async () => {
+    mocks.getCachedContext.mockResolvedValue(cachedContext)
     await expect(new AuthService().hasRuntimeIdentity()).resolves.toBe(true)
-    expect(mocks.getCachedContext).not.toHaveBeenCalled()
+    expect(mocks.getSession).not.toHaveBeenCalled()
   })
 
-  it('arranca offline desde el contexto server-verified persistido aunque getSession sea null', async () => {
-    mocks.getSession.mockResolvedValue({ data: { session: null }, error: null })
-    mocks.getCachedContext.mockResolvedValue(cachedContext)
-
+  it('usa una sesión Supabase válida cuando todavía no existe contexto local', async () => {
+    mocks.getSession.mockResolvedValue({ data: { session: { user: { id: userId } } }, error: null })
     await expect(new AuthService().hasRuntimeIdentity()).resolves.toBe(true)
     expect(mocks.getCachedContext).toHaveBeenCalledTimes(1)
   })
 
-  it('arranca offline desde SQLite aunque getSession falle por red', async () => {
-    mocks.getSession.mockRejectedValue(new TypeError('Failed to fetch'))
+  it('arranca offline exclusivamente desde el contexto server-verified persistido', async () => {
     mocks.getCachedContext.mockResolvedValue(cachedContext)
 
     await expect(new AuthService().hasRuntimeIdentity()).resolves.toBe(true)
+    expect(mocks.getSession).not.toHaveBeenCalled()
   })
 
   it('bloquea el runtime si no hay sesión ni contexto autorizado persistido', async () => {
