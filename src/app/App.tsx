@@ -8,6 +8,7 @@ import { CutsScreen } from '../features/cuts/cuts-screen'
 import { createCountingRuntime, createSyncCoordinator, getCountingContextRepository } from '../features/counting/counting-runtime'
 import { authService } from '../features/auth/auth-service'
 import { LoginScreen } from '../features/auth/login-screen'
+import { nextRuntimeAuthState, type RuntimeAuthState } from '../features/auth/auth-boundary-state'
 import type { CountingRuntime } from '../features/counting/counting-screen'
 import type { SyncCoordinator } from '../domain/sync/sync-coordinator'
 import type { DeviceHealthMode, DeviceHealthReport } from '../domain/device-health/contracts'
@@ -31,14 +32,12 @@ function RuntimeApp() {
 }
 
 function AuthBoundary() {
-  const [state, setState] = useState<'CHECKING' | 'SIGNED_OUT' | 'SIGNED_IN'>('CHECKING')
+  const [state, setState] = useState<RuntimeAuthState>('CHECKING')
   useEffect(() => {
     let active = true
     void authService.hasRuntimeIdentity().then((signedIn) => { if (active) setState(signedIn ? 'SIGNED_IN' : 'SIGNED_OUT') }).catch(() => { if (active) setState('SIGNED_OUT') })
     const authChanges = authService.onAuthStateChange((event, session) => {
-      if (!active) return
-      if (session) setState('SIGNED_IN')
-      else if (event === 'SIGNED_OUT') setState('SIGNED_OUT')
+      if (active) setState((current) => nextRuntimeAuthState(current, event, Boolean(session)))
     })
     const localSignOut = authService.onLocalSignOut(() => { if (active) setState('SIGNED_OUT') })
     return () => { active = false; authChanges.unsubscribe(); localSignOut.unsubscribe() }
