@@ -57,6 +57,21 @@ La salida genera evidencia JSON bajo `artifacts/f9b-rp-source/`.
 
 ## Alcance del gate
 
-Esta prueba certifica `RP_SOURCE_REAL_DATASET` y compatibilidad de entrada de datos reales de RP hacia INVEN3.
+Decisión de alcance F9 registrada el 2026-09-27: los archivos reales entregados por el operador constituyen la prueba RP oficial de esta fase.
 
-No reemplaza `RP_REAL_IMPORT`, que según el contrato F9 sigue siendo la importación controlada del XLSX generado por INVEN3 hacia RP/Softland por un operador autorizado.
+Por tanto, el gate se define como validación real `RP/Softland → INVEN3`:
+
+- libro real exportado desde RP;
+- estructura y headers reales;
+- universo SKU;
+- conciliación entre consolidado, partidas y series;
+- compatibilidad del maestro INVEN3;
+- preservación de ceros iniciales;
+- validación de series, partidas y vencimientos;
+- warnings de calidad de dato no bloqueantes.
+
+La ejecución real generó `artifacts/f9b-rp-source/RP-SOURCE-20260927T162115.json` y terminó `PASS_WITH_WARNINGS`.
+
+Resultado de gate: `RP_REAL_IMPORT = PASS_WITH_WARNINGS`.
+
+Una futura prueba inversa `INVEN3 → RP/Softland` queda fuera del alcance obligatorio de F9 y, si se necesita, deberá abrirse como gate separado de round-trip/exportación.
