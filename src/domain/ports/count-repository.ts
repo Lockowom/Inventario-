@@ -27,7 +27,7 @@ export interface CountRepository {
   /** Freeze guards are scoped to this inventory and this installation only. */
   countOutstandingByInventoryDevice(inventoryId: string, deviceId: string): Promise<number>
   /** Claims at most one sync batch. Claiming is atomic with the state transition. */
-  claimNextSyncBatch(input: { inventoryId: string; userId: string; max: number; now: string }): Promise<LocalCountRecord[]>
+  claimNextSyncBatch(input: { inventoryId: string; userId: string; max: number; now: string; forceRetry?: boolean }): Promise<LocalCountRecord[]>
   /** Returns abandoned in-flight records to retryable state after a restart/crash. */
   recoverStaleSyncing(input: { inventoryId: string; userId: string; before: string; now: string }): Promise<number>
   /** Applies only server acknowledgements that were validated by the sync manager. */
