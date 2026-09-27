@@ -90,6 +90,12 @@ export class AuthService {
     return { unsubscribe: () => this.localSignOutListeners.delete(listener) }
   }
 
+  public async invalidateLocalAuthority(): Promise<void> {
+    clearPersistedAuthUserId()
+    await getCountingContextRepository().clear()
+    for (const listener of this.localSignOutListeners) listener()
+  }
+
   public async signOut(): Promise<void> {
     const client = getSupabaseClient()
     try {
