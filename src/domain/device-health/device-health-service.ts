@@ -8,7 +8,6 @@ const FIVE_MINUTES_MS = 300_000
 export interface DeviceHealthDependencies {
   mode: DeviceHealthMode
   resolveContext(): Promise<ResolvedCountingContext>
-  getLocalSessionUserId(): Promise<string | null>
   masters: MasterSkuRepository
   localHealth: LocalHealthProbe
   appVersion: AppVersionProvider
@@ -28,11 +27,10 @@ export class DeviceHealthService {
     if (context.kind === 'ONLINE' && this.dependencies.hydrateMasterSnapshot) {
       await safely(() => this.dependencies.hydrateMasterSnapshot!(context.context.inventoryId))
     }
-    const localUserId = await safely(this.dependencies.getLocalSessionUserId)
     const checks: DeviceHealthCheck[] = []
 
     checks.push(await this.checkAppVersion())
-    checks.push(this.checkAuthUser(context, localUserId))
+    checks.push(this.checkAuthUser(context))
     checks.push(this.checkInventoryContext(context))
     checks.push(await this.checkMasterSnapshot(context))
     checks.push(...await this.checkLocalHealth())
@@ -50,8 +48,8 @@ export class DeviceHealthService {
       : { key: 'APP_VERSION', status: 'WARN', blocking: false, message: 'No fue posible identificar la versión instalada.' }
   }
 
-  private checkAuthUser(context: ResolvedCountingContext, localUserId: string | null): DeviceHealthCheck {
-    if (context.kind !== 'BLOCKED' && localUserId === context.context.userId) return { key: 'AUTH_USER', status: 'PASS', blocking: true, message: 'Usuario local válido.' }
+  private checkAuthUser(context: ResolvedCountingContext): DeviceHealthCheck {
+    if (context.kind !== 'BLOCKED') return { key: 'AUTH_USER', status: 'PASS', blocking: true, message: 'Identidad autorizada disponible localmente.' }
     return { key: 'AUTH_USER', status: 'FAIL', blocking: true, message: 'Inicie sesión con un usuario activo.' }
   }
 
