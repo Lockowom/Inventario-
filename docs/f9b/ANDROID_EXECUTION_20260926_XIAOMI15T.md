@@ -96,8 +96,7 @@ El Health esperado después de una verificación online válida pasa a `READY_OF
 
 ## Pendientes de esta ejecución
 
-- Device Health `FULL`.
-- Persistencia offline: PENDING → cerrar/reabrir → reinicio físico → reconectar → mismo `client_count_id` una sola vez.
+- Persistencia offline restante: validar explícitamente PENDING tras cierre/reapertura y reinicio físico completo; la reconexión/sync/idempotencia ya están PASS.
 - Capacidad offline: 39 / 40 / 45 / 50.
 - Scanner físico: QR, Code128 y GS1-128/EAN-128 cuando exista muestra; cancelación sin autosave.
 - UI restante: teclado, barra gestual, orientación, fuentes grandes/textos largos.
