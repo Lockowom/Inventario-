@@ -31,9 +31,9 @@ describe('getLocalSessionUserId offline identity', () => {
     await expect(getLocalSessionUserId()).resolves.toBe(userId)
   })
 
-  it('does not use the durable identity for an authoritative missing session', async () => {
+  it('uses durable identity when Supabase returns a transient null session after offline restart', async () => {
     persistAuthUserId(userId)
     getSession.mockResolvedValue({ data: { session: null }, error: null })
-    await expect(getLocalSessionUserId()).resolves.toBeNull()
+    await expect(getLocalSessionUserId()).resolves.toBe(userId)
   })
 })
