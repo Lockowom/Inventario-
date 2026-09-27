@@ -1,8 +1,8 @@
 # Beta interna F9B — ejecución consolidada 2026-09-27
 
-Estado: `READY_FOR_MANUAL_SIGNOFF`.
+Estado: `PASS`.
 
-Este registro consolida únicamente evidencia real ya obtenida en `INVEN3-QA`. No convierte automáticamente el gate manual en PASS.
+Este registro consolida evidencia real obtenida en `INVEN3-QA` y el sign-off humano final ejecutado el 2026-09-27.
 
 ## Identificación
 
@@ -60,15 +60,22 @@ Este registro consolida únicamente evidencia real ya obtenida en `INVEN3-QA`. N
 - replay idempotente: `PASS`;
 - recuperación post-offline/reboot: `PASS`.
 
-## Sign-off manual restante
+## Sign-off manual final
 
-Para transformar `BETA_MANUAL` en `PASS` falta exclusivamente registrar una observación humana final del candidato certificado, sin añadir nuevas funciones:
+Ejecutado con:
 
-1. abrir el build `f9b-qa-2aa6645a`;
-2. confirmar navegación básica y que no hay bloqueo visual/operacional evidente;
-3. confirmar que CONTADOR puede guardar un conteo sintético;
-4. confirmar que ANALISTA puede abrir Supervisión/Cortes;
-5. confirmar que no aparece ningún error BLOCKER;
-6. registrar operador, hora UTC y evidencia de cierre.
+`npm run certify:f9b:beta-signoff`
 
-Hasta ese sign-off: `BETA_MANUAL = READY_FOR_MANUAL_SIGNOFF`.
+Resultado:
+
+- operador/observador: `Cristopher Cabezas`;
+- navegación básica sin bloqueo visual/operacional: `S`;
+- CONTADOR puede guardar conteo sintético: `S`;
+- ANALISTA puede abrir Supervisión: `S`;
+- ANALISTA puede abrir Cortes: `S`;
+- sin error BLOCKER observado: `S`;
+- candidato `f9b-qa-2aa6645a` / `2aa6645a` confirmado: `S`;
+- evidencia local generada: `BETA-F9B-20260927T154621.json`;
+- runner: `[PASS] BETA_MANUAL`.
+
+Resultado final: `BETA_MANUAL = PASS`.
