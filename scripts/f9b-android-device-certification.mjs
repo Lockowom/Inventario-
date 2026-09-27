@@ -417,20 +417,60 @@ async function keyboardCheck(page) {
   return before
 }
 
-async function syncOutstanding(page) {
-  const section = page.locator('section.counting-screen')
-  const button = section.getByRole('button', { name: 'SINCRONIZAR AHORA' }).first()
-  await button.click()
-  const deadline = Date.now() + 45000
+async function waitForSupabaseReachable(page, timeoutMs = 90000) {
+  stage('Esperando conectividad efectiva con Supabase')
+  const deadline = Date.now() + timeoutMs
   while (Date.now() < deadline) {
-    const pending = await outstandingCount(section)
-    if (pending === 0) {
-      await section.getByText('Confirmado en servidor', { exact: true }).first().waitFor({ state: 'visible', timeout: 5000 })
+    const reachable = await page.evaluate(async () => {
+      try {
+        await fetch('https://uazunvlxlszdyweddxtb.supabase.co/auth/v1/settings', { method: 'GET', cache: 'no-store' })
+        return true
+      } catch {
+        return false
+      }
+    }).catch(() => false)
+    if (reachable) {
+      console.log('[PASS] SUPABASE_REACHABLE')
       return
     }
     await page.waitForTimeout(1000)
   }
-  throw new Error('La sincronización no confirmó todos los outstanding dentro de 45 s.')
+  throw new Error(`Supabase no fue alcanzable dentro de ${timeoutMs} ms después de recuperar conectividad.`)
+}
+
+async function syncOutstanding(page) {
+  const section = page.locator('section.counting-screen')
+  const button = section.getByRole('button', { name: 'SINCRONIZAR AHORA' }).first()
+  await button.scrollIntoViewIfNeeded().catch(() => {})
+  if (!(await button.isEnabled().catch(() => false))) throw new Error('SINCRONIZAR AHORA está deshabilitado al recuperar conectividad.')
+
+  try {
+    await button.click({ timeout: 8000 })
+  } catch {
+    await button.evaluate((element) => element.click())
+  }
+
+  const deadline = Date.now() + 90000
+  while (Date.now() < deadline) {
+    const pending = await outstandingCount(section)
+    const rejected = await section.locator('.my-counts li').filter({ hasText: /Rechazado:/ }).count()
+    const confirmed = await section.locator('.my-counts li').filter({ hasText: /Confirmado en servidor/ }).count()
+    if (pending === 0) {
+      if (rejected > 0) {
+        const rejectedText = await section.locator('.my-counts li').filter({ hasText: /Rechazado:/ }).allTextContents().catch(() => [])
+        throw new Error(`Sync terminó sin outstanding pero con ${rejected} rechazados: ${JSON.stringify(rejectedText)}`)
+      }
+      if (confirmed > 0) return
+    }
+    await page.waitForTimeout(750)
+  }
+
+  const diagnostic = {
+    pending: await outstandingCount(section),
+    statuses: await section.locator('.sync-status [role="status"]').allTextContents().catch(() => []),
+    counts: await section.locator('.my-counts li').allTextContents().catch(() => []),
+  }
+  throw new Error(`La sincronización no cerró los outstanding dentro de 90 s. Diagnóstico: ${JSON.stringify(diagnostic)}`)
 }
 
 async function scannerCancelCheck(browser, page) {
@@ -552,7 +592,7 @@ try {
   stage('Recuperando conectividad y sincronizando outstanding')
   if (!setAirplane(false)) throw new Error('No fue posible desactivar modo avión por ADB para sincronizar.')
   if (originalWifi === '1') runAdb(['shell', 'svc', 'wifi', 'enable'], { allowFailure: true })
-  await launched.page.waitForTimeout(12000)
+  await waitForSupabaseReachable(launched.page)
   await syncOutstanding(launched.page)
   check('POST_REBOOT_SYNC', 'PASS')
   await screenshot(null, '06-synced')
