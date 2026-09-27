@@ -1,7 +1,7 @@
 import { DeviceHealthService } from '../../domain/device-health/device-health-service'
 import type { DeviceHealthMode } from '../../domain/device-health/contracts'
 import { resolveCountingContext } from '../../domain/count/resolve-counting-context'
-import { getLocalSessionUserId, verifyServerCountingContext } from '../counting/authorized-counting-context'
+import { verifyServerCountingContext } from '../counting/authorized-counting-context'
 import { getCountingContextRepository, getLocalHealthProbe, getMasterSkuRepository } from '../counting/counting-runtime'
 import { CapacitorAppVersionProvider } from '../../services/app-version-provider'
 import { SupabaseServerTimeGateway } from '../../services/supabase-server-time-gateway'
@@ -16,8 +16,7 @@ export function createDeviceHealthService(mode: DeviceHealthMode): DeviceHealthS
   const remoteMasters = new SupabaseMasterSkuRepository()
   return new DeviceHealthService({
     mode,
-    resolveContext: () => resolveCountingContext({ verifyServer: verifyServerCountingContext, getLocalSessionUserId }, cache),
-    getLocalSessionUserId,
+    resolveContext: () => resolveCountingContext({ verifyServer: verifyServerCountingContext }, cache),
     masters,
     hydrateMasterSnapshot: async (inventoryId) => {
       try {
