@@ -62,6 +62,10 @@ function AuthenticatedRuntime() {
     try {
       const result = await runDeviceHealthCheck(mode, { createService: createDeviceHealthService, createCountingRuntime })
       if (run !== healthRun.current) return
+      if (result.report.resolvedContext.kind === 'BLOCKED' && result.report.resolvedContext.reason === 'NOT_AUTHORIZED') {
+        await authService.invalidateLocalAuthority()
+        return
+      }
       setHealthReport(result.report); setCountingRuntime(result.runtime)
     } catch (error: unknown) {
       console.error('DEVICE_HEALTH_RUNTIME_FAIL', error)
