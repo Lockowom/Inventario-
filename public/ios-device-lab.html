@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>INVEN3 · iOS Device Lab</title>
+  <style>
+    :root{
+      color-scheme:dark;
+      font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      background:#0b0d0c;
+      color:#f4f7f5;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;min-height:100vh;background:
+      radial-gradient(circle at 15% 10%,rgba(67,211,156,.10),transparent 28rem),
+      #0b0d0c;display:grid;grid-template-columns:minmax(280px,340px) minmax(420px,1fr);gap:32px;padding:32px}
+    .panel{background:#141815;border:1px solid #263029;border-radius:24px;padding:24px;align-self:start;position:sticky;top:24px}
+    .eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:#4bd69e;font-weight:800}
+    h1{margin:10px 0 10px;font-size:28px}
+    p{color:#abb5ae;line-height:1.55}
+    label{display:block;font-size:13px;font-weight:700;margin:22px 0 8px}
+    select,button{width:100%;border-radius:14px;border:1px solid #344038;background:#0c0f0d;color:#f2f4f3;padding:13px 14px;font:inherit}
+    button{margin-top:12px;background:#43d39c;color:#07100c;border-color:#43d39c;font-weight:800;cursor:pointer}
+    .meta{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
+    .meta div{background:#0c0f0d;border:1px solid #222b25;border-radius:14px;padding:12px}
+    .meta small{display:block;color:#7f8d84;margin-bottom:5px}
+    .stage{display:grid;place-items:start center;min-height:900px;padding:8px 24px 48px;overflow:auto}
+    .phone{position:relative;width:431px;height:932px;border-radius:58px;background:#050605;border:2px solid #3f4742;
+      box-shadow:0 35px 100px rgba(0,0,0,.55),inset 0 0 0 7px #121512;padding:12px}
+    .phone::before{content:"";position:absolute;inset:5px;border-radius:52px;border:1px solid rgba(255,255,255,.08);pointer-events:none;z-index:8}
+    .screen{position:relative;width:100%;height:100%;border-radius:46px;overflow:hidden;background:#0b0d0c}
+    .island{position:absolute;z-index:10;top:20px;left:50%;transform:translateX(-50%);width:126px;height:36px;border-radius:22px;background:#000;
+      box-shadow:0 0 0 1px rgba(255,255,255,.03)}
+    .speaker{position:absolute;width:42px;height:4px;border-radius:99px;background:#151515;left:42px;top:16px}
+    .camera{position:absolute;width:9px;height:9px;border-radius:50%;background:#111c24;right:15px;top:13px;box-shadow:inset 0 0 0 2px #081015}
+    .status{position:absolute;z-index:9;top:0;left:0;right:0;height:58px;display:flex;align-items:center;justify-content:space-between;padding:0 23px 8px;font-size:13px;font-weight:800;pointer-events:none}
+    .status-right{display:flex;gap:6px;align-items:center;font-size:11px}
+    .viewport{position:absolute;inset:0;border:0;width:100%;height:100%;background:#0b0d0c;padding-top:0}
+    .home-indicator{position:absolute;z-index:10;bottom:8px;left:50%;transform:translateX(-50%);width:140px;height:5px;border-radius:99px;background:rgba(255,255,255,.86)}
+    .side{position:absolute;background:#303632;border-radius:3px}
+    .mute{left:-5px;top:126px;width:4px;height:31px}
+    .vol1{left:-5px;top:176px;width:4px;height:56px}
+    .vol2{left:-5px;top:242px;width:4px;height:56px}
+    .power{right:-5px;top:194px;width:4px;height:92px}
+    @media(max-width:900px){
+      body{grid-template-columns:1fr;padding:16px}
+      .panel{position:static}
+      .stage{padding:0;justify-content:start}
+      .phone{transform-origin:top left;transform:scale(.82);margin-bottom:-165px}
+    }
+  </style>
+</head>
+<body>
+  <aside class="panel">
+    <div class="eyebrow">INVEN3 · iOS Device Lab</div>
+    <h1>Vista iPhone</h1>
+    <p>Modelo visual para revisar safe areas, jerarquía, densidad y comportamiento móvil. La certificación funcional iOS/WebKit se ejecuta por separado.</p>
+
+    <label for="scenario">Pantalla</label>
+    <select id="scenario">
+      <option value="health-ready">Health Check · Ready</option>
+      <option value="counting-health-offline">Conteo · Offline</option>
+      <option value="cuts-ready">Cortes · Ready</option>
+      <option value="layout">Supervisión / Maestro</option>
+      <option value="health-blocked">Health Check · Bloqueado</option>
+    </select>
+    <button id="reload">RECARGAR MODELO</button>
+
+    <div class="meta">
+      <div><small>Modelo visual</small><strong>iPhone 15 Pro Max</strong></div>
+      <div><small>Viewport</small><strong>407 × 908</strong></div>
+      <div><small>Motor</small><strong>WebKit</strong></div>
+      <div><small>Tema</small><strong>Dark</strong></div>
+    </div>
+  </aside>
+
+  <main class="stage">
+    <div class="phone" aria-label="Modelo visual iPhone">
+      <span class="side mute"></span><span class="side vol1"></span><span class="side vol2"></span><span class="side power"></span>
+      <div class="screen">
+        <div class="status"><span id="clock">9:41</span><span class="status-right">●●● 5G ▰</span></div>
+        <div class="island"><span class="speaker"></span><span class="camera"></span></div>
+        <iframe class="viewport" id="app" title="INVEN3 iOS preview"></iframe>
+        <div class="home-indicator"></div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    const scenario=document.getElementById('scenario');
+    const frame=document.getElementById('app');
+    const reload=document.getElementById('reload');
+    function load(){
+      frame.src='/?fixture='+encodeURIComponent(scenario.value)+'&iosLab=1';
+      const url=new URL(location.href);
+      url.searchParams.set('fixture',scenario.value);
+      history.replaceState(null,'',url);
+    }
+    const initial=new URL(location.href).searchParams.get('fixture');
+    if(initial && [...scenario.options].some(o=>o.value===initial)) scenario.value=initial;
+    scenario.addEventListener('change',load);
+    reload.addEventListener('click',load);
+    load();
+  </script>
+</body>
+</html>
