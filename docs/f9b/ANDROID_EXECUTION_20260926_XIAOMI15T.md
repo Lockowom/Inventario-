@@ -266,3 +266,36 @@ Runner fresco de una sola orden:
 `npm run certify:f9b:android-fresh`
 
 Este comando valida tests offline relevantes, recompila, sincroniza Capacitor, genera APK debug, instala con `adb install -r` preservando SQLite y ejecuta la certificación física.
+
+
+## ANDROID_PHYSICAL = PASS — 2026-09-27
+
+Certificación integral completada en Xiaomi 15T mediante `npm run certify:f9b:android-fresh`.
+
+Resultado observado:
+
+- build Android: PASS;
+- APK fresh instalada con `adb install -r`: PASS;
+- `READY_OFFLINE`: PASS;
+- creación de conteo offline: PASS;
+- persistencia tras cierre/reapertura: PASS;
+- persistencia tras reboot físico: PASS;
+- unlock post-reboot / almacenamiento credential-encrypted: PASS;
+- modo avión post-reboot: PASS;
+- keyboard layout: PASS;
+- portrait overflow: PASS;
+- landscape overflow: PASS;
+- Supabase reachable tras recuperar conectividad: PASS;
+- sync post-reboot: PASS;
+- scanner cancel/no-autosave: PASS;
+- scanner óptico físico real: PASS.
+
+Cruce remoto QA adicional:
+
+- los conteos offline pendientes con `client_count_id` distintos fueron recibidos en Supabase;
+- tres registros backlog fueron confirmados juntos a `2026-09-27 15:31:40.214451+00`;
+- no se observó duplicación por `client_count_id` en el cruce realizado.
+
+Resultado final: `ANDROID_PHYSICAL = PASS`.
+
+La evidencia automática quedó bajo `artifacts/f9b-android-device/2026-09-27T15-29-51-211Z`.
