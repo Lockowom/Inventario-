@@ -78,7 +78,7 @@ export class AuthService {
     if (!client) return { unsubscribe: () => undefined }
     return client.auth.onAuthStateChange((event, session) => {
       if (session?.user?.id) persistAuthUserId(session.user.id)
-      else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') clearPersistedAuthUserId()
+      else if (event === 'SIGNED_OUT') clearPersistedAuthUserId()
       listener(event, session)
     }).data.subscription
   }
