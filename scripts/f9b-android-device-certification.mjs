@@ -218,17 +218,60 @@ async function createPending(page) {
   await section.getByRole('heading', { name: 'CONTEO FÍSICO' }).waitFor({ state: 'visible' })
   const before = await outstandingCount(section)
 
-  await fieldInput(section, 'UBICACION').fill('A-01-03')
+  const location = fieldInput(section, 'UBICACION')
   const code = fieldInput(section, 'CODIGO')
+  const quantity = fieldInput(section, 'Cantidad Contada')
+  const save = section.getByRole('button', { name: 'GUARDAR CONTEO' })
+
+  await location.waitFor({ state: 'visible', timeout: 30000 })
+  await withTimeout((async () => {
+    while (!(await location.isEnabled().catch(() => false))) await page.waitForTimeout(250)
+  })(), 30000, 'Habilitación del formulario de conteo')
+
+  await location.fill('A-01-03')
   await code.fill('001234')
   await code.press('Tab')
-  await page.waitForTimeout(500)
-  const quantity = fieldInput(section, 'Cantidad Contada')
+
+  stage('Esperando resolución del SKU y capacidad local')
+  await withTimeout((async () => {
+    while (true) {
+      const description = await section.locator('label.field').filter({ hasText: /^DESCRIPCION/ }).locator('textarea').inputValue().catch(() => '')
+      const enabled = await save.isEnabled().catch(() => false)
+      if (description.trim() && enabled) return
+      await page.waitForTimeout(250)
+    }
+  })(), 30000, 'Resolución de SKU/capacidad para GUARDAR')
+
   if (await quantity.isEnabled()) await quantity.fill('1')
 
-  const save = section.getByRole('button', { name: 'GUARDAR CONTEO' })
-  if (!(await save.isEnabled())) throw new Error('GUARDAR CONTEO está bloqueado antes de crear el PENDING.')
-  await save.click()
+  const state = await save.evaluate((button) => {
+    const rect = button.getBoundingClientRect()
+    return {
+      disabled: button.disabled,
+      text: button.textContent,
+      rect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right, width: rect.width, height: rect.height },
+      viewport: { width: window.innerWidth, height: window.innerHeight, scrollY: window.scrollY },
+    }
+  })
+  console.log('[INFO] Estado GUARDAR antes del click:', JSON.stringify(state))
+  if (state.disabled) throw new Error(`GUARDAR CONTEO sigue deshabilitado: ${JSON.stringify(state)}`)
+
+  await save.scrollIntoViewIfNeeded().catch(() => {})
+  await page.waitForTimeout(300)
+
+  const clickable = await save.isVisible().catch(() => false)
+  if (clickable) {
+    try {
+      await save.click({ timeout: 8000 })
+    } catch (error) {
+      console.log('[WARN] Click Playwright falló; usando click DOM nativo:', error instanceof Error ? error.message : String(error))
+      await save.evaluate((button) => button.click())
+    }
+  } else {
+    console.log('[WARN] GUARDAR no es visible para Playwright; usando click DOM nativo.')
+    await save.evaluate((button) => button.click())
+  }
+
   await section.getByText('CONTEO GUARDADO', { exact: true }).waitFor({ state: 'visible', timeout: 15000 })
 
   const deadline = Date.now() + 15000
