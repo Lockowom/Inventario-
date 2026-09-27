@@ -67,22 +67,22 @@ describe('certificación y migración del snapshot local', () => {
     await expect(local.getMetadata(inventoryId)).resolves.toMatchObject({ masterVersion: 1 })
   })
 
-  it('migra una base nueva de v0 a v5', async () => {
+  it('migra una base nueva de v0 a v6', async () => {
     const database = new FakeSqliteDatabase(0)
     await applySqliteMigrations(database)
-    expect(database.userVersion).toBe(5)
-    expect(database.appliedVersions).toEqual([1, 2, 3, 4, 5])
+    expect(database.userVersion).toBe(6)
+    expect(database.appliedVersions).toEqual([1, 2, 3, 4, 5, 6])
   })
 
-  it('migra una base v3 a v5 sin repetir migraciones aprobadas', async () => {
+  it('migra una base v3 a v6 sin repetir migraciones aprobadas', async () => {
     const database = new FakeSqliteDatabase(3)
     await applySqliteMigrations(database)
-    expect(database.userVersion).toBe(5)
-    expect(database.appliedVersions).toEqual([4, 5])
+    expect(database.userVersion).toBe(6)
+    expect(database.appliedVersions).toEqual([4, 5, 6])
   })
 
-  it('no modifica una base v5', async () => {
-    const database = new FakeSqliteDatabase(5)
+  it('no modifica una base v6', async () => {
+    const database = new FakeSqliteDatabase(6)
     await applySqliteMigrations(database)
     expect(database.appliedVersions).toEqual([])
   })
