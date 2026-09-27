@@ -1,6 +1,6 @@
 # Manifiesto de provisión QA y preparación Edge — F9B.4
 
-Estado: `EXECUTED_PARTIAL / QA_ONLY`. La provisión autorizada ya fue ejecutada exclusivamente en `INVEN3-QA` (`uazunvlxlszdyweddxtb`): usuarios sintéticos, profiles, assignments, inventario, maestro mínimo, apertura, conteos, sync/idempotencia, controles RLS y un primer corte. No contiene credenciales ni secretos. Los gates quedan en `ANDROID_PHYSICAL = PASS`, `IOS_PHYSICAL = MANUAL_REQUIRED`, `RP_REAL_IMPORT = BLOCKED_EXTERNAL` y `BETA_MANUAL = PASS`.
+Estado: `EXECUTED_PARTIAL / QA_ONLY`. La provisión autorizada ya fue ejecutada exclusivamente en `INVEN3-QA` (`uazunvlxlszdyweddxtb`): usuarios sintéticos, profiles, assignments, inventario, maestro mínimo, apertura, conteos, sync/idempotencia, controles RLS y un primer corte. No contiene credenciales ni secretos. Los gates quedan en `ANDROID_PHYSICAL = PASS`, `IOS_PHYSICAL = MANUAL_REQUIRED`, `RP_REAL_IMPORT = PASS_WITH_WARNINGS` y `BETA_MANUAL = PASS`.
 
 Baseline de provisión documentada: `24cdf452bb333fdaa1271d6305fc41c6c8475adc`. `REMOTE_QA_SECURITY_HARDENING_DEPLOYED = PASS`: 21/21 migraciones alineadas hasta `20260926043115_phase_9_remote_default_privilege_hardening.sql`. Las cuatro Edge Functions están `ACTIVE` con `verify_jwt = true`. El estado operacional posterior a la provisión está resumido en `REMOTE_QA_EXECUTION_STATUS.md`.
 
