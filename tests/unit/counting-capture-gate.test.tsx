@@ -11,12 +11,12 @@ function record(syncStatus: LocalCountRecord['syncStatus']): LocalCountRecord {
   return { id: `${syncStatus}-id`, clientCountId: `${syncStatus}-client`, inventoryId, userId, deviceId, ubicacion: 'A-01', codigo: '00001', serie: null, partida: 'P-1', piezaProducto: null, fechaVencimiento: null, talla: null, color: null, cantidadContada: 1, descripcion: 'Producto', controlType: 'PARTIDA', capturedAt: '2026-09-25T12:00:00.000Z', createdAt: '2026-09-25T12:00:00.000Z', syncStatus, syncAttempts: 0, lastSyncError: null, syncStartedAt: null, nextRetryAt: null, confirmedAt: null, serverCountId: null, lastSyncAt: null }
 }
 
-function runtime(): CountingRuntime {
+function runtime(pendingCount = 1): CountingRuntime {
   const counts = [record('PENDING'), record('CONFIRMED'), record('FAILED')]
   return {
     context: { inventoryId, userId, inventoryStatus: 'ABIERTO' },
     masters: { getMetadata: async () => ({ inventoryId, masterVersion: 1, rowCount: 1, fingerprint: 'a'.repeat(64), cachedAt: '2026-09-25T12:00:00.000Z' }), findByCode: async () => null, listByInventory: async () => [], replaceSnapshot: async () => undefined },
-    counts: { getOrCreateDeviceId: async () => deviceId, countPendingByDevice: async () => 1, listOwnCounts: async () => counts },
+    counts: { getOrCreateDeviceId: async () => deviceId, countPendingByDevice: async () => pendingCount, listOwnCounts: async () => counts },
   } as unknown as CountingRuntime
 }
 
@@ -44,6 +44,19 @@ describe('CountingScreen Device Health capture gate', () => {
   it.each(['READY', 'READY_OFFLINE', 'READY_WITH_WARNINGS'])('does not disable saving because Health is %s', async () => {
     render(<CountingScreen runtime={runtime()} syncCoordinator={coordinator} captureGate={{ blocked: false, message: null }} />)
     await waitFor(() => expect(screen.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeEnabled())
+  })
+
+  it.each([
+    [39, /Pendientes: 39 \/ 50/, false],
+    [40, /Advertencia: existen varios conteos pendientes/, false],
+    [45, /Advertencia crítica: el dispositivo está próximo al límite/, false],
+    [50, /Debe sincronizar antes de continuar; GUARDAR está bloqueado/, true],
+  ] as const)('certifies capacity UI at %i pending counts', async (pendingCount, expectedMessage, saveBlocked) => {
+    render(<CountingScreen runtime={runtime(pendingCount)} syncCoordinator={coordinator} captureGate={{ blocked: false, message: null }} />)
+    await waitFor(() => expect(screen.getByText(expectedMessage)).toBeVisible())
+    const save = screen.getByRole('button', { name: 'GUARDAR CONTEO' })
+    if (saveBlocked) expect(save).toBeDisabled()
+    else expect(save).toBeEnabled()
   })
 
   it('keeps app-level runOutstanding available when authorization has no capture runtime', () => {
