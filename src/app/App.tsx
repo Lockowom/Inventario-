@@ -35,7 +35,7 @@ function AuthBoundary() {
   const [state, setState] = useState<'CHECKING' | 'SIGNED_OUT' | 'SIGNED_IN'>('CHECKING')
   useEffect(() => {
     let active = true
-    void authService.getSession().then((session) => { if (active) setState(session ? 'SIGNED_IN' : 'SIGNED_OUT') }).catch(() => { if (active) setState('SIGNED_OUT') })
+    void authService.hasRuntimeIdentity().then((signedIn) => { if (active) setState(signedIn ? 'SIGNED_IN' : 'SIGNED_OUT') }).catch(() => { if (active) setState('SIGNED_OUT') })
     const authChanges = authService.onAuthStateChange((_event, session) => { if (active) setState(session ? 'SIGNED_IN' : 'SIGNED_OUT') })
     const localSignOut = authService.onLocalSignOut(() => { if (active) setState('SIGNED_OUT') })
     return () => { active = false; authChanges.unsubscribe(); localSignOut.unsubscribe() }
