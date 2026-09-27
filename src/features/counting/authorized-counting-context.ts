@@ -4,6 +4,7 @@ import type { ActiveCountingContext } from '../../domain/count/save-physical-cou
 import { profileSchema } from '../../domain/auth/contracts'
 import { getSupabaseClient } from '../../services/supabase'
 import { classifyAuthError, classifyPostgrestError } from './supabase-error-classification'
+import { persistAuthUserId, readPersistedAuthUserId } from '../../services/local-auth-identity'
 
 const inventoryRowSchema = z.object({ id: z.uuid(), status: z.enum(['BORRADOR', 'PREPARADO', 'ABIERTO', 'CERRADO', 'CONGELADO']) })
 
@@ -52,7 +53,14 @@ export async function getLocalSessionUserId(): Promise<string | null> {
   if (!client) return null
   try {
     const { data, error } = await client.auth.getSession()
-    if (error) return null
-    return data.session?.user.id ?? null
-  } catch { return null }
+    const userId = data.session?.user?.id ?? null
+    if (userId) {
+      persistAuthUserId(userId)
+      return userId
+    }
+    if (error && classifyAuthError(error).kind === 'UNAVAILABLE') return readPersistedAuthUserId()
+    return null
+  } catch (error: unknown) {
+    return classifyAuthError(error).kind === 'UNAVAILABLE' ? readPersistedAuthUserId() : null
+  }
 }
