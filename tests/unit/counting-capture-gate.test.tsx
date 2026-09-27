@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CountingScreen, type CountingRuntime } from '../../src/features/counting/counting-screen'
 import type { LocalCountRecord } from '../../src/domain/count/contracts'
@@ -63,6 +63,19 @@ describe('CountingScreen Device Health capture gate', () => {
     render(<CountingScreen runtime={null} syncCoordinator={coordinator} captureGate={{ blocked: true, message: 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.' }} />)
     expect(screen.getByRole('button', { name: 'SINCRONIZAR AHORA' })).toBeEnabled()
     expect(screen.getByText(/Captura bloqueada por Health Check/)).toBeVisible()
+  })
+
+  it('manual sync requests an immediate retry', async () => {
+    const runInventorySync = vi.fn(async () => ({ claimed: 1, confirmed: 1, rejected: 0, failed: 0, conflicts: 0, diagnostic: null }))
+    const manualCoordinator = {
+      runInventorySync,
+      runOutstanding: vi.fn(async () => ({ scopes: 1, claimed: 1, confirmed: 1, rejected: 0, failed: 0, conflicts: 0, diagnostic: null })),
+    } as unknown as SyncCoordinator
+
+    render(<CountingScreen runtime={runtime()} syncCoordinator={manualCoordinator} captureGate={{ blocked: false, message: null }} />)
+    const button = await screen.findByRole('button', { name: 'SINCRONIZAR AHORA' })
+    fireEvent.click(button)
+    await waitFor(() => expect(runInventorySync).toHaveBeenCalledWith(inventoryId, { forceRetry: true }))
   })
 
   it('keeps a restored scanner result durable while blocked, then applies it exactly once after READY', async () => {
