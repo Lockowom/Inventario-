@@ -3,6 +3,8 @@ import { profileSchema, type AppRole, type Profile } from '../../domain/auth/con
 import { getSupabaseClient } from '../../services/supabase'
 import { getCountingContextRepository } from '../counting/counting-runtime'
 import { signOutAndClearCountingContext } from '../../domain/count/sign-out-counting-context'
+import { clearPersistedAuthUserId, persistAuthUserId, readPersistedAuthUserId } from '../../services/local-auth-identity'
+import { classifyAuthError } from '../counting/supabase-error-classification'
 
 export interface AuthSubscription { unsubscribe(): void }
 export type AuthSessionListener = (event: AuthChangeEvent, session: Session | null) => void
@@ -15,7 +17,26 @@ export class AuthService {
     if (!client) return null
     const { data, error } = await client.auth.getSession()
     if (error) throw error
+    if (data.session?.user?.id) persistAuthUserId(data.session.user.id)
+    if (!data.session) clearPersistedAuthUserId()
     return data.session
+  }
+
+  public async hasRuntimeIdentity(): Promise<boolean> {
+    const client = getSupabaseClient()
+    if (!client) return false
+    try {
+      const { data, error } = await client.auth.getSession()
+      if (data.session?.user?.id) {
+        persistAuthUserId(data.session.user.id)
+        return true
+      }
+      if (error && classifyAuthError(error).kind === 'UNAVAILABLE') return readPersistedAuthUserId() !== null
+      if (!error) clearPersistedAuthUserId()
+      return false
+    } catch (error: unknown) {
+      return classifyAuthError(error).kind === 'UNAVAILABLE' && readPersistedAuthUserId() !== null
+    }
   }
 
   public async signIn(email: string, password: string): Promise<Session> {
@@ -25,6 +46,8 @@ export class AuthService {
     if (!normalizedEmail || !password) throw new Error('Correo y contraseña son obligatorios.')
     const { data, error } = await client.auth.signInWithPassword({ email: normalizedEmail, password })
     if (error || !data.session) throw new Error('Credenciales inválidas o sesión no disponible.')
+    const userId = data.session.user?.id ?? data.user?.id
+    if (userId) persistAuthUserId(userId)
     return data.session
   }
 
@@ -53,7 +76,11 @@ export class AuthService {
   public onAuthStateChange(listener: AuthSessionListener): AuthSubscription {
     const client = getSupabaseClient()
     if (!client) return { unsubscribe: () => undefined }
-    return client.auth.onAuthStateChange(listener).data.subscription
+    return client.auth.onAuthStateChange((event, session) => {
+      if (session?.user?.id) persistAuthUserId(session.user.id)
+      else if (event === 'SIGNED_OUT' || event === 'USER_DELETED') clearPersistedAuthUserId()
+      listener(event, session)
+    }).data.subscription
   }
 
   public onLocalSignOut(listener: () => void): AuthSubscription {
@@ -70,6 +97,7 @@ export class AuthService {
         if (error) throw error
       }, getCountingContextRepository())
     } finally {
+      clearPersistedAuthUserId()
       for (const listener of this.localSignOutListeners) listener()
     }
   }
