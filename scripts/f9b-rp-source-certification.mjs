@@ -49,12 +49,14 @@ function number(value) {
   return Number.isFinite(n) ? n : Number.NaN
 }
 function rows(sheetName) {
-  const sheet = workbook.Sheets[sheetName]
+  const actualName = actualSheetName(sheetName)
+  const sheet = workbook.Sheets[actualName]
   if (!sheet) return []
   return XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true })
 }
 function formulas(sheetName) {
-  const sheet = workbook.Sheets[sheetName]
+  const actualName = actualSheetName(sheetName)
+  const sheet = workbook.Sheets[actualName]
   if (!sheet) return []
   return Object.entries(sheet)
     .filter(([address, cell]) => !address.startsWith('!') && cell && typeof cell === 'object' && 'f' in cell && cell.f)
@@ -84,11 +86,24 @@ console.log(`Bytes:   ${bytes.length}`)
 console.log('')
 
 const actualSheets = workbook.SheetNames
-if (JSON.stringify(actualSheets) === JSON.stringify(expectedSheets)) pass('SHEETS', actualSheets.join(', '))
-else fail('SHEETS', `esperado=${JSON.stringify(expectedSheets)} recibido=${JSON.stringify(actualSheets)}`)
+const normalizedSheetMap = new Map(actualSheets.map((name) => [name.trim().toUpperCase(), name]))
+const normalizedSheets = actualSheets.map((name) => name.trim().toUpperCase())
+
+if (JSON.stringify(normalizedSheets) === JSON.stringify(expectedSheets)) {
+  pass('SHEETS', actualSheets.join(', '))
+  const renamed = actualSheets.filter((name, index) => name !== expectedSheets[index])
+  if (renamed.length) warn('SHEET_NAME_WHITESPACE', `nombres normalizados: ${JSON.stringify(renamed)}`)
+} else {
+  fail('SHEETS', `esperado=${JSON.stringify(expectedSheets)} recibido=${JSON.stringify(actualSheets)}`)
+}
+
+function actualSheetName(logicalName) {
+  return normalizedSheetMap.get(logicalName.trim().toUpperCase()) ?? logicalName
+}
 
 for (const sheetName of expectedSheets) {
-  const sheet = workbook.Sheets[sheetName]
+  const actualName = actualSheetName(sheetName)
+  const sheet = workbook.Sheets[actualName]
   if (!sheet) continue
   const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, raw: false })
   const actualHeader = (matrix[0] || []).map((v) => text(v))
