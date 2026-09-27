@@ -74,3 +74,44 @@ Opciones estudiadas:
 - `IOS_VIRTUAL_WEBKIT`: puede cerrarse sin iPhone.
 - `IOS_NATIVE_SIMULATOR_BUILD`: puede cerrarse sin iPhone mediante Mac cloud.
 - `IOS_PHYSICAL`: permanece manual hasta ejecutar sobre hardware real/remoto.
+
+
+## Nivel 1B — matriz comparativa iPhone 11 → 18
+
+Vista visual conjunta:
+
+`npm run preview:ios:matrix`
+
+La matriz incluye 23 perfiles:
+
+- iPhone 11 / 11 Pro / 11 Pro Max;
+- iPhone 12 / 12 Pro / 12 Pro Max;
+- iPhone 13 / 13 Pro / 13 Pro Max;
+- iPhone 14 / 14 Pro / 14 Pro Max;
+- iPhone 15 / 15 Pro / 15 Pro Max;
+- iPhone 16 / 16 Pro / 16 Pro Max;
+- iPhone 17 / 17 Pro / 17 Pro Max;
+- iPhone 18 Pro / 18 Pro Max.
+
+La vista permite cambiar simultáneamente el fixture para comparar Health Check, Conteo offline, Cortes, Supervisión/Maestro y Health bloqueado.
+
+Certificación automatizada:
+
+`npm run certify:f9b:ios-matrix`
+
+El runner levanta WebKit headless y valida cada perfil con:
+
+- viewport individual;
+- touch habilitado;
+- user-agent iPhone;
+- Health Check visible;
+- Conteo físico visible;
+- cero overflow horizontal en ambos escenarios;
+- captura de evidencia por dispositivo.
+
+Salida:
+
+- `artifacts/ios-matrix/*-health-ready.png`;
+- `artifacts/ios-matrix/IOS-MATRIX-CERTIFICATION.json`.
+
+Gate propuesto: `IOS_VIRTUAL_DEVICE_MATRIX`. Sólo se marca PASS después de ejecutar el runner y obtener 23/23 perfiles válidos.
