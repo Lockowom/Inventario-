@@ -29,7 +29,7 @@ vi.mock('../../src/features/counting/counting-runtime', () => ({
 }))
 
 import { AuthService } from '../../src/features/auth/auth-service'
-import { readPersistedAuthUserId } from '../../src/services/local-auth-identity'
+import { persistAuthUserId, readPersistedAuthUserId } from '../../src/services/local-auth-identity'
 
 const userId = '22222222-2222-4222-8222-222222222222'
 const cachedContext = {
@@ -91,5 +91,18 @@ describe('AuthService', () => {
     mocks.getCachedContext.mockResolvedValue(null)
 
     await expect(new AuthService().hasRuntimeIdentity()).resolves.toBe(false)
+  })
+
+  it('invalida identidad y lease SQLite cuando el servidor niega autoridad', async () => {
+    const service = new AuthService()
+    const listener = vi.fn()
+    service.onLocalSignOut(listener)
+    persistAuthUserId(userId)
+
+    await service.invalidateLocalAuthority()
+
+    expect(readPersistedAuthUserId()).toBeNull()
+    expect(mocks.clearCachedContext).toHaveBeenCalledTimes(1)
+    expect(listener).toHaveBeenCalledTimes(1)
   })
 })
