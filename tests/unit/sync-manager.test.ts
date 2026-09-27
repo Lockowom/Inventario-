@@ -26,8 +26,8 @@ class MemoryOutbox implements CountRepository {
   public async listOutstandingSyncScopes(scopeUserId: string) { return [...new Set(this.records.filter((item) => item.userId === scopeUserId && item.syncStatus !== 'CONFIRMED' && item.syncStatus !== 'REJECTED').map((item) => item.inventoryId))].map((inventoryId) => ({ inventoryId, userId: scopeUserId })) }
   public async countPendingByDevice(id: string) { void id; return this.records.filter((item) => item.syncStatus !== 'CONFIRMED' && item.syncStatus !== 'REJECTED').length }
   public async countOutstandingByInventoryDevice(scopeInventoryId: string, id: string) { return this.records.filter((item) => item.inventoryId === scopeInventoryId && item.deviceId === id && item.syncStatus !== 'CONFIRMED' && item.syncStatus !== 'REJECTED').length }
-  public async claimNextSyncBatch(input: { inventoryId: string; userId: string; max: number; now: string }) {
-    const claimed = this.records.filter((item) => item.inventoryId === input.inventoryId && item.userId === input.userId && (item.syncStatus === 'PENDING' || (item.syncStatus === 'FAILED' && (!item.nextRetryAt || item.nextRetryAt <= input.now)))).slice(0, input.max)
+  public async claimNextSyncBatch(input: { inventoryId: string; userId: string; max: number; now: string; forceRetry?: boolean }) {
+    const claimed = this.records.filter((item) => item.inventoryId === input.inventoryId && item.userId === input.userId && (item.syncStatus === 'PENDING' || (item.syncStatus === 'FAILED' && (input.forceRetry === true || !item.nextRetryAt || item.nextRetryAt <= input.now)))).slice(0, input.max)
     for (const item of claimed) { item.syncStatus = 'SYNCING'; item.syncStartedAt = input.now; item.lastSyncError = null }
     return claimed.map((item) => ({ ...item }))
   }
@@ -137,6 +137,33 @@ describe('SyncManager', () => {
     const retryAt = outbox.records[0]?.nextRetryAt
     expect(retryAt).toBeDefined()
     expect(retryAt !== null && retryAt !== undefined && retryAt > now.toISOString()).toBe(true)
+  })
+
+  it('auto-sync respeta backoff pero SINCRONIZAR AHORA fuerza reintento inmediato', async () => {
+    const now = new Date('2026-09-17T12:00:00.000Z')
+    const failed = {
+      ...record(1),
+      syncStatus: 'FAILED' as const,
+      syncAttempts: 2,
+      lastSyncError: 'SYNC_TRANSIENT_UNAVAILABLE',
+      nextRetryAt: '2026-09-17T12:05:00.000Z',
+    }
+    const outbox = new MemoryOutbox([failed])
+    gatewayInstance = gateway((records) => records.map((item) => ({
+      client_count_id: item.clientCountId,
+      result_status: 'ACCEPTED',
+      server_count_id: serverId,
+      received_at: '2026-09-17T12:00:10.000Z',
+      reason: null,
+    })))
+
+    const automatic = await new SyncManager({ inventoryId, userId }, outbox, gatewayInstance, () => now).run()
+    expect(automatic).toMatchObject({ claimed: 0, confirmed: 0 })
+    expect(outbox.records[0]?.syncStatus).toBe('FAILED')
+
+    const manual = await new SyncManager({ inventoryId, userId }, outbox, gatewayInstance, () => now).run({ forceRetry: true })
+    expect(manual).toMatchObject({ claimed: 1, confirmed: 1, failed: 0 })
+    expect(outbox.records[0]?.syncStatus).toBe('CONFIRMED')
   })
 
   it('reporta freeze guards sólo con pendientes de su inventario', async () => {
