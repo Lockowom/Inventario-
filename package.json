@@ -20,8 +20,9 @@
     "certify:f9b:remote-rp": "node scripts/f9b-remote-rp-certification.mjs",
     "certify:f9b:remote-f8": "node --experimental-strip-types scripts/f9b-remote-f8-certification.mjs",
     "certify:f9b:auto-offline": "npm run typecheck && vitest run tests/unit/phase-9-offline-certification.test.ts tests/unit/count-storage.test.ts tests/unit/counting-capture-gate.test.tsx tests/unit/sync-manager.test.ts tests/unit/auth-boundary-state.test.ts tests/unit/auth-service.test.ts tests/unit/scanner-health-probe.test.ts",
-    "certify:f9b:auto-all": "npm run typecheck && npm run test && npm run test:e2e && npm run build",
-    "certify:f9b:android-device": "node scripts/f9b-android-device-certification.mjs"
+    "certify:f9b:auto-all": "npm run typecheck && npm run test && npm run test:e2e && npm run test:visual && npm run build",
+    "certify:f9b:android-device": "node scripts/f9b-android-device-certification.mjs",
+    "certify:f9b:complete": "npm run certify:f9b:auto-all && npm run certify:f9b:android-device"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^8.1.1",
