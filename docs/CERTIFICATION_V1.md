@@ -17,7 +17,7 @@ Certified CI run: [`36211223328`](https://github.com/Lockowom/Inventario-/action
 | OFFLINE | freeze con pendientes conocidos | AUTOMATED | F4/F6 y pgTAP existentes | bloquea >0; se resuelve tras reportar 0 | CI 36189000875/database-checks | PASS |
 | DEVICES | build, Capacitor, plugins y configuración | AUTOMATED | `app-checks` + inspección estática | Android/iOS sync; SQLite y scanner configurados | CI 36189000875/app-checks | PASS |
 | DEVICES | Device Health Check | AUTOMATED | DeviceHealthScreen, gate de captura y fixtures DEV | LIGHT/FULL, 11 checks, labels contractuales; BLOCKED sólo bloquea nueva captura; READY/OFFLINE/WARN permiten guardar | CI 36211223328/app-checks + phase-9-e2e-visual: 184 unit, 35 E2E, 4 visual | PASS |
-| DEVICES | cámara, scanner, SQLite y safe areas reales | MANUAL_PHYSICAL | `F9B_EXECUTION_PACK.md`, `DEVICE_QA_V1.md`, `f9b/` | checklist por Android/iOS ejecutado en hardware | evidencia QA | MANUAL_REQUIRED |
+| DEVICES | cámara, scanner, SQLite y safe areas reales | MANUAL_PHYSICAL | `F9B_EXECUTION_PACK.md`, `DEVICE_QA_V1.md`, `f9b/` | Android completo; iOS instalación/arranque/configuración real y UI física verificadas; ciclo offline exhaustivo iOS diferido por alcance | evidencia QA | PASS_ANDROID / DEFERRED_IOS |
 | VISUAL | viewports 320,360,390,412,420,430,600,768,900,1024,1440 | AUTOMATED | Playwright e2e sobre flujo real de Cortes | sin overflow horizontal; `VER DETALLE`, detalle inmutable, rectificación y artefacto visibles | CI 36189000875/phase-9-e2e-visual | PASS |
 | VISUAL | conteo 320,390,412,430 | AUTOMATED | Playwright e2e | sin overflow; Guardar visible; mensajes 40/45/50 y `Mis conteos`; bloqueo en 50 | CI 36189000875/phase-9-e2e-visual | PASS |
 | VISUAL | conteo, mis conteos, supervisión, cortes, detalle, rectificación, evidencias y maestro | AUTOMATED | fixture determinista | headings, labels y controles críticos visibles | CI 36189000875/phase-9-e2e-visual | PASS |
@@ -26,8 +26,8 @@ Certified CI run: [`36211223328`](https://github.com/Lockowom/Inventario-/action
 | RP | XLSX oficial Edge→Storage→download | AUTOMATED | F7 harness | 9 columnas, orden, ceros, fecha, blanks, cantidad, sin fórmulas, SHA | CI 36189000875/phase-7-edge-storage | PASS |
 | REMOTE_QA | Corte 001 RP autenticado | REMOTE_QA | `npm run certify:f9b:remote-rp` | sesión QA real; corte READY; signed download; SHA/tamaño; contrato XLSX | `F9B_REMOTE_RP_PASS`, 2026-09-26; SHA `ece3d3d966c9287d591e9d7636fe2752417e4cecb982f62020966a667951019c`, 17302 bytes | PASS |
 | REMOTE_QA | F8 rectificación y artefactos | REMOTE_QA | `npm run certify:f9b:remote-f8` | SNAPSHOT, RECTIFICATION_XLSX, CUT_READY_BACKUP, idempotencia, as-of, signed download, SHA/tamaño, RLS/Storage y audit | `F9B_REMOTE_F8_PASS`, 2026-09-26; evidencia en `docs/f9b/REMOTE_QA_EXECUTION_STATUS.md` | PASS |
-| RP | importación real Softland/RP | EXTERNAL_RP | `F9B_EXECUTION_PACK.md`, `RP_ACCEPTANCE_V1.md`, `f9b/` | importación controlada documentada | evidencia RP | BLOCKED_EXTERNAL |
-| BETA | aceptación interna no productiva | BETA | `F9B_EXECUTION_PACK.md`, `BETA_ACCEPTANCE_V1.md`, `f9b/` | checklist humano sobre fixtures | evidencia beta | MANUAL_REQUIRED |
+| RP | importación real Softland/RP | EXTERNAL_RP | `F9B_EXECUTION_PACK.md`, `RP_ACCEPTANCE_V1.md`, `f9b/` | dataset real RP certificado; conciliación 0 diferencias; warnings de calidad fuente documentados | `docs/f9b/RP_SOURCE_EXECUTION_20260927.md` | PASS_WITH_WARNINGS |
+| BETA | aceptación interna no productiva | BETA | `F9B_EXECUTION_PACK.md`, `BETA_ACCEPTANCE_V1.md`, `f9b/` | checklist humano sobre fixtures | `docs/f9b/BETA_EXECUTION_20260927.md` | PASS |
 | SECURITY | RLS/advisors/audit | AUTOMATED | pgTAP, advisors, npm audit | sin regresión de seguridad ni vulnerabilidades prod | CI 36189000875/database-checks + app-checks | PASS |
 | REGRESSION | F0–F8 | AUTOMATED | jobs existentes | unit, pgTAP, F4/F6, F7, F8 conservados | CI 36189000875/app-checks + database-checks + phase-7-edge-storage + phase-8-edge-storage | PASS |
 
@@ -36,8 +36,8 @@ Certified CI run: [`36211223328`](https://github.com/Lockowom/Inventario-/action
 - F9A no agrega conciliación, stock RP, diferencias, ajustes, valorización, SCI, roles ni tablas de negocio.
 - La carga usa datos efímeros de Supabase local y no enlaza, aplica ni consulta Supabase remoto.
 - El benchmark registra integridad como criterio primario; tiempo, records/s y RSS son observaciones, no SLA contractual.
-- Device Health automated = `PASS` en CI 36211223328; Android/iOS físicos para cámara, scanner y SQLite permanecen `MANUAL_REQUIRED`. F9A.4B no agrega RLS adicional, telemetría ni backend.
-- El paquete F9B.1 prepara evidencia manual y externa en `F9B_EXECUTION_PACK.md` y `docs/f9b/`. Los gates remotos RP y F8 ya fueron ejecutados en `INVEN3-QA` y están PASS; `ANDROID_PHYSICAL`, `IOS_PHYSICAL`, `RP_REAL_IMPORT` y `BETA_MANUAL` conservan sus estados manuales/externos.
+- Device Health automatizado permanece PASS. Android físico quedó certificado en Xiaomi 15T. iOS real validó instalación, arranque, Supabase QA configurado, sesión autenticada y render operativo; el ciclo físico offline exhaustivo queda `DEFERRED_NON_BLOCKING` por decisión del owner del 2026-09-28 y no se reetiqueta como PASS.
+- El paquete F9B ya fue ejecutado: `ANDROID_PHYSICAL = PASS`, `RP_REAL_IMPORT = PASS_WITH_WARNINGS`, `BETA_MANUAL = PASS`, iOS virtual/native/device package = PASS y `IOS_PHYSICAL = DEFERRED_NON_BLOCKING` con evidencia parcial real documentada.
 - Durante la provisión QA se detectó un estado Auth inválido causado por insert SQL directo en `auth.users` (`instance_id = NULL`). Se aplicó forward-fix sólo en QA y el procedimiento ahora exige Auth Admin API/Dashboard para creación/actualización de usuarios.
 - La cobertura visual usa el fixture de compilación `VITE_CERTIFICATION_FIXTURE=1` sólo cuando `import.meta.env.DEV` es verdadero; un build productivo siempre renderiza `RuntimeApp`. Sus datos sintéticos son deterministas y contractualmente válidos.
 - `SUPERVISION_LAYOUT_SMOKE = PASS` en CI 36189000875/phase-9-e2e-visual. Los estados de datos de supervisión se certifican por las pruebas unitarias e integración existentes, no se declaran ejecutados por Playwright.
@@ -55,8 +55,8 @@ RP_AUTOMATED      PASS/FAIL
 ANDROID_AUTOMATED PASS/FAIL
 IOS_AUTOMATED     PASS/FAIL
 
-ANDROID_PHYSICAL  MANUAL_REQUIRED
-IOS_PHYSICAL      MANUAL_REQUIRED
-RP_REAL_IMPORT    BLOCKED_EXTERNAL
-BETA_MANUAL       MANUAL_REQUIRED
+ANDROID_PHYSICAL  PASS
+IOS_PHYSICAL      DEFERRED_NON_BLOCKING
+RP_REAL_IMPORT    PASS_WITH_WARNINGS
+BETA_MANUAL       PASS
 ```
