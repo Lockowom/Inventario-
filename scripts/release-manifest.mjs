@@ -37,6 +37,8 @@ const aggregate = sha256(Buffer.from(files.map((file) => `${file.path}:${file.sh
 const environment = process.env.VITE_RELEASE_ENV || policy.defaultEnvironment
 const channel = process.env.VITE_RELEASE_CHANNEL || policy.defaultChannel
 const build = process.env.VITE_APP_BUILD || process.env.GITHUB_RUN_NUMBER || process.env.BUILD_NUMBER || null
+const nativeBuildNumberRaw = process.env.INVEN3_NATIVE_BUILD_NUMBER || ''
+const nativeBuildNumber = /^\\d+$/.test(nativeBuildNumberRaw) ? Number(nativeBuildNumberRaw) : null
 
 const manifest = {
   schemaVersion: 1,
@@ -48,7 +50,10 @@ const manifest = {
   commit: resolveCommit(),
   productionLocked: policy.productionLocked,
   generatedAt: new Date().toISOString(),
-  native: policy.native,
+  native: {
+    ...policy.native,
+    effectiveBuildNumber: nativeBuildNumber,
+  },
   webBundle: {
     fileCount: files.length,
     aggregateSha256: aggregate,
