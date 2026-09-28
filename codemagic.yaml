@@ -307,3 +307,118 @@ workflows:
       - artifacts/release/INVEN3-ios-candidate-evidence.json
       - build-ios-f10a/Build/Products/**/*.app
       - build-ios-f10a/Build/Products/**/*.dSYM
+
+
+  android-release-candidate-f10a:
+    name: INVEN3 Android Release Candidate F10A
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      groups:
+        - inven3_qa
+      node: 24
+      java: 21
+      vars:
+        VITE_RELEASE_ENV: "qa"
+        VITE_RELEASE_CHANNEL: "beta"
+        VITE_RELEASE_VERSION: "1.0.0"
+    scripts:
+      - name: Install JavaScript dependencies
+        script: npm ci
+
+      - name: Stamp QA/BETA candidate identity
+        script: |
+          set -e
+          NATIVE_BUILD=$((10000 + BUILD_NUMBER))
+          echo "VITE_APP_BUILD=${CM_COMMIT:0:8}.${BUILD_NUMBER}" >> "$CM_ENV"
+          echo "INVEN3_NATIVE_BUILD_NUMBER=$NATIVE_BUILD" >> "$CM_ENV"
+          echo "[PASS] candidate build ${CM_COMMIT:0:8}.${BUILD_NUMBER}; native build $NATIVE_BUILD"
+
+      - name: Fail-closed release preflight
+        script: npm run release:preflight
+
+      - name: Typecheck
+        script: npm run typecheck
+
+      - name: Unit tests
+        script: npm run test
+
+      - name: Build QA/BETA web bundle
+        script: npm run build
+
+      - name: Audit built QA/BETA bundle
+        script: npm run release:audit-bundle
+
+      - name: Generate release manifest
+        script: npm run release:manifest
+
+      - name: Sync Capacitor Android
+        script: npx cap sync android
+
+      - name: Build unsigned Android release artifacts
+        script: |
+          set -e
+          chmod +x android/gradlew
+          cd "$CM_BUILD_DIR/android"
+          ./gradlew assembleRelease bundleRelease             -PINVEN3_VERSION_CODE="$INVEN3_NATIVE_BUILD_NUMBER"             -PINVEN3_VERSION_NAME="1.0.0"             --no-daemon
+
+      - name: Create installable QA lab APK
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR"
+          mkdir -p artifacts/release
+          UNSIGNED_APK=$(find android/app/build/outputs/apk/release -type f -name '*-unsigned.apk' -print -quit)
+          test -n "$UNSIGNED_APK"
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)
+          ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -type f -name zipalign -print | sort -V | tail -1)
+          test -x "$APKSIGNER"
+          test -x "$ZIPALIGN"
+          LAB_KEYSTORE="$CM_BUILD_DIR/inven3-f10a-lab.jks"
+          ALIGNED_APK="$CM_BUILD_DIR/inven3-f10a-aligned.apk"
+          LAB_APK="$CM_BUILD_DIR/artifacts/release/INVEN3-1.0.0-beta-${BUILD_NUMBER}-lab.apk"
+          keytool -genkeypair             -keystore "$LAB_KEYSTORE"             -storepass changeit             -keypass changeit             -alias inven3-f10a-lab             -keyalg RSA             -keysize 2048             -validity 2             -dname "CN=INVEN3 F10A QA Lab,O=INVEN3,C=CL"             -noprompt
+          "$ZIPALIGN" -f -v 4 "$UNSIGNED_APK" "$ALIGNED_APK" >/dev/null
+          "$APKSIGNER" sign             --ks "$LAB_KEYSTORE"             --ks-pass pass:changeit             --key-pass pass:changeit             --ks-key-alias inven3-f10a-lab             --out "$LAB_APK"             "$ALIGNED_APK"
+          "$APKSIGNER" verify --verbose --print-certs "$LAB_APK" | tee artifacts/release/android-lab-signature.txt
+          rm -f "$LAB_KEYSTORE" "$ALIGNED_APK"
+          echo "[PASS] Ephemeral QA lab APK created; signing key destroyed"
+
+      - name: Verify Android native version
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR"
+          APK=$(find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print -quit)
+          AAPT=$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort -V | tail -1)
+          test -n "$APK"
+          test -x "$AAPT"
+          "$AAPT" dump badging "$APK" | head -1 | tee artifacts/release/android-package-badging.txt
+          grep -q "versionCode='$INVEN3_NATIVE_BUILD_NUMBER'" artifacts/release/android-package-badging.txt
+          grep -q "versionName='1.0.0'" artifacts/release/android-package-badging.txt
+          echo "[PASS] Android package identity verified"
+
+      - name: Hash Android artifacts
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR"
+          {
+            find android/app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -print0
+            find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print0
+          } | sort -z | xargs -0 shasum -a 256 | tee artifacts/release/android-sha256.txt
+
+      - name: Verify Android release candidate evidence
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR"
+          APK=$(find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print -quit)
+          AAB=$(find android/app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)
+          npm run release:verify-candidate --             --platform android             --artifact "$APK"             --artifact "$AAB"             --out artifacts/release/INVEN3-android-candidate-evidence.json
+
+    artifacts:
+      - artifacts/release/INVEN3-1.0.0-beta-*-lab.apk
+      - android/app/build/outputs/apk/release/*.apk
+      - android/app/build/outputs/bundle/release/*.aab
+      - artifacts/release/android-lab-signature.txt
+      - artifacts/release/android-package-badging.txt
+      - artifacts/release/android-sha256.txt
+      - artifacts/release/INVEN3-release-manifest.json
+      - artifacts/release/INVEN3-android-candidate-evidence.json
