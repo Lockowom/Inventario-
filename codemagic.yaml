@@ -4,6 +4,8 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
+      groups:
+        - inven3_qa
       node: 24
       xcode: 26.4
       cocoapods: default
@@ -16,6 +18,18 @@ workflows:
 
       - name: Typecheck
         script: npm run typecheck
+
+      - name: Verify INVEN3-QA build environment
+        script: |
+          set -e
+          test -n "$VITE_SUPABASE_URL" || { echo "[FAIL] VITE_SUPABASE_URL missing"; exit 21; }
+          test -n "$VITE_SUPABASE_ANON_KEY" || { echo "[FAIL] VITE_SUPABASE_ANON_KEY missing"; exit 22; }
+          case "$VITE_SUPABASE_URL" in
+            *uazunvlxlszdyweddxtb.supabase.co*) ;;
+            *) echo "[FAIL] Refusing non-QA Supabase URL"; exit 23 ;;
+          esac
+          echo "VITE_APP_VERSION=f9b-ios-qa-${CM_COMMIT:0:8}" >> "$CM_ENV"
+          echo "[PASS] INVEN3-QA build environment present"
 
       - name: Build web bundle
         script: npm run build
@@ -82,6 +96,8 @@ workflows:
     max_build_duration: 60
     instance_type: mac_mini_m2
     environment:
+      groups:
+        - inven3_qa
       node: 24
       xcode: 26.4
       cocoapods: default
@@ -94,6 +110,18 @@ workflows:
 
       - name: Typecheck
         script: npm run typecheck
+
+      - name: Verify INVEN3-QA build environment
+        script: |
+          set -e
+          test -n "$VITE_SUPABASE_URL" || { echo "[FAIL] VITE_SUPABASE_URL missing"; exit 21; }
+          test -n "$VITE_SUPABASE_ANON_KEY" || { echo "[FAIL] VITE_SUPABASE_ANON_KEY missing"; exit 22; }
+          case "$VITE_SUPABASE_URL" in
+            *uazunvlxlszdyweddxtb.supabase.co*) ;;
+            *) echo "[FAIL] Refusing non-QA Supabase URL"; exit 23 ;;
+          esac
+          echo "VITE_APP_VERSION=f9b-ios-qa-${CM_COMMIT:0:8}" >> "$CM_ENV"
+          echo "[PASS] INVEN3-QA build environment present"
 
       - name: Build web bundle
         script: npm run build
