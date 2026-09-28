@@ -223,6 +223,9 @@ workflows:
       - name: Build QA/BETA web bundle
         script: npm run build
 
+      - name: Audit built QA/BETA bundle
+        script: npm run release:audit-bundle
+
       - name: Generate release manifest
         script: npm run release:manifest
 
