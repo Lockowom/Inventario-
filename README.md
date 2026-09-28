@@ -4,7 +4,7 @@ Sistema de captura para Inventario General físico, offline-first, con soporte A
 
 ## Estado
 
-**Fase actual:** Fase 9B — cierre de certificación y consolidación del release candidate. Android físico, iOS virtual/nativo, beta y RP real certificados; prueba física iOS exhaustiva diferida sin convertirla en PASS. Fase 10 aún no iniciada.
+**Fase actual:** Fase 10A — Release Engineering en QA/BETA. F9 quedó consolidada; la prueba física iOS exhaustiva permanece diferida sin falso PASS. Producción continúa bloqueada y no se han ejecutado despliegues, migraciones ni promoción productiva.
 
 ## Inicio rápido
 
@@ -69,6 +69,8 @@ La certificación de SQLite, permisos de cámara y scanner requiere pruebas en d
 - [`docs/RECTIFICACIONES_V1.md`](docs/RECTIFICACIONES_V1.md) — contrato F8A de rectificación separada post-corte.
 - [`docs/BACKUPS_RECOVERY_V1.md`](docs/BACKUPS_RECOVERY_V1.md) — contrato F8A de snapshots, respaldos y recuperación.
 - [`docs/CERTIFICATION_V1.md`](docs/CERTIFICATION_V1.md) — matriz autoritativa de certificación F9.
+- [`docs/F10A_RELEASE_ENGINEERING.md`](docs/F10A_RELEASE_ENGINEERING.md) — política, versionado, canales y guardas de release.
+- [`docs/F10A_QA_BETA_RUNBOOK.md`](docs/F10A_QA_BETA_RUNBOOK.md) — ejecución controlada de candidatos QA/BETA.
 - [`docs/DEVICE_QA_V1.md`](docs/DEVICE_QA_V1.md) — checklist físico Android/iOS pendiente.
 - [`docs/RP_ACCEPTANCE_V1.md`](docs/RP_ACCEPTANCE_V1.md) — gate de importación real RP pendiente.
 - [`docs/BETA_ACCEPTANCE_V1.md`](docs/BETA_ACCEPTANCE_V1.md) — aceptación beta interna pendiente.
