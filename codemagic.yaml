@@ -206,8 +206,10 @@ workflows:
       - name: Stamp QA/BETA candidate identity
         script: |
           set -e
+          NATIVE_BUILD=$((10000 + BUILD_NUMBER))
           echo "VITE_APP_BUILD=${CM_COMMIT:0:8}.${BUILD_NUMBER}" >> "$CM_ENV"
-          echo "[PASS] candidate build ${CM_COMMIT:0:8}.${BUILD_NUMBER}"
+          echo "INVEN3_NATIVE_BUILD_NUMBER=$NATIVE_BUILD" >> "$CM_ENV"
+          echo "[PASS] candidate build ${CM_COMMIT:0:8}.${BUILD_NUMBER}; native build $NATIVE_BUILD"
 
       - name: Fail-closed release preflight
         script: npm run release:preflight
@@ -238,7 +240,6 @@ workflows:
         script: |
           set +e
           set -o pipefail
-          IOS_BUILD_NUMBER=$((10000 + BUILD_NUMBER))
           rm -rf "$CM_BUILD_DIR/build-ios-f10a"
           xcodebuild build \
             -workspace "$CM_BUILD_DIR/$XCODE_WORKSPACE" \
@@ -248,7 +249,7 @@ workflows:
             -destination 'generic/platform=iOS' \
             -derivedDataPath "$CM_BUILD_DIR/build-ios-f10a" \
             MARKETING_VERSION="1.0.0" \
-            CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER" \
+            CURRENT_PROJECT_VERSION="$INVEN3_NATIVE_BUILD_NUMBER" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
