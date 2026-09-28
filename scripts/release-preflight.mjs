@@ -32,9 +32,12 @@ if (pkg.version !== policy.releaseVersion) fail(15, `package.json version ${pkg.
 const gradle = read('android/app/build.gradle')
 if (!gradle.includes('INVEN3_VERSION_CODE')) fail(16, 'Android versionCode is not release-configurable.')
 if (!gradle.includes('INVEN3_VERSION_NAME')) fail(17, 'Android versionName is not release-configurable.')
+if (!gradle.includes(`?: "${policy.native.androidBaseVersionCode}"`)) fail(171, 'Android base versionCode is not aligned with release policy.')
+if (!gradle.includes(`?: "${policy.native.androidVersionName}"`)) fail(172, 'Android base versionName is not aligned with release policy.')
 
 const xcode = read('ios/App/App.xcodeproj/project.pbxproj')
 if (!xcode.includes(`MARKETING_VERSION = ${policy.native.iosMarketingVersion};`)) fail(18, 'iOS MARKETING_VERSION is not aligned with release policy.')
+if (!xcode.includes(`CURRENT_PROJECT_VERSION = ${policy.native.iosBaseBuildNumber};`)) fail(181, 'iOS base build number is not aligned with release policy.')
 
 pass(`static release policy ${policy.releaseVersion}; production locked`)
 
