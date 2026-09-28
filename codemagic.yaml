@@ -199,14 +199,6 @@ workflows:
         VITE_RELEASE_ENV: "qa"
         VITE_RELEASE_CHANNEL: "beta"
         VITE_RELEASE_VERSION: "1.0.0"
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: 'release/f10a-candidate'
-          include: true
-          source: true
-      cancel_previous_builds: true
     scripts:
       - name: Install JavaScript dependencies
         script: npm ci
@@ -330,14 +322,6 @@ workflows:
         VITE_RELEASE_ENV: "qa"
         VITE_RELEASE_CHANNEL: "beta"
         VITE_RELEASE_VERSION: "1.0.0"
-    triggering:
-      events:
-        - push
-      branch_patterns:
-        - pattern: 'release/f10a-candidate'
-          include: true
-          source: true
-      cancel_previous_builds: true
     scripts:
       - name: Install JavaScript dependencies
         script: npm ci
@@ -438,3 +422,196 @@ workflows:
       - artifacts/release/android-sha256.txt
       - artifacts/release/INVEN3-release-manifest.json
       - artifacts/release/INVEN3-android-candidate-evidence.json
+
+
+  dual-platform-release-candidate-f10a:
+    name: INVEN3 Dual Platform Release Candidate F10A
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      groups:
+        - inven3_qa
+      node: 24
+      java: 21
+      xcode: 26.4
+      cocoapods: default
+      vars:
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+        VITE_RELEASE_ENV: "qa"
+        VITE_RELEASE_CHANNEL: "beta"
+        VITE_RELEASE_VERSION: "1.0.0"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'release/f10a-candidate'
+          include: true
+          source: true
+      cancel_previous_builds: true
+    scripts:
+      - name: Install JavaScript dependencies
+        script: npm ci
+
+      - name: Stamp dual-platform candidate identity
+        script: |
+          set -e
+          NATIVE_BUILD=$((10000 + BUILD_NUMBER))
+          echo "VITE_APP_BUILD=${CM_COMMIT:0:8}.${BUILD_NUMBER}" >> "$CM_ENV"
+          echo "INVEN3_NATIVE_BUILD_NUMBER=$NATIVE_BUILD" >> "$CM_ENV"
+          echo "[PASS] dual candidate ${CM_COMMIT:0:8}.${BUILD_NUMBER}; native build $NATIVE_BUILD"
+
+      - name: Fail-closed release preflight
+        script: npm run release:preflight
+
+      - name: Typecheck
+        script: npm run typecheck
+
+      - name: Unit tests
+        script: npm run test
+
+      - name: Build QA/BETA web bundle once
+        script: npm run build
+
+      - name: Audit built QA/BETA bundle
+        script: npm run release:audit-bundle
+
+      - name: Generate canonical release manifest
+        script: npm run release:manifest
+
+      - name: Sync Capacitor Android and iOS
+        script: |
+          set -e
+          npx cap sync android
+          npx cap sync ios
+
+      - name: Build Android Release APK/AAB
+        script: |
+          set -e
+          chmod +x android/gradlew
+          cd "$CM_BUILD_DIR/android"
+          ./gradlew assembleRelease bundleRelease             -PINVEN3_VERSION_CODE="$INVEN3_NATIVE_BUILD_NUMBER"             -PINVEN3_VERSION_NAME="1.0.0"             --no-daemon
+
+      - name: Create installable Android QA lab APK
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR"
+          mkdir -p artifacts/release
+          UNSIGNED_APK=$(find android/app/build/outputs/apk/release -type f -name '*-unsigned.apk' -print -quit)
+          test -n "$UNSIGNED_APK"
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort | tail -1)
+          ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -type f -name zipalign -print | sort | tail -1)
+          test -x "$APKSIGNER"
+          test -x "$ZIPALIGN"
+          LAB_KEYSTORE="$CM_BUILD_DIR/inven3-f10a-lab.jks"
+          ALIGNED_APK="$CM_BUILD_DIR/inven3-f10a-aligned.apk"
+          LAB_APK="$CM_BUILD_DIR/artifacts/release/INVEN3-1.0.0-beta-${BUILD_NUMBER}-lab.apk"
+          keytool -genkeypair             -keystore "$LAB_KEYSTORE"             -storepass changeit             -keypass changeit             -alias inven3-f10a-lab             -keyalg RSA             -keysize 2048             -validity 2             -dname "CN=INVEN3 F10A QA Lab,O=INVEN3,C=CL"             -noprompt
+          "$ZIPALIGN" -f -v 4 "$UNSIGNED_APK" "$ALIGNED_APK" >/dev/null
+          "$APKSIGNER" sign             --ks "$LAB_KEYSTORE"             --ks-pass pass:changeit             --key-pass pass:changeit             --ks-key-alias inven3-f10a-lab             --out "$LAB_APK"             "$ALIGNED_APK"
+          "$APKSIGNER" verify --verbose --print-certs "$LAB_APK" | tee artifacts/release/android-lab-signature.txt
+          rm -f "$LAB_KEYSTORE" "$ALIGNED_APK"
+          echo "[PASS] Android QA lab APK ready; ephemeral key destroyed"
+
+      - name: Verify Android package identity
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR"
+          APK=$(find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print -quit)
+          AAPT=$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort | tail -1)
+          test -n "$APK"
+          test -x "$AAPT"
+          "$AAPT" dump badging "$APK" | head -1 | tee artifacts/release/android-package-badging.txt
+          grep -q "versionCode='$INVEN3_NATIVE_BUILD_NUMBER'" artifacts/release/android-package-badging.txt
+          grep -q "versionName='1.0.0'" artifacts/release/android-package-badging.txt
+          echo "[PASS] Android package identity verified"
+
+      - name: Hash Android artifacts
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR"
+          {
+            find android/app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -print0
+            find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print0
+          } | sort -z | xargs -0 shasum -a 256 | tee artifacts/release/android-sha256.txt
+
+      - name: Verify Android candidate evidence
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR"
+          APK=$(find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print -quit)
+          AAB=$(find android/app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)
+          npm run release:verify-candidate --             --platform android             --artifact "$APK"             --artifact "$AAB"             --out artifacts/release/INVEN3-android-candidate-evidence.json
+
+      - name: Install CocoaPods dependencies
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR/ios/App"
+          pod install
+          test -d "App.xcworkspace"
+
+      - name: Build iPhoneOS Release candidate
+        script: |
+          set +e
+          set -o pipefail
+          rm -rf "$CM_BUILD_DIR/build-ios-f10a"
+          xcodebuild build             -workspace "$CM_BUILD_DIR/$XCODE_WORKSPACE"             -scheme "$XCODE_SCHEME"             -configuration Release             -sdk iphoneos             -destination 'generic/platform=iOS'             -derivedDataPath "$CM_BUILD_DIR/build-ios-f10a"             MARKETING_VERSION="1.0.0"             CURRENT_PROJECT_VERSION="$INVEN3_NATIVE_BUILD_NUMBER"             CODE_SIGN_IDENTITY=""             CODE_SIGNING_REQUIRED=NO             CODE_SIGNING_ALLOWED=NO             2>&1 | tee "$CM_BUILD_DIR/ios-f10a-release-build.log"
+          status=${PIPESTATUS[0]}
+          grep -nE "error:|fatal error:|Undefined symbols|ld: |BUILD FAILED|The following build commands failed"             "$CM_BUILD_DIR/ios-f10a-release-build.log"             > "$CM_BUILD_DIR/ios-f10a-release-errors.log" || true
+          exit $status
+
+      - name: Verify iOS package identity
+        script: |
+          set -e
+          APP_PATH=$(find "$CM_BUILD_DIR/build-ios-f10a/Build/Products" -type d -name "App.app" -path "*iphoneos*" | head -1)
+          test -n "$APP_PATH"
+          SHORT_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")
+          BUILD_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")
+          test "$SHORT_VERSION" = "1.0.0"
+          test "$BUILD_VERSION" = "$INVEN3_NATIVE_BUILD_NUMBER"
+          echo "[PASS] iOS package identity version=$SHORT_VERSION build=$BUILD_VERSION"
+
+      - name: Package unsigned iOS QA/BETA IPA
+        script: |
+          set -e
+          APP_PATH=$(find "$CM_BUILD_DIR/build-ios-f10a/Build/Products" -type d -name "App.app" -path "*iphoneos*" | head -1)
+          test -n "$APP_PATH"
+          rm -rf "$CM_BUILD_DIR/f10a-device-package"
+          mkdir -p "$CM_BUILD_DIR/f10a-device-package/Payload"
+          cp -R "$APP_PATH" "$CM_BUILD_DIR/f10a-device-package/Payload/App.app"
+          cd "$CM_BUILD_DIR/f10a-device-package"
+          OUT="$CM_BUILD_DIR/INVEN3-1.0.0-beta-${BUILD_NUMBER}-unsigned.ipa"
+          /usr/bin/zip -qry "$OUT" Payload
+          /usr/bin/shasum -a 256 "$OUT" | tee "$CM_BUILD_DIR/INVEN3-1.0.0-beta-${BUILD_NUMBER}.sha256"
+          echo "[PASS] iOS unsigned QA/BETA IPA ready"
+
+      - name: Verify iOS candidate evidence
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR"
+          IPA="$CM_BUILD_DIR/INVEN3-1.0.0-beta-${BUILD_NUMBER}-unsigned.ipa"
+          npm run release:verify-candidate --             --platform ios             --artifact "$IPA"             --out artifacts/release/INVEN3-ios-candidate-evidence.json
+
+      - name: Verify Android iOS platform parity
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR"
+          npm run release:verify-parity
+
+    artifacts:
+      - artifacts/release/INVEN3-1.0.0-beta-*-lab.apk
+      - android/app/build/outputs/apk/release/*.apk
+      - android/app/build/outputs/bundle/release/*.aab
+      - artifacts/release/android-lab-signature.txt
+      - artifacts/release/android-package-badging.txt
+      - artifacts/release/android-sha256.txt
+      - INVEN3-1.0.0-beta-*-unsigned.ipa
+      - INVEN3-1.0.0-beta-*.sha256
+      - ios-f10a-release-build.log
+      - ios-f10a-release-errors.log
+      - artifacts/release/INVEN3-release-manifest.json
+      - artifacts/release/INVEN3-android-candidate-evidence.json
+      - artifacts/release/INVEN3-ios-candidate-evidence.json
+      - artifacts/release/INVEN3-f10a-platform-parity.json
+      - build-ios-f10a/Build/Products/**/*.app
+      - build-ios-f10a/Build/Products/**/*.dSYM
