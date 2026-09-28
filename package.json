@@ -1,7 +1,7 @@
 {
   "name": "inven3",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -31,7 +31,11 @@
     "setup:ios:virtual": "playwright install webkit",
     "preview:ios:lab": "node scripts/ios-device-lab.mjs",
     "preview:ios:matrix": "node scripts/ios-device-matrix.mjs",
-    "certify:f9b:ios-matrix": "node scripts/f9b-ios-matrix-certification.mjs"
+    "certify:f9b:ios-matrix": "node scripts/f9b-ios-matrix-certification.mjs",
+    "release:preflight": "node scripts/release-preflight.mjs",
+    "release:preflight:static": "node scripts/release-preflight.mjs --static",
+    "release:manifest": "node scripts/release-manifest.mjs",
+    "release:qa": "npm run release:preflight && npm run build && npm run release:manifest"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^8.1.1",
