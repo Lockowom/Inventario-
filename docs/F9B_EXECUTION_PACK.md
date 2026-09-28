@@ -1,6 +1,6 @@
 # Paquete de ejecución manual/externa — Fase 9B
 
-Este paquete coordina los gates que CI no puede completar por sí sola y el QA remoto ya autorizado. No aprueba Android/iOS físicos, RP real, beta, producción, rollout ni Fase 10.
+Este paquete coordina los gates manuales/externos y el QA remoto autorizado de F9B. Las ejecuciones ya realizadas se registran como evidencia; este paquete no autoriza producción, rollout ni Fase 10.
 
 ## Baseline y estado de candidato
 
@@ -9,14 +9,14 @@ Este paquete coordina los gates que CI no puede completar por sí sola y el QA r
 - CI de ese baseline remoto: `36219870396`, completa en verde.
 - `FINAL_RELEASE_CANDIDATE_SHA = NOT_FROZEN`; se fijará sólo después de cerrar QA remoto y los gates manuales/externos aplicables.
 
-## Gates pendientes
+## Estado de gates manuales/externos
 
-| Gate | Estado actual | Ejecutor | Paquete |
-|---|---|---|---|
-| `ANDROID_PHYSICAL` | `MANUAL_REQUIRED` | operador de QA con dispositivo físico | [DEVICE_QA_V1.md](DEVICE_QA_V1.md), [Android template](f9b/ANDROID_EXECUTION_TEMPLATE.md) |
-| `IOS_PHYSICAL` | `MANUAL_REQUIRED` | operador de QA con dispositivo físico | [DEVICE_QA_V1.md](DEVICE_QA_V1.md), [iOS template](f9b/IOS_EXECUTION_TEMPLATE.md) |
-| `RP_REAL_IMPORT` | `BLOCKED_EXTERNAL` | operador autorizado de RP/Softland | [RP_ACCEPTANCE_V1.md](RP_ACCEPTANCE_V1.md), [RP template](f9b/RP_EXECUTION_TEMPLATE.md) |
-| `BETA_MANUAL` | `MANUAL_REQUIRED` | participantes internos designados | [BETA_ACCEPTANCE_V1.md](BETA_ACCEPTANCE_V1.md), [beta template](f9b/BETA_EXECUTION_TEMPLATE.md) |
+| Gate | Estado actual | Evidencia |
+|---|---|---|
+| `ANDROID_PHYSICAL` | `PASS` | [Xiaomi 15T](f9b/ANDROID_EXECUTION_20260926_XIAOMI15T.md) |
+| `IOS_PHYSICAL` | `DEFERRED_NON_BLOCKING` | iPhone real BrowserStack con instalación/arranque/configuración QA; offline exhaustivo diferido, sin falso PASS |
+| `RP_REAL_IMPORT` | `PASS_WITH_WARNINGS` | [RP real](f9b/RP_SOURCE_EXECUTION_20260927.md) |
+| `BETA_MANUAL` | `PASS` | [Beta](f9b/BETA_EXECUTION_20260927.md) |
 
 Los estados de ejecución permitidos en los registros son `NOT_RUN`, `PASS`, `FAIL` y `BLOCKED`. Un resultado `PASS` requiere evidencia y no admite defectos `BLOCKER` o `CRITICAL` abiertos. La evidencia se registra con el [schema](f9b/EVIDENCE_SCHEMA.md) y puede verificarse localmente con `node scripts/phase-9-manual-evidence-check.mjs <archivo.json>`.
 
