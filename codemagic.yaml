@@ -181,3 +181,103 @@ workflows:
       - /tmp/xcodebuild_logs/*.log
       - build-ios-device/Build/Products/**/*.app
       - build-ios-device/Build/Products/**/*.dSYM
+
+
+  ios-release-candidate-f10a:
+    name: INVEN3 iOS Release Candidate F10A
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      groups:
+        - inven3_qa
+      node: 24
+      xcode: 26.4
+      cocoapods: default
+      vars:
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+        VITE_RELEASE_ENV: "qa"
+        VITE_RELEASE_CHANNEL: "beta"
+        VITE_RELEASE_VERSION: "1.0.0"
+    scripts:
+      - name: Install JavaScript dependencies
+        script: npm ci
+
+      - name: Stamp QA/BETA candidate identity
+        script: |
+          set -e
+          echo "VITE_APP_BUILD=${CM_COMMIT:0:8}.${BUILD_NUMBER}" >> "$CM_ENV"
+          echo "[PASS] candidate build ${CM_COMMIT:0:8}.${BUILD_NUMBER}"
+
+      - name: Fail-closed release preflight
+        script: npm run release:preflight
+
+      - name: Typecheck
+        script: npm run typecheck
+
+      - name: Unit tests
+        script: npm run test
+
+      - name: Build QA/BETA web bundle
+        script: npm run build
+
+      - name: Generate release manifest
+        script: npm run release:manifest
+
+      - name: Sync Capacitor iOS
+        script: npx cap sync ios
+
+      - name: Install CocoaPods dependencies
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR/ios/App"
+          pod install
+          test -d "App.xcworkspace"
+
+      - name: Build unsigned iPhoneOS release candidate
+        script: |
+          set +e
+          set -o pipefail
+          IOS_BUILD_NUMBER=$((10000 + BUILD_NUMBER))
+          rm -rf "$CM_BUILD_DIR/build-ios-f10a"
+          xcodebuild build \
+            -workspace "$CM_BUILD_DIR/$XCODE_WORKSPACE" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$CM_BUILD_DIR/build-ios-f10a" \
+            MARKETING_VERSION="1.0.0" \
+            CURRENT_PROJECT_VERSION="$IOS_BUILD_NUMBER" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$CM_BUILD_DIR/ios-f10a-release-build.log"
+          status=${PIPESTATUS[0]}
+          grep -nE "error:|fatal error:|Undefined symbols|ld: |BUILD FAILED|The following build commands failed" \
+            "$CM_BUILD_DIR/ios-f10a-release-build.log" \
+            > "$CM_BUILD_DIR/ios-f10a-release-errors.log" || true
+          exit $status
+
+      - name: Package unsigned QA/BETA IPA
+        script: |
+          set -e
+          APP_PATH=$(find "$CM_BUILD_DIR/build-ios-f10a/Build/Products" -type d -name "App.app" -path "*iphoneos*" | head -1)
+          test -n "$APP_PATH"
+          rm -rf "$CM_BUILD_DIR/f10a-device-package"
+          mkdir -p "$CM_BUILD_DIR/f10a-device-package/Payload"
+          cp -R "$APP_PATH" "$CM_BUILD_DIR/f10a-device-package/Payload/App.app"
+          cd "$CM_BUILD_DIR/f10a-device-package"
+          OUT="$CM_BUILD_DIR/INVEN3-1.0.0-beta-${BUILD_NUMBER}-unsigned.ipa"
+          /usr/bin/zip -qry "$OUT" Payload
+          /usr/bin/shasum -a 256 "$OUT" | tee "$CM_BUILD_DIR/INVEN3-1.0.0-beta-${BUILD_NUMBER}.sha256"
+          echo "[PASS] unsigned QA/BETA IPA packaged; no production signing or promotion performed"
+
+    artifacts:
+      - INVEN3-1.0.0-beta-*-unsigned.ipa
+      - INVEN3-1.0.0-beta-*.sha256
+      - ios-f10a-release-build.log
+      - ios-f10a-release-errors.log
+      - artifacts/release/INVEN3-release-manifest.json
+      - build-ios-f10a/Build/Products/**/*.app
+      - build-ios-f10a/Build/Products/**/*.dSYM
