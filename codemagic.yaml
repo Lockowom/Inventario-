@@ -469,8 +469,14 @@ workflows:
       - name: Typecheck
         script: npm run typecheck
 
+      - name: Lint
+        script: npm run lint
+
       - name: Unit tests
         script: npm run test
+
+      - name: Production dependency audit
+        script: npm audit --omit=dev
 
       - name: Build QA/BETA web bundle once
         script: npm run build
