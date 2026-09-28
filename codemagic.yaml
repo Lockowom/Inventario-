@@ -199,6 +199,14 @@ workflows:
         VITE_RELEASE_ENV: "qa"
         VITE_RELEASE_CHANNEL: "beta"
         VITE_RELEASE_VERSION: "1.0.0"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'release/f10a-candidate'
+          include: true
+          source: true
+      cancel_previous_builds: true
     scripts:
       - name: Install JavaScript dependencies
         script: npm ci
@@ -322,6 +330,14 @@ workflows:
         VITE_RELEASE_ENV: "qa"
         VITE_RELEASE_CHANNEL: "beta"
         VITE_RELEASE_VERSION: "1.0.0"
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: 'release/f10a-candidate'
+          include: true
+          source: true
+      cancel_previous_builds: true
     scripts:
       - name: Install JavaScript dependencies
         script: npm ci
