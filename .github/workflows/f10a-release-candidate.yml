@@ -72,11 +72,42 @@ jobs:
         run: |
           ./gradlew assembleRelease bundleRelease             -PINVEN3_VERSION_CODE="$INVEN3_NATIVE_BUILD_NUMBER"             -PINVEN3_VERSION_NAME="1.0.0"             --no-daemon
 
+      - name: Create installable QA lab APK
+        shell: bash
+        run: |
+          set -e
+          UNSIGNED_APK="$(find android/app/build/outputs/apk/release -type f -name '*-unsigned.apk' -print -quit)"
+          test -n "$UNSIGNED_APK"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)"
+          test -x "$APKSIGNER"
+          LAB_KEYSTORE="$RUNNER_TEMP/inven3-f10a-lab.jks"
+          keytool -genkeypair \
+            -keystore "$LAB_KEYSTORE" \
+            -storepass changeit \
+            -keypass changeit \
+            -alias inven3-f10a-lab \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 2 \
+            -dname "CN=INVEN3 F10A QA Lab,O=INVEN3,C=CL" \
+            -noprompt
+          LAB_APK="artifacts/release/INVEN3-1.0.0-beta-${GITHUB_RUN_NUMBER}-lab.apk"
+          "$APKSIGNER" sign \
+            --ks "$LAB_KEYSTORE" \
+            --ks-pass pass:changeit \
+            --key-pass pass:changeit \
+            --ks-key-alias inven3-f10a-lab \
+            --out "$LAB_APK" \
+            "$UNSIGNED_APK"
+          "$APKSIGNER" verify --verbose --print-certs "$LAB_APK" | tee artifacts/release/android-lab-signature.txt
+          rm -f "$LAB_KEYSTORE"
+          echo "[PASS] Ephemeral QA lab APK signed; key destroyed; not valid as production signing identity"
+
       - name: Verify Android native version
         shell: bash
         run: |
           set -e
-          APK="$(find android/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          APK="$(find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print -quit)"
           test -n "$APK"
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort -V | tail -1)"
           test -x "$AAPT"
@@ -94,7 +125,7 @@ jobs:
         shell: bash
         run: |
           set -e
-          APK="$(find android/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          APK="$(find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print -quit)"
           AAB="$(find android/app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)"
           npm run release:verify-candidate -- \
             --platform android \
@@ -111,6 +142,8 @@ jobs:
           path: |
             android/app/build/outputs/apk/release/*.apk
             android/app/build/outputs/bundle/release/*.aab
+            artifacts/release/INVEN3-1.0.0-beta-*-lab.apk
+            artifacts/release/android-lab-signature.txt
             artifacts/release/INVEN3-release-manifest.json
             artifacts/release/INVEN3-android-candidate-evidence.json
             artifacts/release/android-package-badging.txt
