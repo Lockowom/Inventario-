@@ -79,7 +79,9 @@ jobs:
           UNSIGNED_APK="$(find android/app/build/outputs/apk/release -type f -name '*-unsigned.apk' -print -quit)"
           test -n "$UNSIGNED_APK"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)"
+          ZIPALIGN="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign -print | sort -V | tail -1)"
           test -x "$APKSIGNER"
+          test -x "$ZIPALIGN"
           LAB_KEYSTORE="$RUNNER_TEMP/inven3-f10a-lab.jks"
           keytool -genkeypair \
             -keystore "$LAB_KEYSTORE" \
@@ -91,16 +93,18 @@ jobs:
             -validity 2 \
             -dname "CN=INVEN3 F10A QA Lab,O=INVEN3,C=CL" \
             -noprompt
+          ALIGNED_APK="$RUNNER_TEMP/inven3-f10a-aligned.apk"
           LAB_APK="artifacts/release/INVEN3-1.0.0-beta-${GITHUB_RUN_NUMBER}-lab.apk"
+          "$ZIPALIGN" -f -v 4 "$UNSIGNED_APK" "$ALIGNED_APK" >/dev/null
           "$APKSIGNER" sign \
             --ks "$LAB_KEYSTORE" \
             --ks-pass pass:changeit \
             --key-pass pass:changeit \
             --ks-key-alias inven3-f10a-lab \
             --out "$LAB_APK" \
-            "$UNSIGNED_APK"
+            "$ALIGNED_APK"
           "$APKSIGNER" verify --verbose --print-certs "$LAB_APK" | tee artifacts/release/android-lab-signature.txt
-          rm -f "$LAB_KEYSTORE"
+          rm -f "$LAB_KEYSTORE" "$ALIGNED_APK"
           echo "[PASS] Ephemeral QA lab APK signed; key destroyed; not valid as production signing identity"
 
       - name: Verify Android native version
@@ -119,7 +123,10 @@ jobs:
       - name: Hash Android artifacts
         shell: bash
         run: |
-          find android/app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -print0             | sort -z             | xargs -0 sha256sum             | tee artifacts/release/android-sha256.txt
+          {
+            find android/app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -print0
+            find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print0
+          } | sort -z | xargs -0 sha256sum | tee artifacts/release/android-sha256.txt
 
       - name: Verify Android release candidate evidence
         shell: bash
