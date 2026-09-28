@@ -4,7 +4,7 @@ Sistema de captura para Inventario General físico, offline-first, con soporte A
 
 ## Estado
 
-**Fase actual:** Fase 9A — certificación automatizada y gates manuales/externalizados en revisión.
+**Fase actual:** Fase 9B — cierre de certificación y consolidación del release candidate. Android físico, iOS virtual/nativo, beta y RP real certificados; prueba física iOS exhaustiva diferida sin convertirla en PASS. Fase 10 aún no iniciada.
 
 ## Inicio rápido
 
