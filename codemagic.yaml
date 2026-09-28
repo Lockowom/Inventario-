@@ -369,8 +369,8 @@ workflows:
           mkdir -p artifacts/release
           UNSIGNED_APK=$(find android/app/build/outputs/apk/release -type f -name '*-unsigned.apk' -print -quit)
           test -n "$UNSIGNED_APK"
-          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)
-          ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -type f -name zipalign -print | sort -V | tail -1)
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort | tail -1)
+          ZIPALIGN=$(find "$ANDROID_HOME/build-tools" -type f -name zipalign -print | sort | tail -1)
           test -x "$APKSIGNER"
           test -x "$ZIPALIGN"
           LAB_KEYSTORE="$CM_BUILD_DIR/inven3-f10a-lab.jks"
@@ -388,7 +388,7 @@ workflows:
           set -e
           cd "$CM_BUILD_DIR"
           APK=$(find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print -quit)
-          AAPT=$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort -V | tail -1)
+          AAPT=$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort | tail -1)
           test -n "$APK"
           test -x "$AAPT"
           "$AAPT" dump badging "$APK" | head -1 | tee artifacts/release/android-package-badging.txt
