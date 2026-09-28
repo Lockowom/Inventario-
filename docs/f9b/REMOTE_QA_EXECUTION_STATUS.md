@@ -93,13 +93,13 @@ El runtime incorpora login por email/contraseña con Supabase Auth y cierre de s
 - `BETA_MANUAL = PASS`: sign-off humano final ejecutado por Cristopher Cabezas; todas las comprobaciones del candidato fueron confirmadas y el runner emitió `[PASS] BETA_MANUAL` con evidencia `BETA-F9B-20260927T154621.json`.
 - `IOS_VIRTUAL_DEVICE_MATRIX = PASS`: 23/23 perfiles WebKit desde iPhone 11 hasta iPhone 18 Pro Max; Health Check, Conteo, touch operativo y cero overflow horizontal validados.
 - `IOS_NATIVE_SIMULATOR_BUILD = PASS`: Codemagic ejecutó Capacitor/CocoaPods/Xcode sobre Mac mini M2, verificó integración Debug de CocoaPods y generó `App.app.zip` de 11.88 MB; build `6ab9b05e12dce3b0c7bbb318`.
-- `IOS_PHYSICAL = MANUAL_REQUIRED`: sin certificación física todavía.
+- `IOS_PHYSICAL = DEFERRED_NON_BLOCKING`: BrowserStack real iPhone ya validó instalación, arranque, `Storage READY`, `Supabase CONFIGURED`, sesión autenticada y render de Conteo/Scanner. El ciclo offline físico completo queda diferido por decisión de alcance del owner del 2026-09-28; no se declara PASS.
 - `RP_REAL_IMPORT = PASS_WITH_WARNINGS`: archivo real RP/Softland certificado contra INVEN3; 2453 SKU, 0 diferencias de conciliación, 1679 series sin duplicados y evidencia `RP-SOURCE-20260927T162115.json`. Los warnings restantes son de calidad de dato fuente y no bloquean F9.
 - CI final del release candidate permanece pendiente hasta resolver los gates obligatorios abiertos.
 
 Candidato funcional Android certificado: `2aa6645ab89c5e74dc12c9475019880aca65564f` / `f9b-qa-2aa6645a`.
 
-No declarar F9 completa ni iniciar F10 mientras permanezca `IOS_PHYSICAL` abierto, salvo decisión explícita y documentada de alcance/no-aplicabilidad. El gate RP ya no es bloqueador.
+La deuda física iOS queda documentada como no bloqueante por decisión explícita del owner. F10 continúa fuera de alcance y no debe iniciarse hasta autorización explícita. El gate RP ya no es bloqueador.
 
 ## Variables locales de runners
 
