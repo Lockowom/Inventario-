@@ -57,6 +57,9 @@ jobs:
       - name: Build QA/BETA web bundle
         run: npm run build
 
+      - name: Audit built QA/BETA bundle
+        run: npm run release:audit-bundle
+
       - name: Generate release manifest
         run: npm run release:manifest
 
