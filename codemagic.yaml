@@ -401,9 +401,11 @@ workflows:
           set -e
           cd "$CM_BUILD_DIR"
           {
-            find android/app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -print0
-            find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print0
-          } | sort -z | xargs -0 shasum -a 256 | tee artifacts/release/android-sha256.txt
+            find android/app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -print
+            find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print
+          } | sort | while IFS= read -r file; do
+            shasum -a 256 "$file"
+          done | tee artifacts/release/android-sha256.txt
 
       - name: Verify Android release candidate evidence
         script: |
@@ -531,9 +533,11 @@ workflows:
           set -e
           cd "$CM_BUILD_DIR"
           {
-            find android/app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -print0
-            find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print0
-          } | sort -z | xargs -0 shasum -a 256 | tee artifacts/release/android-sha256.txt
+            find android/app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -print
+            find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print
+          } | sort | while IFS= read -r file; do
+            shasum -a 256 "$file"
+          done | tee artifacts/release/android-sha256.txt
 
       - name: Verify Android candidate evidence
         script: |
