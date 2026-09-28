@@ -25,7 +25,7 @@
 | iOS native simulator build | PASS | Codemagic Mac mini M2; Xcode 26.4; `App.app.zip` 11.88 MB; build `6ab9b05e12dce3b0c7bbb318` |
 | iOS device package build | PASS | `iphoneos`; `INVEN3-F9-unsigned-device.ipa` 10.91 MB; build `6ab9b269046f1cf182301e75` |
 | iOS physical launch | PASS | BrowserStack real iPhone: package installed and INVEN3 launched; platform reports `ios`, local storage READY |
-| iOS físico | IN_PROGRESS | real iPhone BrowserStack: launch PASS; Supabase CONFIGURED; build `f9b-ios-qa-38992a0`; authenticated session visible; conteo/scanner UI rendered; offline persistence/sync/scanner execution still pending |
+| iOS físico | DEFERRED_NON_BLOCKING | real iPhone BrowserStack: launch PASS; Supabase CONFIGURED; build `f9b-ios-qa-38992a0`; sesión autenticada y UI conteo/scanner renderizadas. Ciclo offline físico completo queda diferido; no se declara PASS. Decisión de alcance aprobada por el owner el 2026-09-28 para continuar desarrollo. |
 | RP real import | PASS_WITH_WARNINGS | archivo real RP certificado como gate oficial RP→INVEN3; conciliación 0 diferencias; evidencia `RP-SOURCE-20260927T162115.json` |
 | Beta interna | PASS | sign-off humano final aprobado; evidencia `BETA-F9B-20260927T154621.json` |
 | Release candidate freeze | PASS | `release/f9-rc1` fijada al candidato certificado |
@@ -33,14 +33,15 @@
 
 ## Bloqueadores de cierre total F9
 
-F9 no debe declararse completa mientras cualquiera de estos gates siga abierto:
+Para el cierre operativo de F9, `IOS_PHYSICAL` queda explícitamente diferido como gate no bloqueante por decisión del owner del 2026-09-28. No se convierte en PASS y mantiene deuda de evidencia física offline.
 
-- `IOS_PHYSICAL`;
+El único bloqueador restante para congelar el candidato final de F9 es:
+
 - CI final del release candidate.
 
 ## Regla de avance
 
-No iniciar F10 por cierre implícito. Si un gate se decide explícitamente como no aplicable para el release, esa decisión debe documentarse como excepción aprobada; no convertir `MANUAL_REQUIRED` o `BLOCKED_EXTERNAL` en PASS sin evidencia.
+No convertir gates diferidos en PASS sin evidencia. La decisión del 2026-09-28 permite continuar desarrollo pese a la deuda `IOS_PHYSICAL`; F10 sigue `NOT_STARTED` hasta apertura explícita de alcance.
 
 
 ## Comando de sign-off beta
