@@ -25,18 +25,27 @@ npm run release:qa
 
 ## 2. Android candidate
 
+Ruta preferida mientras GitHub Actions siga afectado:
+
+Codemagic → workflow `INVEN3 Android Release Candidate F10A`.
+
+Ruta alternativa:
+
 GitHub → Actions → `F10A Release Candidate` → Run workflow.
 
-Prerequisito:
-
-- secret `INVEN3_QA_ANON_KEY`.
+Ambas deben usar INVEN3-QA.
 
 Artefactos esperados:
 
 - `app-release-unsigned.apk`;
 - `app-release.aab`;
+- `INVEN3-1.0.0-beta-<build>-lab.apk` instalable sólo para laboratorio;
 - `INVEN3-release-manifest.json`;
+- `INVEN3-android-candidate-evidence.json`;
+- `android-package-badging.txt`;
 - `android-sha256.txt`.
+
+La key usada para el APK de laboratorio es efímera y se elimina dentro del runner. No es firma productiva.
 
 No instalar en operación real sin gate posterior.
 
@@ -51,12 +60,30 @@ Artefactos esperados:
 - `INVEN3-1.0.0-beta-<build>-unsigned.ipa`;
 - SHA-256;
 - manifest;
+- `INVEN3-ios-candidate-evidence.json`;
 - build log;
 - `.app`.
 
 El IPA unsigned sólo se usa para re-signing/laboratorio.
 
-## 4. Verificación en dispositivo
+## 4. Paridad de candidatos
+
+Reunir los dos archivos:
+
+- `INVEN3-android-candidate-evidence.json`;
+- `INVEN3-ios-candidate-evidence.json`.
+
+Ejecutar:
+
+`npm run release:verify-parity`
+
+Resultado esperado:
+
+`[PASS] F10A_PLATFORM_PARITY`
+
+No hacer smoke si los candidatos no representan el mismo commit/bundle.
+
+## 5. Verificación en dispositivo
 
 Antes de cualquier prueba:
 
@@ -67,7 +94,7 @@ Antes de cualquier prueba:
 
 Si aparece `PRODUCTION`, detener la prueba.
 
-## 5. Regla de rollback
+## 6. Regla de rollback
 
 F10A no sustituye builds de operación. Si un candidato falla:
 
@@ -77,7 +104,7 @@ F10A no sustituye builds de operación. Si un candidato falla:
 - emitir un nuevo build;
 - nunca reutilizar un build number publicado.
 
-## 6. Gate productivo
+## 7. Gate productivo
 
 Para entrar a promoción real deberán definirse por separado:
 
