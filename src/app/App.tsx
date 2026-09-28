@@ -18,8 +18,7 @@ import { runDeviceHealthCheck } from '../features/device-health/device-health-ru
 import { createCaptureGate } from '../features/device-health/capture-gate'
 import { CertificationFixture } from './certification-fixture'
 import { isCertificationFixtureEnabled } from './certification-fixture-mode'
-
-const version = import.meta.env.VITE_APP_VERSION ?? '0.1.0'
+import { releaseMetadata } from '../config/release-metadata'
 
 export function App() {
   if (isCertificationFixtureEnabled({ dev: import.meta.env.DEV, fixture: import.meta.env.VITE_CERTIFICATION_FIXTURE })) return <CertificationFixture />
@@ -116,6 +115,6 @@ function AuthenticatedRuntime() {
 
 function InfrastructureDiagnostic({ supabaseState }: { supabaseState: 'CONFIGURED' | 'NOT CONFIGURED' }) {
   const platform = Capacitor.getPlatform()
-  const status = [['Plataforma', platform === 'web' ? 'Web' : platform], ['Storage', 'READY'], ['Supabase', supabaseState], ['Versión', version]] as const
+  const status = [['Plataforma', platform === 'web' ? 'Web' : platform], ['Storage', 'READY'], ['Supabase', supabaseState], ['Entorno', releaseMetadata.environment.toUpperCase()], ['Canal', releaseMetadata.channel.toUpperCase()], ['Versión', releaseMetadata.displayVersion]] as const
   return <section className="diagnostic" aria-labelledby="app-title"><h1 id="app-title">INVEN3</h1><p className="diagnostic__subtitle">Modo build: {import.meta.env.DEV ? 'Development' : 'Production'}</p><dl className="status-grid">{status.map(([label, value]) => <div className="status-card" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>
 }
