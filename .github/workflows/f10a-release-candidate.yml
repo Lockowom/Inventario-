@@ -69,10 +69,35 @@ jobs:
         run: |
           ./gradlew assembleRelease bundleRelease             -PINVEN3_VERSION_CODE="$INVEN3_NATIVE_BUILD_NUMBER"             -PINVEN3_VERSION_NAME="1.0.0"             --no-daemon
 
+      - name: Verify Android native version
+        shell: bash
+        run: |
+          set -e
+          APK="$(find android/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          test -n "$APK"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort -V | tail -1)"
+          test -x "$AAPT"
+          "$AAPT" dump badging "$APK" | head -1 | tee artifacts/release/android-package-badging.txt
+          grep -q "versionCode='$INVEN3_NATIVE_BUILD_NUMBER'" artifacts/release/android-package-badging.txt
+          grep -q "versionName='1.0.0'" artifacts/release/android-package-badging.txt
+          echo "[PASS] Android package identity versionCode=$INVEN3_NATIVE_BUILD_NUMBER versionName=1.0.0"
+
       - name: Hash Android artifacts
         shell: bash
         run: |
           find android/app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -print0             | sort -z             | xargs -0 sha256sum             | tee artifacts/release/android-sha256.txt
+
+      - name: Verify Android release candidate evidence
+        shell: bash
+        run: |
+          set -e
+          APK="$(find android/app/build/outputs/apk/release -type f -name '*.apk' -print -quit)"
+          AAB="$(find android/app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)"
+          npm run release:verify-candidate -- \
+            --platform android \
+            --artifact "$APK" \
+            --artifact "$AAB" \
+            --out artifacts/release/INVEN3-android-candidate-evidence.json
 
       - name: Upload QA/BETA candidate
         uses: actions/upload-artifact@v4
@@ -84,4 +109,6 @@ jobs:
             android/app/build/outputs/apk/release/*.apk
             android/app/build/outputs/bundle/release/*.aab
             artifacts/release/INVEN3-release-manifest.json
+            artifacts/release/INVEN3-android-candidate-evidence.json
+            artifacts/release/android-package-badging.txt
             artifacts/release/android-sha256.txt
