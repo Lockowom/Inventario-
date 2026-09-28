@@ -24,7 +24,8 @@
 | iOS virtual matrix | PASS | 23/23 perfiles WebKit iPhone 11→18; touch/overflow/Health/Conteo PASS |
 | iOS native simulator build | PASS | Codemagic Mac mini M2; Xcode 26.4; `App.app.zip` 11.88 MB; build `6ab9b05e12dce3b0c7bbb318` |
 | iOS device package build | PASS | `iphoneos`; `INVEN3-F9-unsigned-device.ipa` 10.91 MB; build `6ab9b269046f1cf182301e75` |
-| iOS físico | MANUAL_REQUIRED | no certificado todavía |
+| iOS physical launch | PASS | BrowserStack real iPhone: package installed and INVEN3 launched; platform reports `ios`, local storage READY |
+| iOS físico | IN_PROGRESS | launch PASS; QA backend/auth/offline/sync/scanner scenarios pending |
 | RP real import | PASS_WITH_WARNINGS | archivo real RP certificado como gate oficial RP→INVEN3; conciliación 0 diferencias; evidencia `RP-SOURCE-20260927T162115.json` |
 | Beta interna | PASS | sign-off humano final aprobado; evidencia `BETA-F9B-20260927T154621.json` |
 | Release candidate freeze | PASS | `release/f9-rc1` fijada al candidato certificado |
