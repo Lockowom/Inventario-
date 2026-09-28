@@ -41,7 +41,9 @@ jobs:
       - name: Stamp candidate identity
         shell: bash
         run: |
+          NATIVE_BUILD=$((10000 + GITHUB_RUN_NUMBER))
           echo "VITE_APP_BUILD=${GITHUB_SHA::8}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          echo "INVEN3_NATIVE_BUILD_NUMBER=$NATIVE_BUILD" >> "$GITHUB_ENV"
 
       - name: Fail-closed release preflight
         run: npm run release:preflight
@@ -65,8 +67,7 @@ jobs:
         working-directory: android
         shell: bash
         run: |
-          VERSION_CODE=$((10000 + GITHUB_RUN_NUMBER))
-          ./gradlew assembleRelease bundleRelease             -PINVEN3_VERSION_CODE="$VERSION_CODE"             -PINVEN3_VERSION_NAME="1.0.0"             --no-daemon
+          ./gradlew assembleRelease bundleRelease             -PINVEN3_VERSION_CODE="$INVEN3_NATIVE_BUILD_NUMBER"             -PINVEN3_VERSION_NAME="1.0.0"             --no-daemon
 
       - name: Hash Android artifacts
         shell: bash
