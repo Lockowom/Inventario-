@@ -5,7 +5,7 @@ workflows:
     instance_type: mac_mini_m2
     environment:
       node: 24
-      xcode: latest
+      xcode: 26.4
       cocoapods: default
       vars:
         XCODE_WORKSPACE: "ios/App/App.xcworkspace"
@@ -25,16 +25,53 @@ workflows:
 
       - name: Install CocoaPods dependencies
         script: |
+          set -e
           cd "$CM_BUILD_DIR/ios/App"
           pod install
+          test -f "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"
+          test -d "App.xcworkspace"
+          echo "[PASS] CocoaPods workspace/config generated"
+
+      - name: Verify CocoaPods Debug integration
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR/ios/App"
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -showBuildSettings \
+            CODE_SIGNING_ALLOWED=NO \
+            > "$CM_BUILD_DIR/ios-build-settings.log"
+          grep -E "PODS_ROOT|FRAMEWORK_SEARCH_PATHS|OTHER_LDFLAGS|CAPACITOR_DEBUG" "$CM_BUILD_DIR/ios-build-settings.log" | head -80 || true
 
       - name: Build unsigned iOS simulator app
         script: |
+          set +e
           set -o pipefail
-          xcodebuild build             -workspace "$CM_BUILD_DIR/$XCODE_WORKSPACE"             -scheme "$XCODE_SCHEME"             -configuration Debug             -sdk iphonesimulator             -destination 'generic/platform=iOS Simulator'             CODE_SIGN_IDENTITY=""             CODE_SIGNING_REQUIRED=NO             CODE_SIGNING_ALLOWED=NO             | tee "$CM_BUILD_DIR/ios-simulator-build.log"
+          xcodebuild build \
+            -workspace "$CM_BUILD_DIR/$XCODE_WORKSPACE" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee "$CM_BUILD_DIR/ios-simulator-build.log"
+          status=${PIPESTATUS[0]}
+          grep -nE "error:|fatal error:|Undefined symbols|ld: |BUILD FAILED|The following build commands failed" \
+            "$CM_BUILD_DIR/ios-simulator-build.log" \
+            > "$CM_BUILD_DIR/ios-simulator-errors.log" || true
+          echo "----- iOS concise diagnostics -----"
+          cat "$CM_BUILD_DIR/ios-simulator-errors.log" || true
+          exit $status
 
     artifacts:
       - ios-simulator-build.log
+      - ios-simulator-errors.log
+      - ios-build-settings.log
       - /tmp/xcodebuild_logs/*.log
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
