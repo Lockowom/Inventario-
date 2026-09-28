@@ -84,24 +84,26 @@ No incluye JWT, contraseñas, service-role, anon key ni signed URLs.
 
 ## Android QA/BETA
 
-Workflow manual:
+Existen dos rutas equivalentes de build:
 
-`.github/workflows/f10a-release-candidate.yml`
+- GitHub Actions: `.github/workflows/f10a-release-candidate.yml`;
+- Codemagic: `android-release-candidate-f10a`.
 
-Produce, sin firma de producción:
+La ruta Codemagic permite continuar mientras persista el incidente externo de GitHub Actions.
 
-- APK release unsigned;
-- AAB release unsigned;
+Produce:
+
+- APK Release unsigned como evidencia técnica;
+- AAB Release;
+- APK de laboratorio instalable, firmado con una keystore efímera creada dentro del runner y destruida inmediatamente;
 - manifest;
-- SHA-256.
+- SHA-256;
+- evidencia de package identity;
+- `INVEN3-android-candidate-evidence.json`.
 
-Requiere en GitHub Actions únicamente:
+La firma efímera NO es identidad productiva y no se conserva.
 
-`INVEN3_QA_ANON_KEY`
-
-como secret. La URL QA ya está restringida por el preflight.
-
-El workflow es exclusivamente `workflow_dispatch`: no distribuye automáticamente.
+Ambas rutas usan exclusivamente INVEN3-QA/BETA y no distribuyen automáticamente.
 
 ## iOS QA/BETA
 
@@ -119,6 +121,8 @@ Produce:
 - IPA unsigned para re-signing de laboratorio;
 - SHA-256;
 - manifest;
+- verificación `CFBundleShortVersionString` / `CFBundleVersion`;
+- `INVEN3-ios-candidate-evidence.json`;
 - logs concisos.
 
 No usa certificados de App Store, no publica en TestFlight y no promociona a producción.
@@ -142,6 +146,53 @@ El CI normal incluye `release:preflight:static`.
 
 Al 2026-09-28 GitHub Actions presenta un incidente externo: los jobs recientes finalizan antes del primer step y sin logs. El código no convierte este incidente en PASS.
 
+## Auditoría del bundle final
+
+`npm run release:audit-bundle`
+
+Se ejecuta sobre `dist/` ya compilado y verifica:
+
+- presencia del host autorizado de INVEN3-QA;
+- ausencia de backend localhost;
+- ausencia de `sb_secret_*`;
+- ausencia de `SUPABASE_SERVICE_ROLE_KEY`;
+- producción todavía bloqueada.
+
+## Evidencia del candidato
+
+`npm run release:verify-candidate`
+
+Valida el artefacto nativo contra el manifest y emite:
+
+- Android: `INVEN3-android-candidate-evidence.json`;
+- iOS: `INVEN3-ios-candidate-evidence.json`.
+
+El estado válido previo al smoke es:
+
+`READY_FOR_BETA_SMOKE`.
+
+## Paridad Android/iOS
+
+Después de obtener ambas evidencias:
+
+`npm run release:verify-parity`
+
+Requiere igualdad de:
+
+- producto;
+- gate;
+- versión;
+- entorno;
+- canal;
+- commit;
+- SHA-256 agregado del bundle web.
+
+Los build numbers nativos pueden diferir por plataforma, pero quedan registrados individualmente.
+
+Salida:
+
+`artifacts/release/INVEN3-f10a-platform-parity.json`
+
 ## Gate de salida F10A
 
 F10A puede considerarse preparada cuando:
@@ -150,9 +201,11 @@ F10A puede considerarse preparada cuando:
 2. tests/typecheck pasan;
 3. Android QA/BETA candidate se genera;
 4. iOS QA/BETA candidate se genera;
-5. ambos manifiestos/hashes quedan disponibles;
-6. ningún pipeline tiene capacidad de promoción productiva;
-7. producción sigue bloqueada.
+5. ambos manifests/hashes/evidencias quedan disponibles;
+6. `F10A_PLATFORM_PARITY = PASS`;
+7. ambos candidatos quedan `READY_FOR_BETA_SMOKE`;
+8. ningún pipeline tiene capacidad de promoción productiva;
+9. producción sigue bloqueada.
 
 ## Fuera de alcance
 
