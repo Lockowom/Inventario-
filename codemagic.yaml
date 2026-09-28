@@ -75,3 +75,81 @@ workflows:
       - /tmp/xcodebuild_logs/*.log
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.app
       - $HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM
+
+
+  ios-device-package-f9:
+    name: INVEN3 iOS Real Device Package F9
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      node: 24
+      xcode: 26.4
+      cocoapods: default
+      vars:
+        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_SCHEME: "App"
+    scripts:
+      - name: Install JavaScript dependencies
+        script: npm ci
+
+      - name: Typecheck
+        script: npm run typecheck
+
+      - name: Build web bundle
+        script: npm run build
+
+      - name: Sync Capacitor iOS
+        script: npx cap sync ios
+
+      - name: Install CocoaPods dependencies
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR/ios/App"
+          pod install
+          test -f "Pods/Target Support Files/Pods-App/Pods-App.debug.xcconfig"
+          test -d "App.xcworkspace"
+          echo "[PASS] CocoaPods workspace/config generated"
+
+      - name: Verify iPhoneOS build settings
+        script: |
+          set -e
+          cd "$CM_BUILD_DIR/ios/App"
+          xcodebuild             -workspace App.xcworkspace             -scheme "$XCODE_SCHEME"             -configuration Debug             -sdk iphoneos             -showBuildSettings             CODE_SIGNING_ALLOWED=NO             > "$CM_BUILD_DIR/ios-device-build-settings.log"
+          grep -E "SDKROOT|SUPPORTED_PLATFORMS|ARCHS|PODS_ROOT|FRAMEWORK_SEARCH_PATHS|OTHER_LDFLAGS|PRODUCT_BUNDLE_IDENTIFIER"             "$CM_BUILD_DIR/ios-device-build-settings.log" | head -120 || true
+
+      - name: Build unsigned iPhoneOS app
+        script: |
+          set +e
+          set -o pipefail
+          rm -rf "$CM_BUILD_DIR/build-ios-device"
+          xcodebuild build             -workspace "$CM_BUILD_DIR/$XCODE_WORKSPACE"             -scheme "$XCODE_SCHEME"             -configuration Debug             -sdk iphoneos             -destination 'generic/platform=iOS'             -derivedDataPath "$CM_BUILD_DIR/build-ios-device"             CODE_SIGN_IDENTITY=""             CODE_SIGNING_REQUIRED=NO             CODE_SIGNING_ALLOWED=NO             2>&1 | tee "$CM_BUILD_DIR/ios-device-build.log"
+          status=${PIPESTATUS[0]}
+          grep -nE "error:|fatal error:|Undefined symbols|ld: |BUILD FAILED|The following build commands failed"             "$CM_BUILD_DIR/ios-device-build.log"             > "$CM_BUILD_DIR/ios-device-errors.log" || true
+          echo "----- iPhoneOS concise diagnostics -----"
+          cat "$CM_BUILD_DIR/ios-device-errors.log" || true
+          exit $status
+
+      - name: Package unsigned device IPA for cloud re-signing
+        script: |
+          set -e
+          APP_PATH=$(find "$CM_BUILD_DIR/build-ios-device/Build/Products" -type d -name "App.app" -path "*iphoneos*" | head -1)
+          test -n "$APP_PATH"
+          test -f "$APP_PATH/Info.plist"
+          rm -rf "$CM_BUILD_DIR/device-package"
+          mkdir -p "$CM_BUILD_DIR/device-package/Payload"
+          cp -R "$APP_PATH" "$CM_BUILD_DIR/device-package/Payload/App.app"
+          cd "$CM_BUILD_DIR/device-package"
+          /usr/bin/zip -qry "$CM_BUILD_DIR/INVEN3-F9-unsigned-device.ipa" Payload
+          /usr/bin/shasum -a 256 "$CM_BUILD_DIR/INVEN3-F9-unsigned-device.ipa" | tee "$CM_BUILD_DIR/INVEN3-F9-unsigned-device.sha256"
+          /usr/bin/unzip -l "$CM_BUILD_DIR/INVEN3-F9-unsigned-device.ipa" | head -40
+          echo "[PASS] Device-target IPA packaged for BrowserStack/App Live re-signing"
+
+    artifacts:
+      - INVEN3-F9-unsigned-device.ipa
+      - INVEN3-F9-unsigned-device.sha256
+      - ios-device-build.log
+      - ios-device-errors.log
+      - ios-device-build-settings.log
+      - /tmp/xcodebuild_logs/*.log
+      - build-ios-device/Build/Products/**/*.app
+      - build-ios-device/Build/Products/**/*.dSYM
