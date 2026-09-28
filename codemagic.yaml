@@ -260,6 +260,17 @@ workflows:
             > "$CM_BUILD_DIR/ios-f10a-release-errors.log" || true
           exit $status
 
+      - name: Verify iOS native version
+        script: |
+          set -e
+          APP_PATH=$(find "$CM_BUILD_DIR/build-ios-f10a/Build/Products" -type d -name "App.app" -path "*iphoneos*" | head -1)
+          test -n "$APP_PATH"
+          SHORT_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")
+          BUILD_VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")
+          test "$SHORT_VERSION" = "1.0.0"
+          test "$BUILD_VERSION" = "$INVEN3_NATIVE_BUILD_NUMBER"
+          echo "[PASS] iOS package identity version=$SHORT_VERSION build=$BUILD_VERSION"
+
       - name: Package unsigned QA/BETA IPA
         script: |
           set -e
@@ -274,11 +285,22 @@ workflows:
           /usr/bin/shasum -a 256 "$OUT" | tee "$CM_BUILD_DIR/INVEN3-1.0.0-beta-${BUILD_NUMBER}.sha256"
           echo "[PASS] unsigned QA/BETA IPA packaged; no production signing or promotion performed"
 
+      - name: Verify iOS release candidate evidence
+        script: |
+          set -e
+          IPA="$CM_BUILD_DIR/INVEN3-1.0.0-beta-${BUILD_NUMBER}-unsigned.ipa"
+          cd "$CM_BUILD_DIR"
+          npm run release:verify-candidate -- \
+            --platform ios \
+            --artifact "$IPA" \
+            --out artifacts/release/INVEN3-ios-candidate-evidence.json
+
     artifacts:
       - INVEN3-1.0.0-beta-*-unsigned.ipa
       - INVEN3-1.0.0-beta-*.sha256
       - ios-f10a-release-build.log
       - ios-f10a-release-errors.log
       - artifacts/release/INVEN3-release-manifest.json
+      - artifacts/release/INVEN3-ios-candidate-evidence.json
       - build-ios-f10a/Build/Products/**/*.app
       - build-ios-f10a/Build/Products/**/*.dSYM
