@@ -32,6 +32,7 @@ function resolveCommit() {
 }
 
 const files = collectFiles(dist).sort((a, b) => a.path.localeCompare(b.path))
+if (files.length === 0) throw new Error('Release manifest requires a non-empty dist/ bundle. Run the build first.')
 const aggregate = sha256(Buffer.from(files.map((file) => `${file.path}:${file.sha256}:${file.bytes}`).join('\n')))
 const environment = process.env.VITE_RELEASE_ENV || policy.defaultEnvironment
 const channel = process.env.VITE_RELEASE_CHANNEL || policy.defaultChannel
