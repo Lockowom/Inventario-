@@ -35,8 +35,9 @@
     "release:preflight": "node scripts/release-preflight.mjs",
     "release:preflight:static": "node scripts/release-preflight.mjs --static",
     "release:manifest": "node scripts/release-manifest.mjs",
-    "release:qa": "npm run release:preflight && npm run build && npm run release:manifest",
-    "release:verify-candidate": "node scripts/release-candidate-verify.mjs"
+    "release:qa": "npm run release:preflight && npm run build && npm run release:audit-bundle && npm run release:manifest",
+    "release:verify-candidate": "node scripts/release-candidate-verify.mjs",
+    "release:audit-bundle": "node scripts/release-bundle-audit.mjs"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^8.1.1",
