@@ -21,6 +21,12 @@ export default defineConfig(({ mode }) => {
     throw new Error('PRODUCTION RELEASE BLOCKED: release-policy.json keeps productionLocked=true.')
   }
 
+  const isLocalBackend = supabaseUrl.includes('127.0.0.1') || supabaseUrl.includes('localhost')
+  const isQaBackend = supabaseUrl.includes(`${releasePolicy.qaSupabaseProjectRef}.supabase.co`)
+  if (releasePolicy.productionLocked && supabaseUrl && !isLocalBackend && !isQaBackend) {
+    throw new Error('REMOTE BACKEND BLOCKED: F10A accepts only local Supabase or INVEN3-QA.')
+  }
+
   if (releaseEnvironment === 'qa') {
     if (!supabaseUrl || !supabaseAnonKey) throw new Error('QA release build requires Supabase URL and public anon/publishable key.')
     if (!supabaseUrl.includes(`${releasePolicy.qaSupabaseProjectRef}.supabase.co`)) {
