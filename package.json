@@ -38,7 +38,9 @@
     "release:qa": "npm run release:preflight && npm run build && npm run release:audit-bundle && npm run release:manifest",
     "release:verify-candidate": "node scripts/release-candidate-verify.mjs",
     "release:audit-bundle": "node scripts/release-bundle-audit.mjs",
-    "release:verify-parity": "node scripts/release-candidate-parity.mjs"
+    "release:verify-parity": "node scripts/release-candidate-parity.mjs",
+    "release:smoke:check": "node scripts/f10a-smoke-evidence-check.mjs",
+    "release:f10a:close": "node scripts/f10a-close.mjs"
   },
   "dependencies": {
     "@capacitor-community/sqlite": "^8.1.1",
