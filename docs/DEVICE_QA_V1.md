@@ -1,6 +1,6 @@
 # QA físico de dispositivos — Fase 9
 
-Estado de certificación: `ANDROID_PHYSICAL = MANUAL_REQUIRED`; `IOS_PHYSICAL = MANUAL_REQUIRED`. Estado inicial de cada ejecución: `NOT_RUN`. CI certifica build, configuración y sincronización Capacitor, pero no hardware físico. La guía coordinada y las plantillas vacías están en [F9B_EXECUTION_PACK.md](F9B_EXECUTION_PACK.md) y [docs/f9b](f9b/README.md).
+Estado de certificación: `ANDROID_PHYSICAL = PASS`; `IOS_PHYSICAL = DEFERRED_NON_BLOCKING`. Android fue ejecutado sobre Xiaomi 15T con offline/reboot/sync/scanner. iOS fue ejecutado sobre iPhone real BrowserStack hasta instalación, arranque, `Storage READY`, `Supabase CONFIGURED`, sesión autenticada y UI operacional; el ciclo offline físico exhaustivo quedó diferido por decisión de alcance del 2026-09-28 y no se declara PASS. La guía coordinada y las plantillas vacías están en [F9B_EXECUTION_PACK.md](F9B_EXECUTION_PACK.md) y [docs/f9b](f9b/README.md).
 
 ## Reglas de ejecución
 
