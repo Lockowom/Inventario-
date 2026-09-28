@@ -1,0 +1,86 @@
+name: F10A Release Candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  VITE_RELEASE_ENV: qa
+  VITE_RELEASE_CHANNEL: beta
+  VITE_RELEASE_VERSION: 1.0.0
+  VITE_SUPABASE_URL: https://uazunvlxlszdyweddxtb.supabase.co
+
+jobs:
+  android-release-candidate:
+    name: Android QA/BETA release candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.INVEN3_QA_ANON_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Stamp candidate identity
+        shell: bash
+        run: |
+          echo "VITE_APP_BUILD=${GITHUB_SHA::8}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+
+      - name: Fail-closed release preflight
+        run: npm run release:preflight
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Build QA/BETA web bundle
+        run: npm run build
+
+      - name: Generate release manifest
+        run: npm run release:manifest
+
+      - name: Sync Android
+        run: npx cap sync android
+
+      - name: Build unsigned Android release artifacts
+        working-directory: android
+        shell: bash
+        run: |
+          VERSION_CODE=$((10000 + GITHUB_RUN_NUMBER))
+          ./gradlew assembleRelease bundleRelease             -PINVEN3_VERSION_CODE="$VERSION_CODE"             -PINVEN3_VERSION_NAME="1.0.0"             --no-daemon
+
+      - name: Hash Android artifacts
+        shell: bash
+        run: |
+          find android/app/build/outputs -type f \( -name '*.apk' -o -name '*.aab' \) -print0             | sort -z             | xargs -0 sha256sum             | tee artifacts/release/android-sha256.txt
+
+      - name: Upload QA/BETA candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: inven3-1.0.0-beta-android
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/bundle/release/*.aab
+            artifacts/release/INVEN3-release-manifest.json
+            artifacts/release/android-sha256.txt
