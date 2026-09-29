@@ -32,7 +32,7 @@ const content = readable.map((file) => fs.readFileSync(file, 'utf8')).join('\n')
 const qaHost = `${policy.qaSupabaseProjectRef}.supabase.co`
 if (!content.includes(qaHost)) fail(62, `built bundle does not contain authorized QA backend host ${qaHost}`)
 
-const bundledSupabaseHosts = [...content.matchAll(/(?:https?:\\/\\/)?([a-z0-9]{20}\\.supabase\\.co)/gi)]
+const bundledSupabaseHosts = [...content.matchAll(/(?:https?:\/\/)?([a-z0-9]{20}\.supabase\.co)/gi)]
   .map((match) => match[1].toLowerCase())
 const foreignHosts = [...new Set(bundledSupabaseHosts.filter((host) => host !== qaHost))]
 if (foreignHosts.length > 0) fail(63, `built bundle contains unauthorized Supabase host: ${foreignHosts.join(', ')}`)
