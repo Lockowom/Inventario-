@@ -48,6 +48,9 @@ if (!xcode.includes(`CURRENT_PROJECT_VERSION = ${policy.native.iosBaseBuildNumbe
 
 const iosInfoPlist = read('ios/App/App/Info.plist')
 if (!iosInfoPlist.includes('<key>NSCameraUsageDescription</key>')) fail(182, 'iOS camera usage description is missing.')
+if (!iosInfoPlist.includes('<string>arm64</string>') || iosInfoPlist.includes('<string>armv7</string>')) {
+  fail(184, 'iOS required device capability must target arm64.')
+}
 
 const iosPodfile = read('ios/App/Podfile')
 if (!iosPodfile.includes("platform :ios, '15.5'")) fail(183, 'iOS deployment target must remain at least 15.5 for barcode scanning.')
