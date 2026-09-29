@@ -1,0 +1,335 @@
+name: F10A GitHub Dual Platform Candidate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  VITE_RELEASE_ENV: qa
+  VITE_RELEASE_CHANNEL: beta
+  VITE_RELEASE_VERSION: 1.0.0
+  VITE_SUPABASE_URL: https://uazunvlxlszdyweddxtb.supabase.co
+
+jobs:
+  prepare-web:
+    name: Certify and build canonical QA web bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.INVEN3_QA_ANON_KEY }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Stamp shared candidate identity
+        shell: bash
+        run: |
+          NATIVE_BUILD=$((10000 + GITHUB_RUN_NUMBER))
+          echo "VITE_APP_BUILD=${GITHUB_SHA::8}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          echo "INVEN3_NATIVE_BUILD_NUMBER=$NATIVE_BUILD" >> "$GITHUB_ENV"
+
+      - name: Fail-closed release preflight
+        run: npm run release:preflight
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Production dependency audit
+        run: npm audit --omit=dev
+
+      - name: Build QA/BETA web bundle once
+        run: npm run build
+
+      - name: Audit built QA/BETA bundle
+        run: npm run release:audit-bundle
+
+      - name: Generate canonical release manifest
+        run: npm run release:manifest
+
+      - name: Upload canonical web bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: f10a-canonical-web
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            dist
+            artifacts/release/INVEN3-release-manifest.json
+
+  android:
+    name: Android QA/BETA candidate
+    needs: prepare-web
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore canonical web bundle
+        uses: actions/download-artifact@v5
+        with:
+          name: f10a-canonical-web
+          path: .
+
+      - name: Stamp native identity
+        shell: bash
+        run: |
+          echo "INVEN3_NATIVE_BUILD_NUMBER=$((10000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+
+      - name: Sync Android from canonical bundle
+        run: npx cap sync android
+
+      - name: Build Android APK and AAB
+        working-directory: android
+        shell: bash
+        run: |
+          ./gradlew assembleRelease bundleRelease \
+            -PINVEN3_VERSION_CODE="$INVEN3_NATIVE_BUILD_NUMBER" \
+            -PINVEN3_VERSION_NAME="1.0.0" \
+            --no-daemon
+
+      - name: Create installable QA lab APK
+        shell: bash
+        run: |
+          set -e
+          mkdir -p artifacts/release
+          UNSIGNED_APK="$(find android/app/build/outputs/apk/release -type f -name '*-unsigned.apk' -print -quit)"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)"
+          ZIPALIGN="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign -print | sort -V | tail -1)"
+          test -n "$UNSIGNED_APK"
+          test -x "$APKSIGNER"
+          test -x "$ZIPALIGN"
+          LAB_KEYSTORE="$RUNNER_TEMP/inven3-f10a-lab.jks"
+          ALIGNED_APK="$RUNNER_TEMP/inven3-f10a-aligned.apk"
+          LAB_APK="artifacts/release/INVEN3-1.0.0-beta-${GITHUB_RUN_NUMBER}-lab.apk"
+          keytool -genkeypair \
+            -keystore "$LAB_KEYSTORE" \
+            -storepass changeit \
+            -keypass changeit \
+            -alias inven3-f10a-lab \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 2 \
+            -dname "CN=INVEN3 F10A QA Lab,O=INVEN3,C=CL" \
+            -noprompt
+          "$ZIPALIGN" -f -v 4 "$UNSIGNED_APK" "$ALIGNED_APK" >/dev/null
+          "$APKSIGNER" sign \
+            --ks "$LAB_KEYSTORE" \
+            --ks-pass pass:changeit \
+            --key-pass pass:changeit \
+            --ks-key-alias inven3-f10a-lab \
+            --out "$LAB_APK" \
+            "$ALIGNED_APK"
+          "$APKSIGNER" verify --verbose --print-certs "$LAB_APK" | tee artifacts/release/android-lab-signature.txt
+          rm -f "$LAB_KEYSTORE" "$ALIGNED_APK"
+
+      - name: Verify Android identity
+        shell: bash
+        run: |
+          set -e
+          APK="$(find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print -quit)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort -V | tail -1)"
+          "$AAPT" dump badging "$APK" | head -1 | tee artifacts/release/android-package-badging.txt
+          grep -q "versionCode='$INVEN3_NATIVE_BUILD_NUMBER'" artifacts/release/android-package-badging.txt
+          grep -q "versionName='1.0.0'" artifacts/release/android-package-badging.txt
+
+      - name: Verify Android candidate evidence
+        shell: bash
+        run: |
+          APK="$(find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print -quit)"
+          AAB="$(find android/app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)"
+          npm run release:verify-candidate -- \
+            --platform android \
+            --artifact "$APK" \
+            --artifact "$AAB" \
+            --out artifacts/release/INVEN3-android-candidate-evidence.json
+
+      - name: Upload Android candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: f10a-android-candidate
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            artifacts/release/INVEN3-1.0.0-beta-*-lab.apk
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/bundle/release/*.aab
+            artifacts/release/android-lab-signature.txt
+            artifacts/release/android-package-badging.txt
+            artifacts/release/INVEN3-android-candidate-evidence.json
+
+  ios:
+    name: iOS QA/BETA candidate
+    needs: prepare-web
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Restore canonical web bundle
+        uses: actions/download-artifact@v5
+        with:
+          name: f10a-canonical-web
+          path: .
+
+      - name: Stamp native identity
+        shell: bash
+        run: |
+          echo "INVEN3_NATIVE_BUILD_NUMBER=$((10000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+
+      - name: Sync iOS from canonical bundle
+        run: npx cap sync ios
+
+      - name: Install CocoaPods
+        working-directory: ios/App
+        run: pod install
+
+      - name: Build unsigned iPhoneOS Release candidate
+        shell: bash
+        run: |
+          set -o pipefail
+          rm -rf "$RUNNER_TEMP/build-ios-f10a"
+          xcodebuild build \
+            -workspace "$GITHUB_WORKSPACE/ios/App/App.xcworkspace" \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/build-ios-f10a" \
+            MARKETING_VERSION="1.0.0" \
+            CURRENT_PROJECT_VERSION="$INVEN3_NATIVE_BUILD_NUMBER" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            2>&1 | tee ios-f10a-release-build.log
+
+      - name: Verify and package unsigned iOS candidate
+        shell: bash
+        run: |
+          set -e
+          APP_PATH="$(find "$RUNNER_TEMP/build-ios-f10a/Build/Products" -type d -name 'App.app' -path '*iphoneos*' -print -quit)"
+          test -n "$APP_PATH"
+          SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_PATH/Info.plist")"
+          BUILD_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP_PATH/Info.plist")"
+          test "$SHORT_VERSION" = "1.0.0"
+          test "$BUILD_VERSION" = "$INVEN3_NATIVE_BUILD_NUMBER"
+          mkdir -p artifacts/release "$RUNNER_TEMP/f10a-device-package/Payload"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/f10a-device-package/Payload/App.app"
+          cd "$RUNNER_TEMP/f10a-device-package"
+          zip -qry "$GITHUB_WORKSPACE/INVEN3-1.0.0-beta-${GITHUB_RUN_NUMBER}-unsigned.ipa" Payload
+          shasum -a 256 "$GITHUB_WORKSPACE/INVEN3-1.0.0-beta-${GITHUB_RUN_NUMBER}-unsigned.ipa" \
+            | tee "$GITHUB_WORKSPACE/artifacts/release/ios-sha256.txt"
+
+      - name: Verify iOS candidate evidence
+        shell: bash
+        run: |
+          npm run release:verify-candidate -- \
+            --platform ios \
+            --artifact "INVEN3-1.0.0-beta-${GITHUB_RUN_NUMBER}-unsigned.ipa" \
+            --out artifacts/release/INVEN3-ios-candidate-evidence.json
+
+      - name: Upload iOS candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: f10a-ios-candidate
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            INVEN3-1.0.0-beta-*-unsigned.ipa
+            ios-f10a-release-build.log
+            artifacts/release/ios-sha256.txt
+            artifacts/release/INVEN3-ios-candidate-evidence.json
+
+  parity:
+    name: Android and iOS platform parity
+    needs:
+      - android
+      - ios
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download Android evidence
+        uses: actions/download-artifact@v5
+        with:
+          name: f10a-android-candidate
+          path: artifacts/android
+
+      - name: Download iOS evidence
+        uses: actions/download-artifact@v5
+        with:
+          name: f10a-ios-candidate
+          path: artifacts/ios
+
+      - name: Stage candidate evidence
+        shell: bash
+        run: |
+          mkdir -p artifacts/release
+          find artifacts/android -name INVEN3-android-candidate-evidence.json -exec cp {} artifacts/release/INVEN3-android-candidate-evidence.json \;
+          find artifacts/ios -name INVEN3-ios-candidate-evidence.json -exec cp {} artifacts/release/INVEN3-ios-candidate-evidence.json \;
+          test -s artifacts/release/INVEN3-android-candidate-evidence.json
+          test -s artifacts/release/INVEN3-ios-candidate-evidence.json
+
+      - name: Verify platform parity
+        run: npm run release:verify-parity
+
+      - name: Upload parity evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: f10a-platform-parity
+          retention-days: 14
+          if-no-files-found: error
+          path: artifacts/release/INVEN3-f10a-platform-parity.json
