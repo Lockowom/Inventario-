@@ -26,6 +26,7 @@ permissions:
   contents: read
 
 env:
+  INVEN3_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
   VITE_RELEASE_ENV: qa
   VITE_RELEASE_CHANNEL: beta
   VITE_RELEASE_VERSION: 1.0.0
@@ -41,6 +42,8 @@ jobs:
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v5
+        with:
+          ref: ${{ env.INVEN3_CANDIDATE_SHA }}
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -55,7 +58,7 @@ jobs:
         shell: bash
         run: |
           NATIVE_BUILD=$((10000 + GITHUB_RUN_NUMBER))
-          echo "VITE_APP_BUILD=${GITHUB_SHA::8}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+          echo "VITE_APP_BUILD=${INVEN3_CANDIDATE_SHA::8}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
           echo "INVEN3_NATIVE_BUILD_NUMBER=$NATIVE_BUILD" >> "$GITHUB_ENV"
 
       - name: Fail-closed release preflight
@@ -100,6 +103,8 @@ jobs:
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v5
+        with:
+          ref: ${{ env.INVEN3_CANDIDATE_SHA }}
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -218,6 +223,8 @@ jobs:
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v5
+        with:
+          ref: ${{ env.INVEN3_CANDIDATE_SHA }}
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -313,6 +320,8 @@ jobs:
     steps:
       - name: Checkout exact candidate
         uses: actions/checkout@v5
+        with:
+          ref: ${{ env.INVEN3_CANDIDATE_SHA }}
 
       - name: Setup Node
         uses: actions/setup-node@v5
