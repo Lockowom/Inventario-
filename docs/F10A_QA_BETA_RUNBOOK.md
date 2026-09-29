@@ -65,7 +65,18 @@ Artefactos esperados:
 - build log;
 - `.app`.
 
-El IPA unsigned sólo se usa para re-signing/laboratorio.
+El IPA unsigned sólo se usa para re-signing/laboratorio. No se considera instalable ni constituye por sí solo evidencia de smoke.
+
+Para probar en dispositivo:
+
+1. conservar el SHA-256 de la IPA unsigned registrado en el candidate evidence como `source_candidate_artifact_sha256`;
+2. re-firmar la IPA en un laboratorio controlado, sin modificar el bundle web;
+3. calcular el SHA-256 de la IPA re-firmada como `installed_artifact_sha256`;
+4. registrar `signing_provenance = laboratory_resign`;
+5. registrar `install_method` y referencias a la re-firma/instalación;
+6. verificar que ambos hashes sean distintos y que el hash fuente pertenezca al candidate evidence.
+
+Sin esta cadena de trazabilidad, el smoke iOS y el cierre F10A deben rechazarse.
 
 ## 4. Paridad de candidatos
 
@@ -86,7 +97,9 @@ Antes de cualquier prueba:
 - `Entorno = QA`;
 - `Canal = BETA`;
 - `Supabase = CONFIGURED`;
-- versión inicia por `1.0.0-beta` o conserva etiqueta F9 certificada si corresponde.
+- versión inicia por `1.0.0-beta` o conserva etiqueta F9 certificada si corresponde;
+- el hash del artefacto fuente pertenece al candidate evidence;
+- el binario instalado conserva una procedencia de firma verificable.
 
 Si aparece `PRODUCTION`, detener la prueba.
 
