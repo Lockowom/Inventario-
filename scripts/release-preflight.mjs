@@ -35,9 +35,20 @@ if (!gradle.includes('INVEN3_VERSION_NAME')) fail(17, 'Android versionName is no
 if (!gradle.includes(`?: "${policy.native.androidBaseVersionCode}"`)) fail(171, 'Android base versionCode is not aligned with release policy.')
 if (!gradle.includes(`?: "${policy.native.androidVersionName}"`)) fail(172, 'Android base versionName is not aligned with release policy.')
 
+const androidManifest = read('android/app/src/main/AndroidManifest.xml')
+if (!androidManifest.includes('android.permission.CAMERA')) fail(173, 'Android camera permission required by barcode scanner is missing.')
+if (!androidManifest.includes('android:allowBackup="false"')) fail(174, 'Android release must disable application backup.')
+if (!androidManifest.includes('android:usesCleartextTraffic="false"')) fail(175, 'Android release must reject cleartext traffic.')
+
 const xcode = read('ios/App/App.xcodeproj/project.pbxproj')
 if (!xcode.includes(`MARKETING_VERSION = ${policy.native.iosMarketingVersion};`)) fail(18, 'iOS MARKETING_VERSION is not aligned with release policy.')
 if (!xcode.includes(`CURRENT_PROJECT_VERSION = ${policy.native.iosBaseBuildNumber};`)) fail(181, 'iOS base build number is not aligned with release policy.')
+
+const iosInfoPlist = read('ios/App/App/Info.plist')
+if (!iosInfoPlist.includes('<key>NSCameraUsageDescription</key>')) fail(182, 'iOS camera usage description is missing.')
+
+const iosPodfile = read('ios/App/Podfile')
+if (!iosPodfile.includes("platform :ios, '15.5'")) fail(183, 'iOS deployment target must remain at least 15.5 for barcode scanning.')
 
 pass(`static release policy ${policy.releaseVersion}; production locked`)
 
