@@ -84,9 +84,14 @@ function normalizedArtifacts(artifacts) {
     .sort((a, b) => a.path.localeCompare(b.path))
 }
 
-function hasArtifactHash(candidate, value) {
+function findArtifactByHash(candidate, value) {
   const expected = String(value ?? '').toLowerCase()
-  return candidate.artifacts.some((artifact) => String(artifact.sha256).toLowerCase() === expected)
+  return candidate.artifacts.find((artifact) => String(artifact.sha256).toLowerCase() === expected)
+}
+
+function isInstallableSource(platform, artifact) {
+  const artifactPath = String(artifact?.path ?? '').toLowerCase()
+  return platform === 'android' ? artifactPath.endsWith('.apk') : artifactPath.endsWith('.ipa')
 }
 
 const args = parseArgs(process.argv.slice(2))
@@ -167,11 +172,20 @@ if (androidSmoke.version !== androidCandidate.version || iosSmoke.version !== io
 if (androidSmoke.native_build_number !== androidCandidate.nativeBuildNumber) fail(113, 'android smoke native build mismatch')
 if (iosSmoke.native_build_number !== iosCandidate.nativeBuildNumber) fail(114, 'ios smoke native build mismatch')
 
-if (!hasArtifactHash(androidCandidate, androidSmoke.source_candidate_artifact_sha256)) {
+const androidSourceArtifact = findArtifactByHash(androidCandidate, androidSmoke.source_candidate_artifact_sha256)
+if (!androidSourceArtifact) {
   fail(118, 'android smoke source artifact hash is not present in candidate evidence')
 }
-if (!hasArtifactHash(iosCandidate, iosSmoke.source_candidate_artifact_sha256)) {
+if (!isInstallableSource('android', androidSourceArtifact)) {
+  fail(119, 'android smoke source artifact must be an APK')
+}
+
+const iosSourceArtifact = findArtifactByHash(iosCandidate, iosSmoke.source_candidate_artifact_sha256)
+if (!iosSourceArtifact) {
   fail(118, 'ios smoke source artifact hash is not present in candidate evidence')
+}
+if (!isInstallableSource('ios', iosSourceArtifact)) {
+  fail(119, 'ios smoke source artifact must be an IPA')
 }
 
 const result = {
@@ -188,6 +202,7 @@ const result = {
   android: {
     nativeBuildNumber: androidCandidate.nativeBuildNumber,
     smokeExecutionId: androidSmoke.execution_id,
+    sourceCandidateArtifactPath: androidSourceArtifact.path,
     sourceCandidateArtifactSha256: androidSmoke.source_candidate_artifact_sha256,
     installedArtifactSha256: androidSmoke.installed_artifact_sha256,
     installMethod: androidSmoke.install_method,
@@ -196,6 +211,7 @@ const result = {
   ios: {
     nativeBuildNumber: iosCandidate.nativeBuildNumber,
     smokeExecutionId: iosSmoke.execution_id,
+    sourceCandidateArtifactPath: iosSourceArtifact.path,
     sourceCandidateArtifactSha256: iosSmoke.source_candidate_artifact_sha256,
     installedArtifactSha256: iosSmoke.installed_artifact_sha256,
     installMethod: iosSmoke.install_method,
