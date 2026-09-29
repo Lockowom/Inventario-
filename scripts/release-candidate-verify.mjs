@@ -82,7 +82,6 @@ const artifacts = args.artifacts.map((value) => {
   }
 })
 
-
 const artifactPaths = artifacts.map((artifact) => artifact.path)
 if (new Set(artifactPaths).size !== artifactPaths.length) {
   fail(57, 'candidate artifact list contains duplicate paths')
