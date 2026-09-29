@@ -2,6 +2,25 @@ name: F10A GitHub Dual Platform Candidate
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches:
+      - release/f10a-candidate
+    paths:
+      - '.github/workflows/f10a-github-dual-platform.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'release-policy.json'
+      - 'scripts/f10a-*.mjs'
+      - 'scripts/release-*.mjs'
+      - 'src/**'
+      - 'tests/**'
+      - 'android/**'
+      - 'ios/**'
+      - 'capacitor.config.*'
+
+concurrency:
+  group: f10a-dual-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
