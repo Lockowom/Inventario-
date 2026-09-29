@@ -84,6 +84,11 @@ function normalizedArtifacts(artifacts) {
     .sort((a, b) => a.path.localeCompare(b.path))
 }
 
+function hasArtifactHash(candidate, value) {
+  const expected = String(value ?? '').toLowerCase()
+  return candidate.artifacts.some((artifact) => String(artifact.sha256).toLowerCase() === expected)
+}
+
 const args = parseArgs(process.argv.slice(2))
 const root = process.cwd()
 const policy = JSON.parse(fs.readFileSync(path.join(root, 'release-policy.json'), 'utf8'))
@@ -162,6 +167,13 @@ if (androidSmoke.version !== androidCandidate.version || iosSmoke.version !== io
 if (androidSmoke.native_build_number !== androidCandidate.nativeBuildNumber) fail(113, 'android smoke native build mismatch')
 if (iosSmoke.native_build_number !== iosCandidate.nativeBuildNumber) fail(114, 'ios smoke native build mismatch')
 
+if (!hasArtifactHash(androidCandidate, androidSmoke.source_candidate_artifact_sha256)) {
+  fail(118, 'android smoke source artifact hash is not present in candidate evidence')
+}
+if (!hasArtifactHash(iosCandidate, iosSmoke.source_candidate_artifact_sha256)) {
+  fail(118, 'ios smoke source artifact hash is not present in candidate evidence')
+}
+
 const result = {
   schemaVersion: 1,
   product: policy.product,
@@ -176,10 +188,18 @@ const result = {
   android: {
     nativeBuildNumber: androidCandidate.nativeBuildNumber,
     smokeExecutionId: androidSmoke.execution_id,
+    sourceCandidateArtifactSha256: androidSmoke.source_candidate_artifact_sha256,
+    installedArtifactSha256: androidSmoke.installed_artifact_sha256,
+    installMethod: androidSmoke.install_method,
+    signingProvenance: androidSmoke.signing_provenance,
   },
   ios: {
     nativeBuildNumber: iosCandidate.nativeBuildNumber,
     smokeExecutionId: iosSmoke.execution_id,
+    sourceCandidateArtifactSha256: iosSmoke.source_candidate_artifact_sha256,
+    installedArtifactSha256: iosSmoke.installed_artifact_sha256,
+    installMethod: iosSmoke.install_method,
+    signingProvenance: iosSmoke.signing_provenance,
   },
   nextGate: 'F10B_NOT_AUTHORIZED',
   generatedAt: new Date().toISOString(),
