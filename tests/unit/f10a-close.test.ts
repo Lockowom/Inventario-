@@ -40,12 +40,34 @@ function smoke(platform:'android'|'ios', native_build_number:number, overrides:R
     status:'PASS',
     platform,
     candidate_sha:sha,
+    candidate_evidence_ref:`INVEN3-${platform}-candidate-evidence.json`,
     version:'1.0.0',
     environment:'qa',
     channel:'beta',
     production_locked:true,
     native_build_number,
+    app_display_version:`1.0.0-beta+${sha.slice(0,8)}.10`,
+    device_model:'QA Device',
+    os:platform === 'android' ? 'Android' : 'iOS',
+    os_version:'test',
+    started_at:'2026-09-28T12:00:00.000Z',
+    finished_at:'2026-09-28T12:10:00.000Z',
+    operator:'QA',
+    checks:{
+      app_launch:true,
+      release_identity_qa_beta:true,
+      supabase_configured:true,
+      authenticated_runtime:true,
+      health_non_blocking:true,
+      counting_screen:true,
+      my_counts_screen:true,
+      synthetic_count_saved:true,
+      synthetic_count_confirmed:true,
+      scanner_open_cancel_no_autosave:true,
+    },
+    evidence_refs:['evidence-1'],
     defects:[],
+    notes:'Synthetic QA smoke.',
     ...overrides,
   }
 }
@@ -107,6 +129,14 @@ describe('F10A evidence-driven closure',()=>{
     const result=run(dir)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(103)
+  })
+
+  test('rejects PASS smoke with incomplete required checks',()=>{
+    const dir=temp(); write(dir,{androidSmoke:{checks:{}}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(115)
+    expect(result.stderr).toContain('failed full schema validation')
   })
 
   test('rejects smoke built from another candidate SHA',()=>{
