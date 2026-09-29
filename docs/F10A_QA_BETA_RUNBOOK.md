@@ -23,17 +23,20 @@ npm run test
 npm run release:qa
 ```
 
-## 2. Android candidate
+## 2. Candidato dual sin Codemagic
 
-Ruta preferida mientras GitHub Actions siga afectado:
+GitHub → Actions → `F10A GitHub Dual Platform Candidate` → Run workflow.
 
-Codemagic → workflow `INVEN3 Android Release Candidate F10A`.
+Este workflow:
 
-Ruta alternativa:
+- construye y audita una sola vez el bundle web QA/BETA;
+- reutiliza exactamente ese bundle en Android e iOS;
+- genera APK, AAB e IPA unsigned;
+- valida las evidencias de candidato;
+- ejecuta la paridad Android/iOS;
+- mantiene producción bloqueada.
 
-GitHub → Actions → `F10A Release Candidate` → Run workflow.
-
-Ambas deben usar INVEN3-QA.
+Requiere el secret `INVEN3_QA_ANON_KEY` y un runner macOS de GitHub disponible. El workflow Codemagic queda como contingencia.
 
 Artefactos esperados:
 
@@ -49,11 +52,9 @@ La key usada para el APK de laboratorio es efímera y se elimina dentro del runn
 
 No instalar en operación real sin gate posterior.
 
-## 3. iOS candidate
+## 3. Artefactos iOS
 
-Codemagic → workflow `INVEN3 iOS Release Candidate F10A`.
-
-Debe utilizar el grupo `inven3_qa`.
+La etapa iOS del workflow dual usa el runner `macos-15` y compila contra el mismo bundle generado por `prepare-web`.
 
 Artefactos esperados:
 
@@ -68,12 +69,7 @@ El IPA unsigned sólo se usa para re-signing/laboratorio.
 
 ## 4. Paridad de candidatos
 
-Reunir los dos archivos:
-
-- `INVEN3-android-candidate-evidence.json`;
-- `INVEN3-ios-candidate-evidence.json`.
-
-Ejecutar:
+La etapa `parity` descarga las evidencias Android/iOS y ejecuta automáticamente:
 
 `npm run release:verify-parity`
 
