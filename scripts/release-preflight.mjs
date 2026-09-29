@@ -36,6 +36,8 @@ if (!gradle.includes(`?: "${policy.native.androidBaseVersionCode}"`)) fail(171, 
 if (!gradle.includes(`?: "${policy.native.androidVersionName}"`)) fail(172, 'Android base versionName is not aligned with release policy.')
 
 const androidManifest = read('android/app/src/main/AndroidManifest.xml')
+if (androidManifest.includes('\\n')) fail(176, 'Android manifest contains escaped line breaks and is not valid release XML.')
+if (!androidManifest.includes('<manifest') || !androidManifest.includes('</manifest>')) fail(176, 'Android manifest structure is incomplete.')
 if (!androidManifest.includes('android.permission.CAMERA')) fail(173, 'Android camera permission required by barcode scanner is missing.')
 if (!androidManifest.includes('android:allowBackup="false"')) fail(174, 'Android release must disable application backup.')
 if (!androidManifest.includes('android:usesCleartextTraffic="false"')) fail(175, 'Android release must reject cleartext traffic.')
