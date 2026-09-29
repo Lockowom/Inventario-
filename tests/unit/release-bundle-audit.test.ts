@@ -59,6 +59,24 @@ describe('F10A built bundle audit',()=>{
     expect(result.status).toBe(63)
   })
 
+  test('rejects a second Supabase project in the same bundle',()=>{
+    const dir=make('const qa="https://uazunvlxlszdyweddxtb.supabase.co"; const foreign="https://aaaaaaaaaaaaaaaaaaaa.supabase.co";')
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(63)
+    expect(result.stderr).toContain('unauthorized Supabase host')
+  })
+
+  test('rejects a legacy service_role JWT embedded in the bundle',()=>{
+    const header=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url')
+    const payload=Buffer.from(JSON.stringify({role:'service_role'})).toString('base64url')
+    const dir=make(`const qa="https://uazunvlxlszdyweddxtb.supabase.co"; const forbidden="${header}.${payload}.signature";`)
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(63)
+    expect(result.stderr).toContain('service_role JWT')
+  })
+
   test('rejects a bundle that does not contain the QA backend host',()=>{
     const dir=make('console.log("no backend")')
     const result=run(dir)
