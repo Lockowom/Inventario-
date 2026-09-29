@@ -30,6 +30,8 @@ La evidencia debe demostrar qué artefacto candidato originó exactamente el bin
 Reglas obligatorias:
 
 - `source_candidate_artifact_sha256` debe existir en `artifacts[]` del candidate evidence correspondiente;
+- la fuente Android debe ser el APK instalable, nunca el AAB;
+- la fuente iOS debe ser una IPA;
 - con `candidate_as_built` o `ephemeral_lab_signing`, los hashes fuente e instalado deben ser iguales;
 - con `laboratory_resign`, los hashes deben ser distintos;
 - Android no admite `laboratory_resign`;
@@ -130,7 +132,7 @@ nextGate = F10B_NOT_AUTHORIZED
 productionLocked = true
 ```
 
-El cierre conserva, por plataforma, ambos hashes, el método de instalación y la procedencia de firma.
+El cierre conserva, por plataforma, la ruta fuente, ambos hashes, el método de instalación y la procedencia de firma.
 
 ## Criterio de rechazo
 
@@ -144,6 +146,7 @@ No cerrar F10A si:
 - scanner cancelar auto-guarda;
 - candidate SHA/build no coincide;
 - el hash fuente no pertenece al candidate evidence;
+- la fuente Android no es APK o la fuente iOS no es IPA;
 - la relación entre hash fuente, hash instalado y procedencia de firma es inválida;
 - falta evidencia de re-firma/instalación cuando corresponde;
 - paridad Android/iOS falla;
