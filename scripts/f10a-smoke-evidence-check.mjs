@@ -4,6 +4,7 @@ import process from 'node:process'
 
 const requiredFields = [
   'execution_id','gate','status','platform','candidate_sha','candidate_evidence_ref',
+  'source_candidate_artifact_sha256','installed_artifact_sha256','install_method','signing_provenance',
   'version','environment','channel','production_locked','native_build_number',
   'app_display_version','device_model','os','os_version','started_at','finished_at',
   'operator','checks','evidence_refs','defects','notes',
@@ -44,6 +45,27 @@ function validate(record) {
   if (!['NOT_RUN','PASS','FAIL','BLOCKED'].includes(record.status)) errors.push('INVALID_STATUS')
   if (!['android','ios'].includes(record.platform)) errors.push('INVALID_PLATFORM')
   if (!/^[0-9a-f]{40}$/i.test(String(record.candidate_sha ?? ''))) errors.push('INVALID_CANDIDATE_SHA')
+  if (!/^[0-9a-f]{64}$/i.test(String(record.source_candidate_artifact_sha256 ?? ''))) errors.push('INVALID_SOURCE_CANDIDATE_ARTIFACT_SHA256')
+  if (!/^[0-9a-f]{64}$/i.test(String(record.installed_artifact_sha256 ?? ''))) errors.push('INVALID_INSTALLED_ARTIFACT_SHA256')
+  if (!['local_device','managed_device_lab'].includes(record.install_method)) errors.push('INVALID_INSTALL_METHOD')
+  if (!['candidate_as_built','ephemeral_lab_signing','laboratory_resign'].includes(record.signing_provenance)) {
+    errors.push('INVALID_SIGNING_PROVENANCE')
+  }
+  if (record.platform === 'android' && record.signing_provenance === 'laboratory_resign') {
+    errors.push('ANDROID_CANNOT_USE_LABORATORY_RESIGN')
+  }
+  if (record.platform === 'ios'
+    && !['candidate_as_built','laboratory_resign'].includes(record.signing_provenance)) {
+    errors.push('INVALID_IOS_SIGNING_PROVENANCE')
+  }
+  if (['candidate_as_built','ephemeral_lab_signing'].includes(record.signing_provenance)
+    && record.source_candidate_artifact_sha256 !== record.installed_artifact_sha256) {
+    errors.push('UNCHANGED_ARTIFACT_HASH_MISMATCH')
+  }
+  if (record.signing_provenance === 'laboratory_resign'
+    && record.source_candidate_artifact_sha256 === record.installed_artifact_sha256) {
+    errors.push('RESIGNED_ARTIFACT_HASH_UNCHANGED')
+  }
   if (record.version !== '1.0.0') errors.push('INVALID_VERSION')
   if (record.environment !== 'qa') errors.push('INVALID_ENVIRONMENT')
   if (record.channel !== 'beta') errors.push('INVALID_CHANNEL')
