@@ -7,29 +7,37 @@ import { afterEach, describe, expect, test } from 'vitest'
 const script = path.resolve(process.cwd(), 'scripts/f10a-close.mjs')
 const dirs: string[] = []
 const sha = 'b'.repeat(40)
+const webHash = 'a'.repeat(64)
 
 function temp() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inven3-f10a-close-'))
   dirs.push(dir)
   fs.mkdirSync(path.join(dir, 'artifacts/release'), { recursive: true })
   fs.writeFileSync(path.join(dir, 'release-policy.json'), JSON.stringify({
-    product:'INVEN3', productionLocked:true
+    product:'INVEN3', releaseVersion:'1.0.0', productionLocked:true
   }))
   return dir
 }
 
 function candidate(platform:'android'|'ios', nativeBuildNumber:number) {
   return {
+    product:'INVEN3',
     gate:'F10A_RELEASE_CANDIDATE',
     status:'READY_FOR_BETA_SMOKE',
     platform,
     version:'1.0.0',
     environment:'qa',
     channel:'beta',
+    build:`${sha.slice(0,8)}.10`,
     commit:sha,
     productionLocked:true,
-    webBundleSha256:'webhash',
+    webBundleSha256:webHash,
     nativeBuildNumber,
+    artifacts:[{
+      path:`INVEN3-${platform}-candidate.bin`,
+      bytes:1024,
+      sha256:platform === 'android' ? 'c'.repeat(64) : 'd'.repeat(64),
+    }],
   }
 }
 
@@ -82,8 +90,12 @@ function write(dir:string, overrides:{
   const a={...candidate('android',10010),...(overrides.android??{})}
   const i={...candidate('ios',10011),...(overrides.ios??{})}
   const p={
-    gate:'F10A_PLATFORM_PARITY', status:'READY_FOR_BETA_SMOKE', version:'1.0.0',
-    environment:'qa', channel:'beta', commit:sha, productionLocked:true, webBundleSha256:'webhash',
+    product:'INVEN3', gate:'F10A_PLATFORM_PARITY', status:'READY_FOR_BETA_SMOKE', version:'1.0.0',
+    environment:'qa', channel:'beta', commit:sha, productionLocked:true, webBundleSha256:webHash,
+    platforms:{
+      android:{build:a.build,nativeBuildNumber:a.nativeBuildNumber,artifacts:a.artifacts},
+      ios:{build:i.build,nativeBuildNumber:i.nativeBuildNumber,artifacts:i.artifacts},
+    },
     ...(overrides.parity??{})
   }
   const as={...smoke('android',10010),...(overrides.androidSmoke??{})}
@@ -146,9 +158,25 @@ describe('F10A evidence-driven closure',()=>{
     expect(result.status).toBe(110)
   })
 
+  test('rejects candidate evidence without artifact hashes',()=>{
+    const dir=temp(); write(dir,{android:{artifacts:[]}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(116)
+    expect(result.stderr).toContain('artifact evidence invalid')
+  })
+
+  test('rejects parity without platform evidence',()=>{
+    const dir=temp(); write(dir,{parity:{platforms:{}}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(117)
+    expect(result.stderr).toContain('parity android build mismatch')
+  })
+
   test('rejects closure when production lock is disabled',()=>{
     const dir=temp()
-    fs.writeFileSync(path.join(dir,'release-policy.json'),JSON.stringify({product:'INVEN3',productionLocked:false}))
+    fs.writeFileSync(path.join(dir,'release-policy.json'),JSON.stringify({product:'INVEN3',releaseVersion:'1.0.0',productionLocked:false}))
     write(dir)
     const result=run(dir)
     expect(result.ok).toBe(false)
