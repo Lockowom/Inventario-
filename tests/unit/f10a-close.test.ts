@@ -49,6 +49,10 @@ function smoke(platform:'android'|'ios', native_build_number:number, overrides:R
     platform,
     candidate_sha:sha,
     candidate_evidence_ref:`INVEN3-${platform}-candidate-evidence.json`,
+    source_candidate_artifact_sha256:platform === 'android' ? 'c'.repeat(64) : 'd'.repeat(64),
+    installed_artifact_sha256:platform === 'android' ? 'c'.repeat(64) : 'e'.repeat(64),
+    install_method:platform === 'android' ? 'local_device' : 'managed_device_lab',
+    signing_provenance:platform === 'android' ? 'ephemeral_lab_signing' : 'laboratory_resign',
     version:'1.0.0',
     environment:'qa',
     channel:'beta',
@@ -156,6 +160,22 @@ describe('F10A evidence-driven closure',()=>{
     const result=run(dir)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(110)
+  })
+
+  test('rejects smoke whose source artifact is absent from candidate evidence',()=>{
+    const dir=temp(); write(dir,{iosSmoke:{source_candidate_artifact_sha256:'f'.repeat(64)}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(118)
+    expect(result.stderr).toContain('source artifact hash is not present')
+  })
+
+  test('rejects iOS re-sign evidence when the installed hash did not change',()=>{
+    const dir=temp(); write(dir,{iosSmoke:{installed_artifact_sha256:'d'.repeat(64)}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(115)
+    expect(result.stderr).toContain('RESIGNED_ARTIFACT_HASH_UNCHANGED')
   })
 
   test('rejects candidate evidence without artifact hashes',()=>{
