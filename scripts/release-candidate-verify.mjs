@@ -14,6 +14,7 @@ function sha256(file) {
 }
 
 function currentCommit() {
+  if (process.env.INVEN3_CANDIDATE_SHA) return process.env.INVEN3_CANDIDATE_SHA
   if (process.env.GITHUB_SHA) return process.env.GITHUB_SHA
   if (process.env.CM_COMMIT) return process.env.CM_COMMIT
   try {
