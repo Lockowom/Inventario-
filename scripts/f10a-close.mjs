@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
+import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 
 function fail(code, message) {
   console.error(`[FAIL] ${message}`)
@@ -40,6 +42,20 @@ function read(root, value, label) {
   }
 }
 
+function validateSmokeEvidence(root, evidencePath, label) {
+  const checker = path.join(path.dirname(fileURLToPath(import.meta.url)), 'f10a-smoke-evidence-check.mjs')
+  try {
+    execFileSync(process.execPath, [checker, path.resolve(root, evidencePath)], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+  } catch (error) {
+    const stderr = String(error?.stderr ?? '').trim()
+    fail(115, `${label} failed full schema validation${stderr ? `: ${stderr.replaceAll('\n', ' | ')}` : ''}`)
+  }
+}
+
 function hasOpenBlockingDefect(defects) {
   return Array.isArray(defects) && defects.some((defect) =>
     ['BLOCKER','CRITICAL'].includes(String(defect?.severity ?? '').toUpperCase())
@@ -57,6 +73,9 @@ const iosCandidate = read(root, args.iosCandidate, 'ios candidate evidence')
 const parity = read(root, args.parity, 'platform parity evidence')
 const androidSmoke = read(root, args.androidSmoke, 'android smoke evidence')
 const iosSmoke = read(root, args.iosSmoke, 'ios smoke evidence')
+
+validateSmokeEvidence(root, args.androidSmoke, 'android smoke')
+validateSmokeEvidence(root, args.iosSmoke, 'ios smoke')
 
 for (const [label, candidate, platform] of [
   ['android candidate', androidCandidate, 'android'],
