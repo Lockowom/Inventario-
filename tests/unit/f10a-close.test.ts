@@ -33,11 +33,14 @@ function candidate(platform:'android'|'ios', nativeBuildNumber:number) {
     productionLocked:true,
     webBundleSha256:webHash,
     nativeBuildNumber,
-    artifacts:[{
-      path:`INVEN3-${platform}-candidate.bin`,
-      bytes:1024,
-      sha256:platform === 'android' ? 'c'.repeat(64) : 'd'.repeat(64),
-    }],
+    artifacts:platform === 'android'
+      ? [
+          { path:'INVEN3-android-lab.apk', bytes:1024, sha256:'c'.repeat(64) },
+          { path:'INVEN3-android-release.aab', bytes:2048, sha256:'9'.repeat(64) },
+        ]
+      : [
+          { path:'INVEN3-ios-unsigned.ipa', bytes:1024, sha256:'d'.repeat(64) },
+        ],
   }
 }
 
@@ -138,6 +141,8 @@ describe('F10A evidence-driven closure',()=>{
     const closure=JSON.parse(fs.readFileSync(path.join(dir,'artifacts/release/INVEN3-F10A-closure.json'),'utf8'))
     expect(closure.status).toBe('PASS')
     expect(closure.nextGate).toBe('F10B_NOT_AUTHORIZED')
+    expect(closure.android.sourceCandidateArtifactPath).toBe('INVEN3-android-lab.apk')
+    expect(closure.ios.sourceCandidateArtifactPath).toBe('INVEN3-ios-unsigned.ipa')
   })
 
   test('rejects a failed iOS smoke',()=>{
@@ -168,6 +173,14 @@ describe('F10A evidence-driven closure',()=>{
     expect(result.ok).toBe(false)
     expect(result.status).toBe(118)
     expect(result.stderr).toContain('source artifact hash is not present')
+  })
+
+  test('rejects an Android AAB as the installed smoke source',()=>{
+    const dir=temp(); write(dir,{androidSmoke:{source_candidate_artifact_sha256:'9'.repeat(64),installed_artifact_sha256:'9'.repeat(64)}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(119)
+    expect(result.stderr).toContain('source artifact must be an APK')
   })
 
   test('rejects iOS re-sign evidence when the installed hash did not change',()=>{
