@@ -208,6 +208,7 @@ jobs:
             artifacts/release/android-lab-signature.txt
             artifacts/release/android-package-badging.txt
             artifacts/release/INVEN3-android-candidate-evidence.json
+            artifacts/release/INVEN3-release-manifest.json
 
   ios:
     name: iOS QA/BETA candidate
@@ -300,6 +301,7 @@ jobs:
             ios-f10a-release-build.log
             artifacts/release/ios-sha256.txt
             artifacts/release/INVEN3-ios-candidate-evidence.json
+            artifacts/release/INVEN3-release-manifest.json
 
   parity:
     name: Android and iOS platform parity
@@ -337,6 +339,12 @@ jobs:
         shell: bash
         run: |
           mkdir -p artifacts/release
+          ANDROID_MANIFEST="$(find artifacts/android -name INVEN3-release-manifest.json -print -quit)"
+          IOS_MANIFEST="$(find artifacts/ios -name INVEN3-release-manifest.json -print -quit)"
+          test -s "$ANDROID_MANIFEST"
+          test -s "$IOS_MANIFEST"
+          cmp -s "$ANDROID_MANIFEST" "$IOS_MANIFEST"
+          cp "$ANDROID_MANIFEST" artifacts/release/INVEN3-release-manifest.json
           find artifacts/android -name INVEN3-android-candidate-evidence.json -exec cp {} artifacts/release/INVEN3-android-candidate-evidence.json \;
           find artifacts/ios -name INVEN3-ios-candidate-evidence.json -exec cp {} artifacts/release/INVEN3-ios-candidate-evidence.json \;
           test -s artifacts/release/INVEN3-android-candidate-evidence.json
@@ -351,4 +359,8 @@ jobs:
           name: f10a-platform-parity
           retention-days: 14
           if-no-files-found: error
-          path: artifacts/release/INVEN3-f10a-platform-parity.json
+          path: |
+            artifacts/release/INVEN3-release-manifest.json
+            artifacts/release/INVEN3-android-candidate-evidence.json
+            artifacts/release/INVEN3-ios-candidate-evidence.json
+            artifacts/release/INVEN3-f10a-platform-parity.json
