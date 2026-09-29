@@ -156,7 +156,11 @@ Se ejecuta sobre `dist/` ya compilado y verifica:
 - ausencia de backend localhost;
 - ausencia de `sb_secret_*`;
 - ausencia de `SUPABASE_SERVICE_ROLE_KEY`;
+- ausencia de JWT con rol `service_role`;
+- ausencia de hosts Supabase distintos de INVEN3-QA;
 - producción todavía bloqueada.
+
+El preflight estático también valida la configuración nativa mínima: cámara Android/iOS, backup Android deshabilitado, tráfico HTTP bloqueado, iOS 15.5 y capacidad arm64.
 
 ## Evidencia del candidato
 
