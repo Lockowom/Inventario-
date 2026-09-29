@@ -36,8 +36,10 @@ function fixture(overrides: Record<string, unknown> = {}) {
       iosBaseBuildNumber: 10000,
     },
   })
-  const artifact = path.join(dir, 'candidate.bin')
-  fs.writeFileSync(artifact, Buffer.from('candidate'))
+  const apk = path.join(dir, 'candidate.apk')
+  const aab = path.join(dir, 'candidate.aab')
+  fs.writeFileSync(apk, Buffer.from('apk candidate'))
+  fs.writeFileSync(aab, Buffer.from('aab candidate'))
   const webHash = crypto.createHash('sha256').update('web').digest('hex')
   const manifest = {
     schemaVersion: 1,
@@ -63,20 +65,26 @@ function fixture(overrides: Record<string, unknown> = {}) {
     ...overrides,
   }
   writeJson(path.join(dir, 'artifacts/release/INVEN3-release-manifest.json'), manifest)
-  return { dir, artifact }
+  return { dir, artifacts: [apk, aab] }
 }
 
-function run(dir: string, artifact: string, env: Record<string,string> = {}) {
+function run(
+  dir: string,
+  artifacts: string[],
+  platform = 'android',
+  env: Record<string, string> = {},
+) {
+  const artifactArgs = artifacts.flatMap((artifact) => ['--artifact', artifact])
   try {
     const stdout = execFileSync(process.execPath, [
       script,
-      '--platform','android',
-      '--artifact',artifact,
+      '--platform', platform,
+      ...artifactArgs,
     ], {
       cwd: dir,
       env: { ...process.env, GITHUB_SHA: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef', ...env },
       encoding: 'utf8',
-      stdio: ['ignore','pipe','pipe'],
+      stdio: ['ignore', 'pipe', 'pipe'],
     })
     return { ok: true, stdout, stderr: '', status: 0 }
   } catch (error) {
@@ -90,34 +98,59 @@ afterEach(() => {
 })
 
 describe('F10A release candidate verifier', () => {
-  test('accepts QA/BETA locked candidate and emits evidence', () => {
-    const { dir, artifact } = fixture()
-    const result = run(dir, artifact)
+  test('accepts QA/BETA locked Android candidate and emits evidence', () => {
+    const { dir, artifacts } = fixture()
+    const result = run(dir, artifacts)
     expect(result.ok).toBe(true)
     expect(result.stdout).toContain('READY_FOR_BETA_SMOKE')
-    const evidence = JSON.parse(fs.readFileSync(path.join(dir,'artifacts/release/INVEN3-android-candidate-evidence.json'),'utf8'))
+    const evidence = JSON.parse(fs.readFileSync(path.join(dir, 'artifacts/release/INVEN3-android-candidate-evidence.json'), 'utf8'))
     expect(evidence.status).toBe('READY_FOR_BETA_SMOKE')
     expect(evidence.nativeBuildNumber).toBe(10042)
-    expect(evidence.artifacts).toHaveLength(1)
+    expect(evidence.artifacts).toHaveLength(2)
+  })
+
+  test('accepts an IPA-only iOS candidate', () => {
+    const { dir } = fixture()
+    const ipa = path.join(dir, 'candidate.ipa')
+    fs.writeFileSync(ipa, Buffer.from('ipa candidate'))
+    const result = run(dir, [ipa], 'ios')
+    expect(result.ok).toBe(true)
+    const evidence = JSON.parse(fs.readFileSync(path.join(dir, 'artifacts/release/INVEN3-ios-candidate-evidence.json'), 'utf8'))
+    expect(evidence.platform).toBe('ios')
+    expect(evidence.artifacts[0].path).toBe('candidate.ipa')
+  })
+
+  test('rejects Android candidate without an AAB', () => {
+    const { dir, artifacts } = fixture()
+    const result = run(dir, [artifacts[0]])
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(58)
+  })
+
+  test('rejects an unexpected iOS artifact type', () => {
+    const { dir, artifacts } = fixture()
+    const result = run(dir, [artifacts[0]], 'ios')
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(59)
   })
 
   test('rejects production manifest', () => {
-    const { dir, artifact } = fixture({ environment: 'production' })
-    const result = run(dir, artifact)
+    const { dir, artifacts } = fixture({ environment: 'production' })
+    const result = run(dir, artifacts)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(47)
   })
 
   test('rejects missing effective native build number', () => {
-    const { dir, artifact } = fixture({ native: { effectiveBuildNumber: null } })
-    const result = run(dir, artifact)
+    const { dir, artifacts } = fixture({ native: { effectiveBuildNumber: null } })
+    const result = run(dir, artifacts)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(50)
   })
 
   test('rejects commit mismatch', () => {
-    const { dir, artifact } = fixture({ commit: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' })
-    const result = run(dir, artifact)
+    const { dir, artifacts } = fixture({ commit: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' })
+    const result = run(dir, artifacts)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(52)
   })
