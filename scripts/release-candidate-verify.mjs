@@ -82,6 +82,24 @@ const artifacts = args.artifacts.map((value) => {
   }
 })
 
+
+const artifactPaths = artifacts.map((artifact) => artifact.path)
+if (new Set(artifactPaths).size !== artifactPaths.length) {
+  fail(57, 'candidate artifact list contains duplicate paths')
+}
+
+const extensions = artifactPaths.map((artifactPath) => path.extname(artifactPath).toLowerCase())
+if (args.platform === 'android') {
+  const allowed = new Set(['.apk', '.aab'])
+  if (extensions.some((extension) => !allowed.has(extension))
+    || !extensions.includes('.apk')
+    || !extensions.includes('.aab')) {
+    fail(58, 'android candidate must contain APK and AAB artifacts only')
+  }
+} else if (extensions.some((extension) => extension !== '.ipa') || !extensions.includes('.ipa')) {
+  fail(59, 'ios candidate must contain IPA artifacts only')
+}
+
 const evidence = {
   schemaVersion: 1,
   product: policy.product,
