@@ -63,6 +63,27 @@ function hasOpenBlockingDefect(defects) {
   )
 }
 
+function isSha256(value) {
+  return /^[0-9a-f]{64}$/i.test(String(value ?? ''))
+}
+
+function validArtifacts(artifacts) {
+  return Array.isArray(artifacts) && artifacts.length > 0 && artifacts.every((artifact) =>
+    artifact
+    && typeof artifact.path === 'string'
+    && artifact.path.trim().length > 0
+    && Number.isInteger(artifact.bytes)
+    && artifact.bytes > 0
+    && isSha256(artifact.sha256)
+  )
+}
+
+function normalizedArtifacts(artifacts) {
+  return [...artifacts]
+    .map(({ path: artifactPath, bytes, sha256 }) => ({ path: artifactPath, bytes, sha256 }))
+    .sort((a, b) => a.path.localeCompare(b.path))
+}
+
 const args = parseArgs(process.argv.slice(2))
 const root = process.cwd()
 const policy = JSON.parse(fs.readFileSync(path.join(root, 'release-policy.json'), 'utf8'))
@@ -86,12 +107,26 @@ for (const [label, candidate, platform] of [
   if (candidate.platform !== platform) fail(97, `${label} platform mismatch`)
   if (candidate.environment !== 'qa' || candidate.channel !== 'beta') fail(98, `${label} is not QA/BETA`)
   if (candidate.productionLocked !== true) fail(99, `${label} production lock missing`)
+  if (candidate.product !== policy.product) fail(116, `${label} product mismatch`)
+  if (candidate.version !== policy.releaseVersion) fail(116, `${label} version mismatch with policy`)
+  if (!candidate.build || typeof candidate.build !== 'string') fail(116, `${label} build identity missing`)
+  if (!/^[0-9a-f]{40}$/i.test(String(candidate.commit ?? ''))) fail(116, `${label} commit invalid`)
+  if (!isSha256(candidate.webBundleSha256)) fail(116, `${label} web bundle hash invalid`)
+  if (!Number.isInteger(candidate.nativeBuildNumber) || candidate.nativeBuildNumber <= 0) fail(116, `${label} native build invalid`)
+  if (!validArtifacts(candidate.artifacts)) fail(116, `${label} artifact evidence invalid`)
 }
 
 if (parity.gate !== 'F10A_PLATFORM_PARITY' || parity.status !== 'READY_FOR_BETA_SMOKE') {
   fail(100, 'platform parity is not READY_FOR_BETA_SMOKE')
 }
 if (parity.productionLocked !== true) fail(101, 'platform parity lost production lock')
+if (parity.product !== policy.product || parity.version !== policy.releaseVersion) {
+  fail(117, 'platform parity product/version mismatch')
+}
+if (!/^[0-9a-f]{40}$/i.test(String(parity.commit ?? '')) || !isSha256(parity.webBundleSha256)) {
+  fail(117, 'platform parity commit/hash invalid')
+}
+if (!parity.platforms || typeof parity.platforms !== 'object') fail(117, 'platform parity platform details missing')
 
 for (const [label, smoke, platform] of [
   ['android smoke', androidSmoke, 'android'],
@@ -109,6 +144,16 @@ const fields = ['version','environment','channel','commit','webBundleSha256']
 for (const field of fields) {
   if (androidCandidate[field] !== iosCandidate[field]) fail(108, `candidate mismatch: ${field}`)
   if (parity[field] !== androidCandidate[field]) fail(109, `parity mismatch: ${field}`)
+}
+
+for (const [platform, candidate] of [['android', androidCandidate], ['ios', iosCandidate]]) {
+  const parityPlatform = parity.platforms?.[platform]
+  if (!parityPlatform || parityPlatform.build !== candidate.build) fail(117, `parity ${platform} build mismatch`)
+  if (parityPlatform.nativeBuildNumber !== candidate.nativeBuildNumber) fail(117, `parity ${platform} native build mismatch`)
+  if (!validArtifacts(parityPlatform.artifacts)) fail(117, `parity ${platform} artifacts invalid`)
+  if (JSON.stringify(normalizedArtifacts(parityPlatform.artifacts)) !== JSON.stringify(normalizedArtifacts(candidate.artifacts))) {
+    fail(117, `parity ${platform} artifact evidence mismatch`)
+  }
 }
 
 if (androidSmoke.candidate_sha !== androidCandidate.commit) fail(110, 'android smoke candidate SHA mismatch')
