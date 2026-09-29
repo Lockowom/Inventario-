@@ -68,6 +68,7 @@ describe('release manifest candidate identity', () => {
     ))
     expect(manifest.commit).toBe(candidateSha)
     expect(manifest.commit).not.toBe(mergeSha)
+    expect(manifest.native.effectiveBuildNumber).toBe(10042)
   })
 
   test('rejects an abbreviated explicit candidate SHA', () => {
