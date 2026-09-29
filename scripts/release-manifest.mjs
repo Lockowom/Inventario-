@@ -25,8 +25,13 @@ function collectFiles(dir, base = dir) {
 }
 
 function resolveCommit() {
-  const envSha = process.env.GITHUB_SHA || process.env.CM_COMMIT
-  if (envSha) return envSha
+  const envSha = process.env.INVEN3_CANDIDATE_SHA || process.env.GITHUB_SHA || process.env.CM_COMMIT
+  if (envSha) {
+    if (!/^[0-9a-f]{40}$/i.test(envSha)) {
+      throw new Error(`Release manifest requires a full 40-character candidate SHA, got: ${envSha}`)
+    }
+    return envSha.toLowerCase()
+  }
   try { return execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim() }
   catch { return 'UNKNOWN' }
 }
