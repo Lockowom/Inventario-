@@ -37,7 +37,7 @@ const bundledSupabaseHosts = [...content.matchAll(/(?:https?:\/\/)?([a-z0-9]{20}
 const foreignHosts = [...new Set(bundledSupabaseHosts.filter((host) => host !== qaHost))]
 if (foreignHosts.length > 0) fail(63, `built bundle contains unauthorized Supabase host: ${foreignHosts.join(', ')}`)
 
-const jwtCandidates = content.match(/eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]+/g) ?? []
+const jwtCandidates = content.match(/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]+/g) ?? []
 for (const token of jwtCandidates) {
   try {
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString('utf8'))
