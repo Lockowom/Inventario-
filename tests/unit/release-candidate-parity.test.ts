@@ -101,6 +101,28 @@ describe('F10A platform parity',()=>{
     expect(result.stderr).toContain('artifact evidence is invalid for platform')
   })
 
+  test('rejects candidate artifact path escaping the evidence root',()=>{
+    const dir=temp()
+    const artifacts=[
+      {path:'../app.apk',bytes:1,sha256:'a'.repeat(64)},
+      {path:'app.aab',bytes:1,sha256:'b'.repeat(64)},
+    ]
+    write(dir,evidence('android',{artifacts}),evidence('ios'))
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(76)
+    expect(result.stderr).toContain('artifact evidence is invalid for platform')
+  })
+
+  test('rejects unsafe native web evidence path',()=>{
+    const dir=temp()
+    const nativeWebVerification={...evidence('android').nativeWebVerification,evidencePath:'../native.json'}
+    write(dir,evidence('android',{nativeWebVerification}),evidence('ios'))
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(78)
+  })
+
   test('rejects iOS candidate containing a non-IPA artifact',()=>{
     const dir=temp()
     write(dir,evidence('android'),evidence('ios',{artifacts:[{path:'app.zip',bytes:1,sha256:'a'.repeat(64)}]}))

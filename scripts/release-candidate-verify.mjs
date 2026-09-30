@@ -57,6 +57,25 @@ function readJson(file, label, missingCode, invalidCode) {
   }
 }
 
+function repoRelativeFile(root, file, label) {
+  if (!fs.existsSync(file)) fail(65, `${label} not found: ${file}`)
+  if (fs.lstatSync(file).isSymbolicLink()) fail(65, `${label} must not be a symbolic link`)
+  const rootReal = fs.realpathSync(root)
+  const fileReal = fs.realpathSync(file)
+  const relative = path.relative(rootReal, fileReal)
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+    fail(65, `${label} must stay inside repository root`)
+  }
+  return relative.replaceAll('\\', '/')
+}
+
+function validBuildIdentity(manifest) {
+  const commit = String(manifest?.commit ?? '')
+  const build = String(manifest?.build ?? '')
+  return /^[0-9a-f]{40}$/i.test(commit)
+    && new RegExp(`^${commit.slice(0, 8)}\\.\\d+$`, 'i').test(build)
+}
+
 function validateManifestFiles(manifest) {
   const bundle = manifest?.webBundle
   if (!bundle || !Array.isArray(bundle.files) || bundle.files.length === 0) {
@@ -101,6 +120,8 @@ if (!fs.existsSync(policyPath)) fail(43, 'release-policy.json not found')
 const policy = readJson(policyPath, 'release policy', 43, 43)
 const manifest = readJson(manifestPath, 'release manifest', 44, 44)
 const nativeWeb = readJson(nativeWebEvidencePath, 'native web evidence', 61, 61)
+repoRelativeFile(root, manifestPath, 'release manifest')
+const nativeWebEvidenceRelativePath = repoRelativeFile(root, nativeWebEvidencePath, 'native web evidence')
 
 if (policy.productionLocked !== true) fail(45, 'candidate verifier requires productionLocked=true')
 if (manifest.productionLocked !== true) fail(46, 'manifest does not preserve production lock')
@@ -121,8 +142,7 @@ if (!/^[0-9a-f]{40}$/i.test(String(manifest.commit ?? ''))) fail(52, 'manifest c
 if (commit && manifest.commit.toLowerCase() !== String(commit).toLowerCase()) {
   fail(52, `manifest commit ${manifest.commit} != current commit ${commit}`)
 }
-if (!manifest.build || typeof manifest.build !== 'string') fail(53, 'manifest build identity is missing')
-if (!manifest.build.startsWith(`${manifest.commit.slice(0, 8)}.`)) {
+if (!validBuildIdentity(manifest)) {
   fail(53, 'manifest build identity is not bound to the candidate commit')
 }
 validateManifestFiles(manifest)
@@ -156,10 +176,11 @@ if (typeof nativeWeb.nativeDirectory !== 'string' || !nativeWeb.nativeDirectory.
 const artifacts = args.artifacts.map((value) => {
   const full = path.resolve(root, value)
   if (!fs.existsSync(full)) fail(55, `candidate artifact not found: ${value}`)
+  const artifactPath = repoRelativeFile(root, full, 'candidate artifact')
   const stat = fs.statSync(full)
   if (!stat.isFile() || stat.size <= 0) fail(56, `candidate artifact is empty or not a file: ${value}`)
   return {
-    path: path.relative(root, full).replaceAll('\\', '/'),
+    path: artifactPath,
     bytes: stat.size,
     sha256: sha256(full),
   }
@@ -203,7 +224,7 @@ const evidence = {
     verifiedFileCount: nativeWeb.verifiedFileCount,
     nativeFileCount: nativeWeb.nativeFileCount,
     webBundleSha256: nativeWeb.webBundleSha256,
-    evidencePath: path.relative(root, nativeWebEvidencePath).replaceAll('\\', '/'),
+    evidencePath: nativeWebEvidenceRelativePath,
     evidenceSha256: sha256(nativeWebEvidencePath),
   },
   artifacts,

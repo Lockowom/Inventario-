@@ -198,6 +198,29 @@ describe('F10A evidence-driven closure',()=>{
     expect(result.stderr).toContain('artifact evidence invalid for platform')
   })
 
+  test('rejects candidate artifact path escaping evidence root',()=>{
+    const dir=temp()
+    const artifacts=[
+      {path:'../INVEN3-android-lab.apk',bytes:1024,sha256:'c'.repeat(64)},
+      {path:'INVEN3-android-release.aab',bytes:2048,sha256:'9'.repeat(64)},
+    ]
+    write(dir,{android:{artifacts}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(116)
+    expect(result.stderr).toContain('artifact evidence invalid for platform')
+  })
+
+  test('rejects unsafe native web evidence path',()=>{
+    const dir=temp()
+    const nativeWebVerification={...candidate('android',10010).nativeWebVerification,evidencePath:'../native.json'}
+    write(dir,{android:{nativeWebVerification}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(116)
+    expect(result.stderr).toContain('native web parity evidence invalid')
+  })
+
   test('rejects iOS candidate containing a non-IPA artifact',()=>{
     const dir=temp()
     write(dir,{ios:{artifacts:[{path:'INVEN3-ios.zip',bytes:1024,sha256:'d'.repeat(64)}]}})

@@ -88,9 +88,19 @@ function validArtifacts(artifacts) {
   )
 }
 
+function validEvidencePath(value) {
+  if (typeof value !== 'string' || !value || value.includes('\\')) return false
+  const normalized = path.posix.normalize(value)
+  return normalized === value
+    && normalized !== '.'
+    && !path.posix.isAbsolute(normalized)
+    && !normalized.startsWith('../')
+}
+
 function validPlatformArtifacts(artifacts, platform) {
   if (!validArtifacts(artifacts)) return false
   const paths = artifacts.map((artifact) => artifact.path)
+  if (paths.some((artifactPath) => !validEvidencePath(artifactPath))) return false
   if (new Set(paths).size !== paths.length) return false
   const extensions = paths.map((artifactPath) => path.extname(artifactPath).toLowerCase())
   if (platform === 'android') {
@@ -125,8 +135,7 @@ function validNativeWebVerification(candidate, platform) {
     && Number.isInteger(evidence.nativeFileCount)
     && evidence.nativeFileCount === evidence.verifiedFileCount
     && evidence.webBundleSha256 === candidate.webBundleSha256
-    && typeof evidence.evidencePath === 'string'
-    && evidence.evidencePath.trim().length > 0
+    && validEvidencePath(evidence.evidencePath)
     && isSha256(evidence.evidenceSha256)
 }
 

@@ -99,13 +99,14 @@ function run(
   artifacts: string[],
   platform = 'android',
   env: Record<string, string> = {},
+  nativeWebEvidence = 'artifacts/release/native-web.json',
 ) {
   const artifactArgs = artifacts.flatMap((artifact) => ['--artifact', artifact])
   try {
     const stdout = execFileSync(process.execPath, [
       script,
       '--platform', platform,
-      '--native-web-evidence', 'artifacts/release/native-web.json',
+      '--native-web-evidence', nativeWebEvidence,
       ...artifactArgs,
     ], {
       cwd: dir,
@@ -184,6 +185,43 @@ describe('F10A release candidate verifier', () => {
     const result = run(dir, artifacts)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(64)
+  })
+
+  test('rejects build identity with non-numeric suffix', () => {
+    const { dir, artifacts } = fixture({ build: 'deadbeef.not-a-run' })
+    const result = run(dir, artifacts)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(53)
+    expect(result.stderr).toContain('build identity is not bound')
+  })
+
+  test('rejects an artifact outside repository root', () => {
+    const { dir, artifacts } = fixture()
+    const external = path.join(os.tmpdir(), `inven3-external-${Date.now()}.aab`)
+    fs.writeFileSync(external, Buffer.from('external aab'))
+    try {
+      const result = run(dir, [artifacts[0], external])
+      expect(result.ok).toBe(false)
+      expect(result.status).toBe(65)
+      expect(result.stderr).toContain('must stay inside repository root')
+    } finally {
+      fs.rmSync(external, { force: true })
+    }
+  })
+
+  test('rejects native web evidence outside repository root', () => {
+    const { dir, artifacts } = fixture()
+    const internal = path.join(dir, 'artifacts/release/native-web.json')
+    const external = path.join(os.tmpdir(), `inven3-native-evidence-${Date.now()}.json`)
+    fs.copyFileSync(internal, external)
+    try {
+      const result = run(dir, artifacts, 'android', {}, external)
+      expect(result.ok).toBe(false)
+      expect(result.status).toBe(65)
+      expect(result.stderr).toContain('must stay inside repository root')
+    } finally {
+      fs.rmSync(external, { force: true })
+    }
   })
 
   test('rejects Android candidate without an AAB', () => {
