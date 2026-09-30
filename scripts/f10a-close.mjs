@@ -274,6 +274,7 @@ if (iosSmoke.candidate_evidence_ref !== relativeEvidencePath(root, args.iosCandi
 if (androidSmoke.candidate_evidence_sha256 !== androidCandidateEvidenceSha256) fail(120, 'android smoke candidate evidence SHA-256 mismatch')
 if (iosSmoke.candidate_evidence_sha256 !== iosCandidateEvidenceSha256) fail(121, 'ios smoke candidate evidence SHA-256 mismatch')
 if (androidSmoke.version !== androidCandidate.version || iosSmoke.version !== iosCandidate.version) fail(112, 'smoke version mismatch')
+if (androidSmoke.build !== androidCandidate.build || iosSmoke.build !== iosCandidate.build) fail(112, 'smoke build mismatch')
 if (androidSmoke.native_build_number !== androidCandidate.nativeBuildNumber) fail(113, 'android smoke native build mismatch')
 if (iosSmoke.native_build_number !== iosCandidate.nativeBuildNumber) fail(114, 'ios smoke native build mismatch')
 
@@ -314,6 +315,7 @@ const result = {
     candidateEvidencePath: relativeEvidencePath(root, args.androidCandidate),
     candidateEvidenceSha256: androidCandidateEvidenceSha256,
     smokeExecutionId: androidSmoke.execution_id,
+    appDisplayVersion: androidSmoke.app_display_version,
     sourceCandidateArtifactPath: androidSourceArtifact.path,
     sourceCandidateArtifactSha256: androidSmoke.source_candidate_artifact_sha256,
     installedArtifactSha256: androidSmoke.installed_artifact_sha256,
@@ -327,6 +329,7 @@ const result = {
     candidateEvidencePath: relativeEvidencePath(root, args.iosCandidate),
     candidateEvidenceSha256: iosCandidateEvidenceSha256,
     smokeExecutionId: iosSmoke.execution_id,
+    appDisplayVersion: iosSmoke.app_display_version,
     sourceCandidateArtifactPath: iosSourceArtifact.path,
     sourceCandidateArtifactSha256: iosSmoke.source_candidate_artifact_sha256,
     installedArtifactSha256: iosSmoke.installed_artifact_sha256,
