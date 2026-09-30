@@ -44,6 +44,16 @@ function validate(record) {
   if (record.gate !== 'F10A_BETA_SMOKE') errors.push('INVALID_GATE')
   if (!['NOT_RUN','PASS','FAIL','BLOCKED'].includes(record.status)) errors.push('INVALID_STATUS')
   if (!['android','ios'].includes(record.platform)) errors.push('INVALID_PLATFORM')
+  const candidateEvidenceRef = String(record.candidate_evidence_ref ?? '')
+  const normalizedCandidateEvidenceRef = path.posix.normalize(candidateEvidenceRef)
+  if (!candidateEvidenceRef
+    || candidateEvidenceRef.includes('\\')
+    || path.posix.isAbsolute(candidateEvidenceRef)
+    || normalizedCandidateEvidenceRef !== candidateEvidenceRef
+    || normalizedCandidateEvidenceRef === '.'
+    || normalizedCandidateEvidenceRef.startsWith('../')) {
+    errors.push('INVALID_CANDIDATE_EVIDENCE_REF')
+  }
   if (!/^[0-9a-f]{40}$/i.test(String(record.candidate_sha ?? ''))) errors.push('INVALID_CANDIDATE_SHA')
   if (!/^[0-9a-f]{64}$/i.test(String(record.candidate_evidence_sha256 ?? ''))) errors.push('INVALID_CANDIDATE_EVIDENCE_SHA256')
   if (!/^[0-9a-f]{64}$/i.test(String(record.source_candidate_artifact_sha256 ?? ''))) errors.push('INVALID_SOURCE_CANDIDATE_ARTIFACT_SHA256')

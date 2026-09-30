@@ -48,6 +48,10 @@ function fileSha256(root, value) {
   return crypto.createHash('sha256').update(fs.readFileSync(full)).digest('hex')
 }
 
+function relativeEvidencePath(root, value) {
+  return path.relative(root, path.resolve(root, value)).replaceAll('\\', '/')
+}
+
 function validateSmokeEvidence(root, evidencePath, label) {
   const checker = path.join(path.dirname(fileURLToPath(import.meta.url)), 'f10a-smoke-evidence-check.mjs')
   try {
@@ -220,6 +224,8 @@ for (const [platform, candidate] of [['android', androidCandidate], ['ios', iosC
 
 if (androidSmoke.candidate_sha !== androidCandidate.commit) fail(110, 'android smoke candidate SHA mismatch')
 if (iosSmoke.candidate_sha !== iosCandidate.commit) fail(111, 'ios smoke candidate SHA mismatch')
+if (androidSmoke.candidate_evidence_ref !== relativeEvidencePath(root, args.androidCandidate)) fail(122, 'android smoke candidate evidence reference mismatch')
+if (iosSmoke.candidate_evidence_ref !== relativeEvidencePath(root, args.iosCandidate)) fail(123, 'ios smoke candidate evidence reference mismatch')
 if (androidSmoke.candidate_evidence_sha256 !== androidCandidateEvidenceSha256) fail(120, 'android smoke candidate evidence SHA-256 mismatch')
 if (iosSmoke.candidate_evidence_sha256 !== iosCandidateEvidenceSha256) fail(121, 'ios smoke candidate evidence SHA-256 mismatch')
 if (androidSmoke.version !== androidCandidate.version || iosSmoke.version !== iosCandidate.version) fail(112, 'smoke version mismatch')
@@ -260,6 +266,7 @@ const result = {
     nativeBuildNumber: androidCandidate.nativeBuildNumber,
     nativeWebFileCount: androidCandidate.nativeWebVerification.nativeFileCount,
     nativeWebEvidenceSha256: androidCandidate.nativeWebVerification.evidenceSha256,
+    candidateEvidencePath: relativeEvidencePath(root, args.androidCandidate),
     candidateEvidenceSha256: androidCandidateEvidenceSha256,
     smokeExecutionId: androidSmoke.execution_id,
     sourceCandidateArtifactPath: androidSourceArtifact.path,
@@ -272,6 +279,7 @@ const result = {
     nativeBuildNumber: iosCandidate.nativeBuildNumber,
     nativeWebFileCount: iosCandidate.nativeWebVerification.nativeFileCount,
     nativeWebEvidenceSha256: iosCandidate.nativeWebVerification.evidenceSha256,
+    candidateEvidencePath: relativeEvidencePath(root, args.iosCandidate),
     candidateEvidenceSha256: iosCandidateEvidenceSha256,
     smokeExecutionId: iosSmoke.execution_id,
     sourceCandidateArtifactPath: iosSourceArtifact.path,

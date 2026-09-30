@@ -16,7 +16,7 @@ Objetivo: comprobar que el **artefacto Release QA/BETA** funciona después del e
 
 La evidencia debe demostrar qué artefacto candidato originó exactamente el binario instalado:
 
-1. Calcular y registrar `candidate_evidence_sha256` sobre el JSON de candidate evidence exacto usado para el smoke.
+1. Registrar `candidate_evidence_ref` como la ruta relativa normalizada al JSON exacto usado para el smoke y calcular sobre ese mismo archivo `candidate_evidence_sha256`.
 2. Tomar `source_candidate_artifact_sha256` del campo `artifacts[].sha256` del mismo candidate evidence.
 3. Registrar el hash SHA-256 del binario que se instala como `installed_artifact_sha256`.
 4. Registrar `install_method`:
@@ -30,7 +30,8 @@ La evidencia debe demostrar qué artefacto candidato originó exactamente el bin
 
 Reglas obligatorias:
 
-- `candidate_evidence_sha256` debe coincidir con el SHA-256 real del JSON de candidate evidence entregado al cierre;
+- `candidate_evidence_ref` debe coincidir exactamente con la ruta relativa del candidate evidence entregado al cierre;
+- `candidate_evidence_sha256` debe coincidir con el SHA-256 real de ese mismo JSON;
 - `source_candidate_artifact_sha256` debe existir en `artifacts[]` del candidate evidence correspondiente;
 - la fuente Android debe ser el APK instalable, nunca el AAB;
 - la fuente iOS debe ser una IPA;
@@ -147,6 +148,7 @@ No cerrar F10A si:
 - el conteo no se confirma;
 - scanner cancelar auto-guarda;
 - candidate SHA/build no coincide;
+- `candidate_evidence_ref` apunta a otro archivo;
 - el SHA-256 del candidate evidence no coincide con el JSON usado en el cierre;
 - el hash fuente no pertenece al candidate evidence;
 - la fuente Android no es APK o la fuente iOS no es IPA;

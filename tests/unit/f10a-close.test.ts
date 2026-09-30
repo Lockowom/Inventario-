@@ -171,6 +171,8 @@ describe('F10A evidence-driven closure',()=>{
     expect(closure.ios.nativeWebFileCount).toBe(2)
     expect(closure.android.nativeWebEvidenceSha256).toBe('7'.repeat(64))
     expect(closure.ios.nativeWebEvidenceSha256).toBe('8'.repeat(64))
+    expect(closure.android.candidateEvidencePath).toBe('android.json')
+    expect(closure.ios.candidateEvidencePath).toBe('ios.json')
     expect(closure.android.candidateEvidenceSha256).toMatch(/^[0-9a-f]{64}$/)
     expect(closure.ios.candidateEvidenceSha256).toMatch(/^[0-9a-f]{64}$/)
     expect(closure.parityEvidenceSha256).toMatch(/^[0-9a-f]{64}$/)
@@ -212,6 +214,14 @@ describe('F10A evidence-driven closure',()=>{
     const result=run(dir)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(110)
+  })
+
+  test('rejects smoke pointing at a different candidate evidence file',()=>{
+    const dir=temp(); write(dir,{androidSmoke:{candidate_evidence_ref:'other.json'}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(122)
+    expect(result.stderr).toContain('candidate evidence reference mismatch')
   })
 
   test('rejects smoke bound to a different candidate evidence file hash',()=>{

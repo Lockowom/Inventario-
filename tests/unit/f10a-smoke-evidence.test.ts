@@ -89,6 +89,13 @@ describe('F10A smoke evidence validator', () => {
     expect(result.stderr).toContain('PASS_REQUIRES_SYNTHETIC_COUNT_CONFIRMED')
   })
 
+  test('rejects an unsafe candidate evidence reference', () => {
+    const result = run(temp(), record({ candidate_evidence_ref: '../candidate.json' }))
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(83)
+    expect(result.stderr).toContain('INVALID_CANDIDATE_EVIDENCE_REF')
+  })
+
   test('rejects an invalid candidate evidence hash', () => {
     const result = run(temp(), record({ candidate_evidence_sha256: 'not-a-hash' }))
     expect(result.ok).toBe(false)
