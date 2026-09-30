@@ -135,6 +135,9 @@ jobs:
       - name: Sync Android from canonical bundle
         run: npx cap sync android
 
+      - name: Verify canonical bundle inside Android
+        run: npm run release:verify-native-web -- --platform android
+
       - name: Build Android APK and AAB
         working-directory: android
         shell: bash
@@ -196,6 +199,7 @@ jobs:
           AAB="$(find android/app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)"
           npm run release:verify-candidate -- \
             --platform android \
+            --native-web-evidence artifacts/release/INVEN3-android-native-web-evidence.json \
             --artifact "$APK" \
             --artifact "$AAB" \
             --out artifacts/release/INVEN3-android-candidate-evidence.json
@@ -213,6 +217,7 @@ jobs:
             artifacts/release/android-lab-signature.txt
             artifacts/release/android-package-badging.txt
             artifacts/release/INVEN3-android-candidate-evidence.json
+            artifacts/release/INVEN3-android-native-web-evidence.json
             artifacts/release/INVEN3-release-manifest.json
 
   ios:
@@ -248,6 +253,9 @@ jobs:
 
       - name: Sync iOS from canonical bundle
         run: npx cap sync ios
+
+      - name: Verify canonical bundle inside iOS
+        run: npm run release:verify-native-web -- --platform ios
 
       - name: Install CocoaPods
         working-directory: ios/App
@@ -294,6 +302,7 @@ jobs:
         run: |
           npm run release:verify-candidate -- \
             --platform ios \
+            --native-web-evidence artifacts/release/INVEN3-ios-native-web-evidence.json \
             --artifact "INVEN3-1.0.0-beta-${GITHUB_RUN_NUMBER}-unsigned.ipa" \
             --out artifacts/release/INVEN3-ios-candidate-evidence.json
 
@@ -308,6 +317,7 @@ jobs:
             ios-f10a-release-build.log
             artifacts/release/ios-sha256.txt
             artifacts/release/INVEN3-ios-candidate-evidence.json
+            artifacts/release/INVEN3-ios-native-web-evidence.json
             artifacts/release/INVEN3-release-manifest.json
 
   parity:
