@@ -27,7 +27,9 @@ export default defineConfig(({ mode }) => {
     throw new Error('REMOTE BACKEND BLOCKED: F10A accepts only local Supabase or INVEN3-QA.')
   }
 
-  if (releaseEnvironment === 'qa') {
+  const isTestMode = mode === 'test'
+
+  if (releaseEnvironment === 'qa' && !isTestMode) {
     if (!supabaseUrl || !supabaseAnonKey) throw new Error('QA release build requires Supabase URL and public anon/publishable key.')
     if (!supabaseUrl.includes(`${releasePolicy.qaSupabaseProjectRef}.supabase.co`)) {
       throw new Error('QA release build refuses a Supabase URL outside INVEN3-QA.')

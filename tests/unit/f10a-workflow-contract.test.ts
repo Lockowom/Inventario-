@@ -54,6 +54,13 @@ describe('F10A GitHub workflow contract', () => {
     expect(prepare).not.toContain('run: npm audit --omit=dev')
   })
 
+  test('allows secretless Vitest startup while keeping QA builds fail-closed', () => {
+    const config = fs.readFileSync(path.resolve(process.cwd(), 'vite.config.ts'), 'utf8').replace(/\r\n/g, '\n')
+    expect(config).toContain("const isTestMode = mode === 'test'")
+    expect(config).toContain("if (releaseEnvironment === 'qa' && !isTestMode)")
+    expect(config).toContain('QA release build requires Supabase URL and public anon/publishable key.')
+  })
+
   test('keeps one canonical F10A candidate workflow', () => {
     expect(fs.existsSync(path.resolve(process.cwd(), '.github/workflows/f10a-github-dual-platform.yml'))).toBe(true)
     expect(fs.existsSync(path.resolve(process.cwd(), '.github/workflows/f10a-release-candidate.yml'))).toBe(false)
