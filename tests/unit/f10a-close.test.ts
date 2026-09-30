@@ -30,6 +30,7 @@ function candidate(platform:'android'|'ios', nativeBuildNumber:number) {
     status:'READY_FOR_BETA_SMOKE',
     platform,
     version:'1.0.0',
+    build:`${sha.slice(0,8)}.10`,
     environment:'qa',
     channel:'beta',
     build:`${sha.slice(0,8)}.10`,
@@ -193,6 +194,8 @@ describe('F10A evidence-driven closure',()=>{
     expect(closure.android.candidateEvidenceSha256).toMatch(/^[0-9a-f]{64}$/)
     expect(closure.ios.candidateEvidenceSha256).toMatch(/^[0-9a-f]{64}$/)
     expect(closure.parityEvidenceSha256).toMatch(/^[0-9a-f]{64}$/)
+    expect(closure.android.appDisplayVersion).toBe(`1.0.0-beta+${sha.slice(0,8)}.10`)
+    expect(closure.ios.appDisplayVersion).toBe(`1.0.0-beta+${sha.slice(0,8)}.10`)
   })
 
   test('rejects a candidate build not bound to its commit',()=>{
@@ -266,6 +269,20 @@ describe('F10A evidence-driven closure',()=>{
     expect(result.ok).toBe(false)
     expect(result.status).toBe(108)
     expect(result.stderr).toContain('candidate mismatch: nativeBuildNumber')
+  })
+
+  test('rejects smoke evidence bound to a different release build',()=>{
+    const dir=temp()
+    write(dir,{
+      androidSmoke:{
+        build:`${sha.slice(0,8)}.11`,
+        app_display_version:`1.0.0-beta+${sha.slice(0,8)}.11`,
+      },
+    })
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(112)
+    expect(result.stderr).toContain('smoke build mismatch')
   })
 
   test('rejects a failed iOS smoke',()=>{
