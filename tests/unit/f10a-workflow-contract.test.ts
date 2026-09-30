@@ -5,7 +5,7 @@ import { describe, expect, test } from 'vitest'
 const workflowPath = path.resolve(process.cwd(), '.github/workflows/f10a-github-dual-platform.yml')
 
 function workflow() {
-  return fs.readFileSync(workflowPath, 'utf8')
+  return fs.readFileSync(workflowPath, 'utf8').replace(/\r\n/g, '\n')
 }
 
 describe('F10A GitHub workflow contract', () => {
@@ -65,8 +65,9 @@ describe('F10A GitHub workflow contract', () => {
       '.github/workflows/ios-certification.yml',
       '.github/workflows/ios-virtual-certification.yml',
     ]) {
-      const yaml = fs.readFileSync(path.resolve(process.cwd(), file), 'utf8')
-      const pushBlock = yaml.slice(yaml.indexOf('  push:'), yaml.indexOf('  pull_request:'))
+      const yaml = fs.readFileSync(path.resolve(process.cwd(), file), 'utf8').replace(/\r\n/g, '\n')
+      const pushStart = yaml.indexOf('  push:')
+      const pushBlock = yaml.slice(pushStart, yaml.indexOf('\n\n', pushStart))
       expect(pushBlock).not.toContain('feature/**')
       expect(pushBlock).not.toContain('fix/**')
       expect(pushBlock).toContain('release/**')

@@ -37,6 +37,6 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     build: { outDir: 'dist', sourcemap: true },
-    test: { environment: 'jsdom', globals: true, setupFiles: './vitest.setup.ts', exclude: ['node_modules/**', 'dist/**', 'tests/e2e/**', 'tests/visual/**'] },
+    test: { environment: 'jsdom', globals: true, setupFiles: './vitest.setup.ts', exclude: ['node_modules/**', 'dist/**', 'tests/e2e/**', 'tests/visual/**', 'tests/ios-virtual/**'] },
   }
 })

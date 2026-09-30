@@ -200,7 +200,7 @@ describe('F10A release candidate verifier', () => {
     const external = path.join(os.tmpdir(), `inven3-external-${Date.now()}.aab`)
     fs.writeFileSync(external, Buffer.from('external aab'))
     try {
-      const result = run(dir, [artifacts[0], external])
+      const result = run(dir, [artifacts[0]!, external])
       expect(result.ok).toBe(false)
       expect(result.status).toBe(65)
       expect(result.stderr).toContain('must stay inside repository root')
@@ -226,14 +226,14 @@ describe('F10A release candidate verifier', () => {
 
   test('rejects Android candidate without an AAB', () => {
     const { dir, artifacts } = fixture()
-    const result = run(dir, [artifacts[0]])
+    const result = run(dir, [artifacts[0]!])
     expect(result.ok).toBe(false)
     expect(result.status).toBe(58)
   })
 
   test('rejects an unexpected iOS artifact type', () => {
-    const { dir, artifacts } = fixture()
-    const result = run(dir, [artifacts[0]], 'ios')
+    const { dir, artifacts } = fixture({}, 'ios')
+    const result = run(dir, [artifacts[0]!], 'ios')
     expect(result.ok).toBe(false)
     expect(result.status).toBe(59)
   })

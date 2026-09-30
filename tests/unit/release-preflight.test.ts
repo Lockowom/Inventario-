@@ -8,7 +8,7 @@ const qaUrl = 'https://uazunvlxlszdyweddxtb.supabase.co'
 const qaKey = 'sb_publishable_test_only_not_a_real_secret'
 
 function run(extraEnv: Record<string, string | undefined> = {}, args: string[] = []) {
-  const env = {
+  const env: NodeJS.ProcessEnv = {
     ...process.env,
     VITE_RELEASE_ENV: 'qa',
     VITE_RELEASE_CHANNEL: 'beta',

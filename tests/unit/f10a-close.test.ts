@@ -33,7 +33,6 @@ function candidate(platform:'android'|'ios', nativeBuildNumber:number) {
     build:`${sha.slice(0,8)}.10`,
     environment:'qa',
     channel:'beta',
-    build:`${sha.slice(0,8)}.10`,
     commit:sha,
     productionLocked:true,
     webBundleSha256:webHash,
@@ -77,6 +76,7 @@ function smoke(platform:'android'|'ios', native_build_number:number, overrides:R
     install_method:platform === 'android' ? 'local_device' : 'managed_device_lab',
     signing_provenance:platform === 'android' ? 'ephemeral_lab_signing' : 'laboratory_resign',
     version:'1.0.0',
+    build:`${sha.slice(0,8)}.10`,
     environment:'qa',
     channel:'beta',
     production_locked:true,
@@ -301,7 +301,12 @@ describe('F10A evidence-driven closure',()=>{
   })
 
   test('rejects smoke built from another candidate SHA',()=>{
-    const dir=temp(); write(dir,{androidSmoke:{candidate_sha:'c'.repeat(40)}})
+    const foreignSha='c'.repeat(40)
+    const dir=temp(); write(dir,{androidSmoke:{
+      candidate_sha:foreignSha,
+      build:`${foreignSha.slice(0,8)}.10`,
+      app_display_version:`1.0.0-beta+${foreignSha.slice(0,8)}.10`,
+    }})
     const result=run(dir)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(110)
