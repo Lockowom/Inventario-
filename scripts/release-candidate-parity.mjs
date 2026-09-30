@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
@@ -9,6 +10,14 @@ function fail(code, message) {
 
 function isSha256(value) {
   return /^[0-9a-f]{64}$/i.test(String(value ?? ''))
+}
+
+function fileSha256(file) {
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
+}
+
+function relativeEvidencePath(root, value) {
+  return path.relative(root, path.resolve(root, value)).replaceAll('\\', '/')
 }
 
 function validArtifacts(artifacts) {
@@ -118,6 +127,13 @@ const args = parseArgs(process.argv.slice(2))
 const root = process.cwd()
 const android = readEvidence(root, args.android, 'android')
 const ios = readEvidence(root, args.ios, 'ios')
+const androidCandidateEvidencePath = relativeEvidencePath(root, args.android)
+const iosCandidateEvidencePath = relativeEvidencePath(root, args.ios)
+if (!validEvidencePath(androidCandidateEvidencePath) || !validEvidencePath(iosCandidateEvidencePath)) {
+  fail(79, 'candidate evidence inputs must stay inside the repository evidence root')
+}
+const androidCandidateEvidenceSha256 = fileSha256(path.resolve(root, args.android))
+const iosCandidateEvidenceSha256 = fileSha256(path.resolve(root, args.ios))
 
 const equalFields = ['product','gate','version','environment','channel','build','commit','webBundleSha256']
 for (const field of equalFields) {
@@ -146,12 +162,16 @@ const summary = {
     android: {
       build: android.build,
       nativeBuildNumber: android.nativeBuildNumber,
+      candidateEvidencePath: androidCandidateEvidencePath,
+      candidateEvidenceSha256: androidCandidateEvidenceSha256,
       nativeWebVerification: android.nativeWebVerification,
       artifacts: android.artifacts,
     },
     ios: {
       build: ios.build,
       nativeBuildNumber: ios.nativeBuildNumber,
+      candidateEvidencePath: iosCandidateEvidencePath,
+      candidateEvidenceSha256: iosCandidateEvidenceSha256,
       nativeWebVerification: ios.nativeWebVerification,
       artifacts: ios.artifacts,
     },

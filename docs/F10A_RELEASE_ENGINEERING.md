@@ -237,3 +237,9 @@ El workflow GitHub separa la validación de código del build que requiere crede
 
 Esto permite distinguir un fallo de ingeniería de un bloqueo por configuración/secretos y evita trabajo nativo innecesario.
 
+## Cadena criptográfica de platform parity
+
+`F10A_PLATFORM_PARITY` conserva para Android e iOS la ruta relativa y el SHA-256 exacto de cada archivo de candidate evidence utilizado. El cierre vuelve a calcular ambos hashes y rechaza cualquier paridad que apunte a otro archivo o a otra versión del JSON, incluso si los campos funcionales aparentan coincidir.
+
+Cadena resultante: manifest → native web evidence → candidate evidence → platform parity → smoke evidence → closure.
+

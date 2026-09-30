@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -54,6 +55,10 @@ function write(dir:string,a= evidence('android'),i=evidence('ios')) {
   fs.writeFileSync(path.join(dir,'artifacts/release/INVEN3-ios-candidate-evidence.json'),JSON.stringify(i))
 }
 
+function sha256(file:string) {
+  return crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')
+}
+
 function run(dir:string) {
   try {
     const stdout=execFileSync(process.execPath,[script],{cwd:dir,encoding:'utf8',stdio:['ignore','pipe','pipe']})
@@ -74,6 +79,14 @@ describe('F10A platform parity',()=>{
     expect(result.stdout).toContain('F10A_PLATFORM_PARITY')
     const summary=JSON.parse(fs.readFileSync(path.join(dir,'artifacts/release/INVEN3-f10a-platform-parity.json'),'utf8'))
     expect(summary.status).toBe('READY_FOR_BETA_SMOKE')
+    expect(summary.platforms.android.candidateEvidencePath).toBe('artifacts/release/INVEN3-android-candidate-evidence.json')
+    expect(summary.platforms.ios.candidateEvidencePath).toBe('artifacts/release/INVEN3-ios-candidate-evidence.json')
+    expect(summary.platforms.android.candidateEvidenceSha256).toBe(
+      sha256(path.join(dir,'artifacts/release/INVEN3-android-candidate-evidence.json')),
+    )
+    expect(summary.platforms.ios.candidateEvidenceSha256).toBe(
+      sha256(path.join(dir,'artifacts/release/INVEN3-ios-candidate-evidence.json')),
+    )
   })
 
   test('rejects different builds',()=>{

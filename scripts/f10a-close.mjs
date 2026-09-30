@@ -242,6 +242,18 @@ for (const [platform, candidate] of [['android', androidCandidate], ['ios', iosC
   const parityPlatform = parity.platforms?.[platform]
   if (!parityPlatform || parityPlatform.build !== candidate.build) fail(117, `parity ${platform} build mismatch`)
   if (parityPlatform.nativeBuildNumber !== candidate.nativeBuildNumber) fail(117, `parity ${platform} native build mismatch`)
+  const candidatePath = platform === 'android'
+    ? relativeEvidencePath(root, args.androidCandidate)
+    : relativeEvidencePath(root, args.iosCandidate)
+  const candidateSha256 = platform === 'android'
+    ? androidCandidateEvidenceSha256
+    : iosCandidateEvidenceSha256
+  if (parityPlatform.candidateEvidencePath !== candidatePath) {
+    fail(124, `parity ${platform} candidate evidence path mismatch`)
+  }
+  if (parityPlatform.candidateEvidenceSha256 !== candidateSha256) {
+    fail(125, `parity ${platform} candidate evidence SHA-256 mismatch`)
+  }
   if (!validPlatformArtifacts(parityPlatform.artifacts, platform)) fail(117, `parity ${platform} artifacts invalid for platform`)
   if (!validNativeWebVerification({ ...candidate, nativeWebVerification: parityPlatform.nativeWebVerification }, platform)) {
     fail(117, `parity ${platform} native web evidence invalid`)

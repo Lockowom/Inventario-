@@ -115,17 +115,31 @@ function write(dir:string, overrides:{
 }={}) {
   const a={...candidate('android',10010),...(overrides.android??{})}
   const i={...candidate('ios',10010),...(overrides.ios??{})}
+  const androidJson=JSON.stringify(a)
+  const iosJson=JSON.stringify(i)
   const p={
     product:'INVEN3', gate:'F10A_PLATFORM_PARITY', status:'READY_FOR_BETA_SMOKE', version:'1.0.0',
     environment:'qa', channel:'beta', build:a.build, nativeBuildNumber:a.nativeBuildNumber, commit:sha, productionLocked:true, webBundleSha256:webHash,
     platforms:{
-      android:{build:a.build,nativeBuildNumber:a.nativeBuildNumber,nativeWebVerification:a.nativeWebVerification,artifacts:a.artifacts},
-      ios:{build:i.build,nativeBuildNumber:i.nativeBuildNumber,nativeWebVerification:i.nativeWebVerification,artifacts:i.artifacts},
+      android:{
+        build:a.build,
+        nativeBuildNumber:a.nativeBuildNumber,
+        candidateEvidencePath:'android.json',
+        candidateEvidenceSha256:hash(androidJson),
+        nativeWebVerification:a.nativeWebVerification,
+        artifacts:a.artifacts,
+      },
+      ios:{
+        build:i.build,
+        nativeBuildNumber:i.nativeBuildNumber,
+        candidateEvidencePath:'ios.json',
+        candidateEvidenceSha256:hash(iosJson),
+        nativeWebVerification:i.nativeWebVerification,
+        artifacts:i.artifacts,
+      },
     },
     ...(overrides.parity??{})
   }
-  const androidJson=JSON.stringify(a)
-  const iosJson=JSON.stringify(i)
   const as={...smoke('android',10010),candidate_evidence_sha256:hash(androidJson),...(overrides.androidSmoke??{})}
   const is={...smoke('ios',10010),candidate_evidence_sha256:hash(iosJson),...(overrides.iosSmoke??{})}
   const files={
@@ -324,6 +338,62 @@ describe('F10A evidence-driven closure',()=>{
     expect(result.stderr).toContain('native web parity evidence invalid')
   })
 
+  test('rejects parity bound to a different Android candidate evidence hash',()=>{
+    const dir=temp()
+    const a=candidate('android',10010)
+    const i=candidate('ios',10010)
+    write(dir,{parity:{platforms:{
+      android:{
+        build:a.build,
+        nativeBuildNumber:a.nativeBuildNumber,
+        candidateEvidencePath:'android.json',
+        candidateEvidenceSha256:'f'.repeat(64),
+        nativeWebVerification:a.nativeWebVerification,
+        artifacts:a.artifacts,
+      },
+      ios:{
+        build:i.build,
+        nativeBuildNumber:i.nativeBuildNumber,
+        candidateEvidencePath:'ios.json',
+        candidateEvidenceSha256:hash(JSON.stringify(i)),
+        nativeWebVerification:i.nativeWebVerification,
+        artifacts:i.artifacts,
+      },
+    }}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(125)
+    expect(result.stderr).toContain('candidate evidence SHA-256 mismatch')
+  })
+
+  test('rejects parity bound to a different iOS candidate evidence path',()=>{
+    const dir=temp()
+    const a=candidate('android',10010)
+    const i=candidate('ios',10010)
+    write(dir,{parity:{platforms:{
+      android:{
+        build:a.build,
+        nativeBuildNumber:a.nativeBuildNumber,
+        candidateEvidencePath:'android.json',
+        candidateEvidenceSha256:hash(JSON.stringify(a)),
+        nativeWebVerification:a.nativeWebVerification,
+        artifacts:a.artifacts,
+      },
+      ios:{
+        build:i.build,
+        nativeBuildNumber:i.nativeBuildNumber,
+        candidateEvidencePath:'other-ios.json',
+        candidateEvidenceSha256:hash(JSON.stringify(i)),
+        nativeWebVerification:i.nativeWebVerification,
+        artifacts:i.artifacts,
+      },
+    }}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(124)
+    expect(result.stderr).toContain('candidate evidence path mismatch')
+  })
+
   test('rejects parity with changed native web evidence',()=>{
     const dir=temp()
     const changed={
@@ -337,8 +407,22 @@ describe('F10A evidence-driven closure',()=>{
       evidenceSha256:'f'.repeat(64),
     }
     write(dir,{parity:{platforms:{
-      android:{build:`${sha.slice(0,8)}.10`,nativeBuildNumber:10010,nativeWebVerification:candidate('android',10010).nativeWebVerification,artifacts:candidate('android',10010).artifacts},
-      ios:{build:`${sha.slice(0,8)}.10`,nativeBuildNumber:10010,nativeWebVerification:changed,artifacts:candidate('ios',10010).artifacts},
+      android:{
+        build:`${sha.slice(0,8)}.10`,
+        nativeBuildNumber:10010,
+        candidateEvidencePath:'android.json',
+        candidateEvidenceSha256:hash(JSON.stringify(candidate('android',10010))),
+        nativeWebVerification:candidate('android',10010).nativeWebVerification,
+        artifacts:candidate('android',10010).artifacts,
+      },
+      ios:{
+        build:`${sha.slice(0,8)}.10`,
+        nativeBuildNumber:10010,
+        candidateEvidencePath:'ios.json',
+        candidateEvidenceSha256:hash(JSON.stringify(candidate('ios',10010))),
+        nativeWebVerification:changed,
+        artifacts:candidate('ios',10010).artifacts,
+      },
     }}})
     const result=run(dir)
     expect(result.ok).toBe(false)
