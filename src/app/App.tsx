@@ -76,6 +76,11 @@ function AuthenticatedRuntime() {
   }, [])
 
   useEffect(() => {
+    if (!countingRuntime) return
+    setSyncCoordinator((current) => current ?? createSyncCoordinator(countingRuntime.context.userId))
+  }, [countingRuntime])
+
+  useEffect(() => {
     let active = true
     const cache = getCountingContextRepository()
     const prepareSync = async () => {
