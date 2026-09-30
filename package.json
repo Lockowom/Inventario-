@@ -36,6 +36,7 @@
     "release:preflight:static": "node scripts/release-preflight.mjs --static",
     "release:manifest": "node scripts/release-manifest.mjs",
     "release:qa": "npm run release:preflight && npm run build && npm run release:audit-bundle && npm run release:manifest",
+    "release:verify-native-web": "node scripts/release-native-web-verify.mjs",
     "release:verify-candidate": "node scripts/release-candidate-verify.mjs",
     "release:audit-bundle": "node scripts/release-bundle-audit.mjs",
     "release:verify-parity": "node scripts/release-candidate-parity.mjs",
