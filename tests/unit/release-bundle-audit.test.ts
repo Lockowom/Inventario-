@@ -52,6 +52,27 @@ describe('F10A built bundle audit',()=>{
     expect(result.status).toBe(63)
   })
 
+  test('allows localhost text that exists only in a source map',()=>{
+    const dir=make('const qa="https://uazunvlxlszdyweddxtb.supabase.co";')
+    fs.writeFileSync(path.join(dir,'dist/assets/app.js.map'), JSON.stringify({
+      version:3,
+      sources:['../../src/example.ts'],
+      sourcesContent:['const localDev="http://127.0.0.1:54321"'],
+      names:[],
+      mappings:'',
+    }))
+    const result=run(dir)
+    expect(result.ok).toBe(true)
+  })
+
+  test('rejects a localhost Supabase URL in executable runtime content',()=>{
+    const dir=make('const qa="https://uazunvlxlszdyweddxtb.supabase.co"; const local="http://localhost:54321/rest/v1";')
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(63)
+    expect(result.stderr).toContain('forbidden runtime reference')
+  })
+
   test('rejects Supabase server secret material',()=>{
     const dir=make('const qa="https://uazunvlxlszdyweddxtb.supabase.co"; const x="sb_secret_forbidden";')
     const result=run(dir)
