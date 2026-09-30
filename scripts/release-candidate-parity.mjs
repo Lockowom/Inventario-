@@ -39,20 +39,7 @@ function validBuildIdentity(candidate) {
   const commit = String(candidate?.commit ?? '')
   const build = String(candidate?.build ?? '')
   return /^[0-9a-f]{40}$/i.test(commit)
-    && new RegExp(`^${commit.slice(0, 8)}\\.\\d+import fs from 'node:fs'
-import path from 'node:path'
-import process from 'node:process'
-
-function fail(code, message) {
-  console.error(`[FAIL] ${message}`)
-  process.exit(code)
-}
-
-function isSha256(value) {
-  return /^[0-9a-f]{64}$/i.test(String(value ?? ''))
-}
-
-, 'i').test(build)
+    && new RegExp(`^${commit.slice(0, 8)}\\.\\d+$`, 'i').test(build)
 }
 
 function validNativeWebVerification(candidate, platform) {
