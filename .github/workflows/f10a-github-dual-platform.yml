@@ -33,8 +33,32 @@ env:
   VITE_SUPABASE_URL: https://uazunvlxlszdyweddxtb.supabase.co
 
 jobs:
+  static-validation:
+    name: Validate F10A code without runtime secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.INVEN3_CANDIDATE_SHA }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Static release preflight
+        run: npm run release:preflight:static
+
+
   prepare-web:
     name: Certify and build canonical QA web bundle
+    needs: static-validation
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:

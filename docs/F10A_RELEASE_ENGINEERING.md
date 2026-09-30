@@ -226,3 +226,14 @@ Todavía NO ejecutar:
 - desbloqueo de `productionLocked`.
 
 Eso pertenece a F10B/F10C y requiere autorización separada.
+
+## Gate estático previo al build QA
+
+El workflow GitHub separa la validación de código del build que requiere credenciales QA:
+
+1. `static-validation` ejecuta `npm ci`, preflight estático, typecheck, lint, unit tests y `npm audit --omit=dev` sin depender de secretos.
+2. `prepare-web` sólo se habilita después de ese gate y ejecuta el preflight runtime con `INVEN3_QA_ANON_KEY`, build, auditoría del bundle y manifest.
+3. Android, iOS y paridad siguen dependiendo de `prepare-web`, por lo que ningún runner nativo se consume si el código o la configuración QA no han pasado sus gates previos.
+
+Esto permite distinguir un fallo de ingeniería de un bloqueo por configuración/secretos y evita trabajo nativo innecesario.
+
