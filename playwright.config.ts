@@ -18,6 +18,8 @@ export default defineConfig({
       use: {
         ...devices['iPhone 15'],
         browserName: 'webkit',
+        hasTouch: true,
+        isMobile: true,
         locale: 'es-CL',
         colorScheme: 'dark',
       },
