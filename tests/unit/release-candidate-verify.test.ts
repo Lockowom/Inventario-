@@ -254,7 +254,7 @@ describe('F10A release candidate verifier', () => {
 
   test('uses the explicit candidate SHA instead of the pull request merge SHA', () => {
     const candidateSha = 'c'.repeat(40)
-    const { dir, artifacts } = fixture({ commit: candidateSha })
+    const { dir, artifacts } = fixture({ commit: candidateSha, build: 'cccccccc.42' })
     const result = run(dir, artifacts, 'android', { INVEN3_CANDIDATE_SHA: candidateSha })
     expect(result.ok).toBe(true)
   })
