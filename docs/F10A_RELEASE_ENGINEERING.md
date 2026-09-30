@@ -262,3 +262,13 @@ El workflow legado de candidato Android independiente fue retirado. La única ru
 
 Esto evita candidatos parciales fuera de la paridad Android/iOS y garantiza que manifest, native web evidence, candidate evidence y platform parity se generen dentro de la misma cadena de release.
 
+## Identidad visible ligada al candidato
+
+El smoke F10A registra `build` y exige que:
+
+- `build = <candidate-sha8>.<run-number>`;
+- `app_display_version = 1.0.0-beta+<build>`;
+- el cierre compare ese `build` con candidate evidence antes de aceptar PASS.
+
+Así, una evidencia correspondiente a un binario anterior no puede cerrar accidentalmente el candidato actual aunque versión, plataforma y backend coincidan.
+
