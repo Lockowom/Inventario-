@@ -24,7 +24,7 @@ function evidence(platform:'android'|'ios', overrides:Record<string,unknown>={})
     version:'1.0.0',
     environment:'qa',
     channel:'beta',
-    build:'abc.10',
+    build:'abcdefab.10',
     nativeBuildNumber:10010,
     commit:'abcdefabcdefabcdefabcdefabcdefabcdefabcd',
     productionLocked:true,
@@ -39,7 +39,12 @@ function evidence(platform:'android'|'ios', overrides:Record<string,unknown>={})
       evidencePath:`INVEN3-${platform}-native-web-evidence.json`,
       evidenceSha256:platform==='android'?'1'.repeat(64):'2'.repeat(64),
     },
-    artifacts:[{path:platform==='android'?'app.apk':'app.ipa',bytes:1,sha256:'a'.repeat(64)}],
+    artifacts:platform==='android'
+      ? [
+          {path:'app.apk',bytes:1,sha256:'a'.repeat(64)},
+          {path:'app.aab',bytes:1,sha256:'b'.repeat(64)},
+        ]
+      : [{path:'app.ipa',bytes:1,sha256:'a'.repeat(64)}],
     ...overrides,
   }
 }
@@ -72,11 +77,37 @@ describe('F10A platform parity',()=>{
   })
 
   test('rejects different builds',()=>{
-    const dir=temp(); write(dir,evidence('android'),evidence('ios',{build:'abc.11'}))
+    const dir=temp(); write(dir,evidence('android'),evidence('ios',{build:'abcdefab.11'}))
     const result=run(dir)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(77)
     expect(result.stderr).toContain('platform parity mismatch for build')
+  })
+
+  test('rejects a build identity not bound to the candidate commit',()=>{
+    const dir=temp(); write(dir,evidence('android',{build:'deadbeef.10'}),evidence('ios'))
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(76)
+    expect(result.stderr).toContain('candidate build identity is invalid')
+  })
+
+  test('rejects Android candidate without an AAB',()=>{
+    const dir=temp()
+    write(dir,evidence('android',{artifacts:[{path:'app.apk',bytes:1,sha256:'a'.repeat(64)}]}),evidence('ios'))
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(76)
+    expect(result.stderr).toContain('artifact evidence is invalid for platform')
+  })
+
+  test('rejects iOS candidate containing a non-IPA artifact',()=>{
+    const dir=temp()
+    write(dir,evidence('android'),evidence('ios',{artifacts:[{path:'app.zip',bytes:1,sha256:'a'.repeat(64)}]}))
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(76)
+    expect(result.stderr).toContain('artifact evidence is invalid for platform')
   })
 
   test('rejects different native build numbers',()=>{
@@ -88,7 +119,7 @@ describe('F10A platform parity',()=>{
   })
 
   test('rejects different commits',()=>{
-    const dir=temp(); write(dir,evidence('android'),evidence('ios',{commit:'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'}))
+    const dir=temp(); write(dir,evidence('android'),evidence('ios',{commit:'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',build:'bbbbbbbb.10'}))
     const result=run(dir)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(77)

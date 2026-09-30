@@ -88,6 +88,105 @@ function validArtifacts(artifacts) {
   )
 }
 
+function validPlatformArtifacts(artifacts, platform) {
+  if (!validArtifacts(artifacts)) return false
+  const paths = artifacts.map((artifact) => artifact.path)
+  if (new Set(paths).size !== paths.length) return false
+  const extensions = paths.map((artifactPath) => path.extname(artifactPath).toLowerCase())
+  if (platform === 'android') {
+    return extensions.every((extension) => extension === '.apk' || extension === '.aab')
+      && extensions.includes('.apk')
+      && extensions.includes('.aab')
+  }
+  return extensions.every((extension) => extension === '.ipa') && extensions.includes('.ipa')
+}
+
+function validBuildIdentity(candidate) {
+  const commit = String(candidate?.commit ?? '')
+  const build = String(candidate?.build ?? '')
+  return /^[0-9a-f]{40}$/i.test(commit)
+    && new RegExp(`^${commit.slice(0, 8)}\\.\\d+import crypto from 'node:crypto'
+import fs from 'node:fs'
+import path from 'node:path'
+import process from 'node:process'
+import { execFileSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
+
+function fail(code, message) {
+  console.error(`[FAIL] ${message}`)
+  process.exit(code)
+}
+
+function parseArgs(argv) {
+  const out = {
+    androidCandidate: '',
+    iosCandidate: '',
+    parity: '',
+    androidSmoke: '',
+    iosSmoke: '',
+    output: 'artifacts/release/INVEN3-F10A-closure.json',
+  }
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i]
+    if (arg === '--android-candidate') out.androidCandidate = argv[++i] || ''
+    else if (arg === '--ios-candidate') out.iosCandidate = argv[++i] || ''
+    else if (arg === '--parity') out.parity = argv[++i] || ''
+    else if (arg === '--android-smoke') out.androidSmoke = argv[++i] || ''
+    else if (arg === '--ios-smoke') out.iosSmoke = argv[++i] || ''
+    else if (arg === '--out') out.output = argv[++i] || ''
+    else fail(90, `unknown argument: ${arg}`)
+  }
+  return out
+}
+
+function read(root, value, label) {
+  if (!value) fail(91, `missing argument for ${label}`)
+  const full = path.resolve(root, value)
+  if (!fs.existsSync(full)) fail(92, `${label} not found: ${value}`)
+  try {
+    return JSON.parse(fs.readFileSync(full, 'utf8'))
+  } catch {
+    fail(93, `${label} is not valid JSON`)
+  }
+}
+
+function fileSha256(root, value) {
+  const full = path.resolve(root, value)
+  return crypto.createHash('sha256').update(fs.readFileSync(full)).digest('hex')
+}
+
+function relativeEvidencePath(root, value) {
+  return path.relative(root, path.resolve(root, value)).replaceAll('\\', '/')
+}
+
+function validateSmokeEvidence(root, evidencePath, label) {
+  const checker = path.join(path.dirname(fileURLToPath(import.meta.url)), 'f10a-smoke-evidence-check.mjs')
+  try {
+    execFileSync(process.execPath, [checker, path.resolve(root, evidencePath)], {
+      cwd: root,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    })
+  } catch (error) {
+    const stderr = String(error?.stderr ?? '').trim()
+    fail(115, `${label} failed full schema validation${stderr ? `: ${stderr.replaceAll('\n', ' | ')}` : ''}`)
+  }
+}
+
+function hasOpenBlockingDefect(defects) {
+  return Array.isArray(defects) && defects.some((defect) =>
+    ['BLOCKER','CRITICAL'].includes(String(defect?.severity ?? '').toUpperCase())
+    && String(defect?.status ?? '').toUpperCase() === 'OPEN'
+  )
+}
+
+function isSha256(value) {
+  return /^[0-9a-f]{64}$/i.test(String(value ?? ''))
+}
+
+, 'i').test(build)
+}
+
 function normalizedArtifacts(artifacts) {
   return [...artifacts]
     .map(({ path: artifactPath, bytes, sha256 }) => ({ path: artifactPath, bytes, sha256 }))
@@ -161,11 +260,15 @@ for (const [label, candidate, platform] of [
   if (candidate.productionLocked !== true) fail(99, `${label} production lock missing`)
   if (candidate.product !== policy.product) fail(116, `${label} product mismatch`)
   if (candidate.version !== policy.releaseVersion) fail(116, `${label} version mismatch with policy`)
-  if (!candidate.build || typeof candidate.build !== 'string') fail(116, `${label} build identity missing`)
-  if (!/^[0-9a-f]{40}$/i.test(String(candidate.commit ?? ''))) fail(116, `${label} commit invalid`)
+  if (!validBuildIdentity(candidate)) fail(116, `${label} build identity is not bound to commit`)
   if (!isSha256(candidate.webBundleSha256)) fail(116, `${label} web bundle hash invalid`)
-  if (!Number.isInteger(candidate.nativeBuildNumber) || candidate.nativeBuildNumber <= 0) fail(116, `${label} native build invalid`)
-  if (!validArtifacts(candidate.artifacts)) fail(116, `${label} artifact evidence invalid`)
+  const baseBuild = platform === 'android'
+    ? policy.native?.androidBaseVersionCode
+    : policy.native?.iosBaseBuildNumber
+  if (!Number.isInteger(baseBuild) || !Number.isInteger(candidate.nativeBuildNumber) || candidate.nativeBuildNumber < baseBuild) {
+    fail(116, `${label} native build invalid or below policy base`)
+  }
+  if (!validPlatformArtifacts(candidate.artifacts, platform)) fail(116, `${label} artifact evidence invalid for platform`)
   if (!validNativeWebVerification(candidate, platform)) fail(116, `${label} native web parity evidence invalid`)
 }
 
@@ -209,7 +312,7 @@ for (const [platform, candidate] of [['android', androidCandidate], ['ios', iosC
   const parityPlatform = parity.platforms?.[platform]
   if (!parityPlatform || parityPlatform.build !== candidate.build) fail(117, `parity ${platform} build mismatch`)
   if (parityPlatform.nativeBuildNumber !== candidate.nativeBuildNumber) fail(117, `parity ${platform} native build mismatch`)
-  if (!validArtifacts(parityPlatform.artifacts)) fail(117, `parity ${platform} artifacts invalid`)
+  if (!validPlatformArtifacts(parityPlatform.artifacts, platform)) fail(117, `parity ${platform} artifacts invalid for platform`)
   if (!validNativeWebVerification({ ...candidate, nativeWebVerification: parityPlatform.nativeWebVerification }, platform)) {
     fail(117, `parity ${platform} native web evidence invalid`)
   }

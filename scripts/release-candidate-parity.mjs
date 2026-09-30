@@ -22,6 +22,39 @@ function validArtifacts(artifacts) {
   )
 }
 
+function validPlatformArtifacts(artifacts, platform) {
+  if (!validArtifacts(artifacts)) return false
+  const paths = artifacts.map((artifact) => artifact.path)
+  if (new Set(paths).size !== paths.length) return false
+  const extensions = paths.map((artifactPath) => path.extname(artifactPath).toLowerCase())
+  if (platform === 'android') {
+    return extensions.every((extension) => extension === '.apk' || extension === '.aab')
+      && extensions.includes('.apk')
+      && extensions.includes('.aab')
+  }
+  return extensions.every((extension) => extension === '.ipa') && extensions.includes('.ipa')
+}
+
+function validBuildIdentity(candidate) {
+  const commit = String(candidate?.commit ?? '')
+  const build = String(candidate?.build ?? '')
+  return /^[0-9a-f]{40}$/i.test(commit)
+    && new RegExp(`^${commit.slice(0, 8)}\\.\\d+import fs from 'node:fs'
+import path from 'node:path'
+import process from 'node:process'
+
+function fail(code, message) {
+  console.error(`[FAIL] ${message}`)
+  process.exit(code)
+}
+
+function isSha256(value) {
+  return /^[0-9a-f]{64}$/i.test(String(value ?? ''))
+}
+
+, 'i').test(build)
+}
+
 function validNativeWebVerification(candidate, platform) {
   const evidence = candidate?.nativeWebVerification
   return evidence
@@ -73,10 +106,12 @@ function readEvidence(root, value, expectedPlatform) {
   if (!/^[0-9a-f]{40}$/i.test(String(data.commit ?? '')) || !isSha256(data.webBundleSha256)) {
     fail(76, `${expectedPlatform} candidate identity/hash is invalid`)
   }
-  if (!data.build || !Number.isInteger(data.nativeBuildNumber) || data.nativeBuildNumber <= 0) {
+  if (!validBuildIdentity(data) || !Number.isInteger(data.nativeBuildNumber) || data.nativeBuildNumber <= 0) {
     fail(76, `${expectedPlatform} candidate build identity is invalid`)
   }
-  if (!validArtifacts(data.artifacts)) fail(76, `${expectedPlatform} artifact evidence is invalid`)
+  if (!validPlatformArtifacts(data.artifacts, expectedPlatform)) {
+    fail(76, `${expectedPlatform} artifact evidence is invalid for platform`)
+  }
   if (!validNativeWebVerification(data, expectedPlatform)) {
     fail(78, `${expectedPlatform} native web parity evidence is invalid`)
   }

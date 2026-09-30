@@ -15,7 +15,10 @@ function temp() {
   dirs.push(dir)
   fs.mkdirSync(path.join(dir, 'artifacts/release'), { recursive: true })
   fs.writeFileSync(path.join(dir, 'release-policy.json'), JSON.stringify({
-    product:'INVEN3', releaseVersion:'1.0.0', productionLocked:true
+    product:'INVEN3',
+    releaseVersion:'1.0.0',
+    productionLocked:true,
+    native:{androidBaseVersionCode:10000,iosBaseBuildNumber:10000},
   }))
   return dir
 }
@@ -178,6 +181,40 @@ describe('F10A evidence-driven closure',()=>{
     expect(closure.parityEvidenceSha256).toMatch(/^[0-9a-f]{64}$/)
   })
 
+  test('rejects a candidate build not bound to its commit',()=>{
+    const dir=temp(); write(dir,{android:{build:'deadbeef.10'}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(116)
+    expect(result.stderr).toContain('build identity is not bound to commit')
+  })
+
+  test('rejects Android candidate missing its AAB contract',()=>{
+    const dir=temp()
+    write(dir,{android:{artifacts:[{path:'INVEN3-android-lab.apk',bytes:1024,sha256:'c'.repeat(64)}]}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(116)
+    expect(result.stderr).toContain('artifact evidence invalid for platform')
+  })
+
+  test('rejects iOS candidate containing a non-IPA artifact',()=>{
+    const dir=temp()
+    write(dir,{ios:{artifacts:[{path:'INVEN3-ios.zip',bytes:1024,sha256:'d'.repeat(64)}]}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(116)
+    expect(result.stderr).toContain('artifact evidence invalid for platform')
+  })
+
+  test('rejects candidate native build below policy base',()=>{
+    const dir=temp(); write(dir,{android:{nativeBuildNumber:9999},androidSmoke:{native_build_number:9999}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(116)
+    expect(result.stderr).toContain('native build invalid or below policy base')
+  })
+
   test('rejects candidates with different build identities',()=>{
     const dir=temp(); write(dir,{ios:{build:`${sha.slice(0,8)}.11`}})
     const result=run(dir)
@@ -314,7 +351,7 @@ describe('F10A evidence-driven closure',()=>{
 
   test('rejects closure when production lock is disabled',()=>{
     const dir=temp()
-    fs.writeFileSync(path.join(dir,'release-policy.json'),JSON.stringify({product:'INVEN3',releaseVersion:'1.0.0',productionLocked:false}))
+    fs.writeFileSync(path.join(dir,'release-policy.json'),JSON.stringify({product:'INVEN3',releaseVersion:'1.0.0',productionLocked:false,native:{androidBaseVersionCode:10000,iosBaseBuildNumber:10000}}))
     write(dir)
     const result=run(dir)
     expect(result.ok).toBe(false)
