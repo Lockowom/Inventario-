@@ -91,6 +91,23 @@ describe('F10A native web bundle verifier', () => {
     expect(evidence.verifiedFileCount).toBe(2)
   })
 
+  test.each(['android', 'ios'] as const)('accepts only the explicit Capacitor bridge file on %s and records its hash', (platform) => {
+    const { dir, nativeDir } = fixture(platform)
+    fs.writeFileSync(path.join(nativeDir, 'cordova_plugins.js'), 'cordova.define("cordova/plugin_list", function(require, exports, module) { module.exports = []; });')
+    const result = run(dir, platform)
+    expect(result.ok).toBe(true)
+    const evidence = JSON.parse(fs.readFileSync(
+      path.join(dir, `artifacts/release/INVEN3-${platform}-native-web-evidence.json`),
+      'utf8',
+    ))
+    expect(evidence.verifiedFileCount).toBe(2)
+    expect(evidence.nativeFileCount).toBe(2)
+    expect(evidence.nativeDirectoryFileCount).toBe(3)
+    expect(evidence.generatedBridgeFiles).toHaveLength(1)
+    expect(evidence.generatedBridgeFiles[0].path).toBe('cordova_plugins.js')
+    expect(evidence.generatedBridgeFiles[0].sha256).toMatch(/^[0-9a-f]{64}$/)
+  })
+
   test('rejects a native file changed after the canonical manifest', () => {
     const { dir, nativeDir } = fixture('android')
     fs.writeFileSync(path.join(nativeDir, 'index.html'), '<html>tampered</html>')

@@ -138,13 +138,26 @@ for (const file of sorted) {
 }
 
 const nativeFiles = collectNativeFiles(nativeDir)
-const uncertifiedFiles = nativeFiles.filter((file) => !seen.has(file))
+const allowedGeneratedBridgeFiles = new Set(['cordova_plugins.js'])
+const generatedBridgeFiles = nativeFiles.filter((file) => !seen.has(file) && allowedGeneratedBridgeFiles.has(file))
+const uncertifiedFiles = nativeFiles.filter((file) => !seen.has(file) && !allowedGeneratedBridgeFiles.has(file))
 if (uncertifiedFiles.length > 0) {
   fail(130, `uncertified native web file in ${args.platform}: ${uncertifiedFiles[0]}`)
 }
-if (nativeFiles.length !== sorted.length) {
-  fail(130, `native web file set mismatch in ${args.platform}: manifest=${sorted.length} native=${nativeFiles.length}`)
+const certifiedNativeFiles = nativeFiles.filter((file) => seen.has(file))
+if (certifiedNativeFiles.length !== sorted.length) {
+  fail(130, `native certified web file set mismatch in ${args.platform}: manifest=${sorted.length} native=${certifiedNativeFiles.length}`)
 }
+
+const generatedBridgeEvidence = generatedBridgeFiles.map((relativePath) => {
+  const full = path.resolve(nativeDir, ...relativePath.split('/'))
+  const stat = fs.statSync(full)
+  return {
+    path: relativePath,
+    bytes: stat.size,
+    sha256: sha256(full),
+  }
+})
 
 const evidence = {
   schemaVersion: 1,
@@ -160,7 +173,9 @@ const evidence = {
   productionLocked: true,
   webBundleSha256: bundle.aggregateSha256,
   verifiedFileCount: sorted.length,
-  nativeFileCount: nativeFiles.length,
+  nativeFileCount: certifiedNativeFiles.length,
+  nativeDirectoryFileCount: nativeFiles.length,
+  generatedBridgeFiles: generatedBridgeEvidence,
   nativeDirectory: path.relative(root, nativeDir).replaceAll('\\', '/'),
   generatedAt: new Date().toISOString(),
 }
@@ -173,5 +188,5 @@ fs.mkdirSync(path.dirname(out), { recursive: true })
 fs.writeFileSync(out, JSON.stringify(evidence, null, 2) + '\n')
 
 console.log(`[PASS] F10A_NATIVE_WEB_PARITY platform=${args.platform}`)
-console.log(`[PASS] files=${evidence.verifiedFileCount} webBundleSha256=${evidence.webBundleSha256}`)
+console.log(`[PASS] files=${evidence.verifiedFileCount} generatedBridgeFiles=${evidence.generatedBridgeFiles.length} webBundleSha256=${evidence.webBundleSha256}`)
 console.log(`[PASS] evidence=${out}`)
