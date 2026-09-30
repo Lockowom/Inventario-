@@ -243,3 +243,14 @@ Esto permite distinguir un fallo de ingeniería de un bloqueo por configuración
 
 Cadena resultante: manifest → native web evidence → candidate evidence → platform parity → smoke evidence → closure.
 
+## Política de consumo de GitHub Actions
+
+Para evitar ejecutar la misma validación dos veces por cada actualización de una PR:
+
+- branches de trabajo `feature/**` y `fix/**` se validan por evento `pull_request`;
+- los eventos `push` de CI/iOS quedan reservados para `main` y `release/**`;
+- cada workflow usa `concurrency` con `cancel-in-progress: true` para cancelar ejecuciones obsoletas de la misma referencia/PR;
+- F10A mantiene su pipeline específico ligado a la PR contra `release/f10a-candidate`.
+
+Esto conserva cobertura del candidato y reduce consumo duplicado de runners, especialmente macOS.
+

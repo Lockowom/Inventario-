@@ -2,9 +2,13 @@ name: iOS Virtual Certification
 
 on:
   push:
-    branches: [main, 'feature/**', 'release/**']
+    branches: [main, 'release/**']
   pull_request:
   workflow_dispatch:
+
+concurrency:
+  group: ios-virtual-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

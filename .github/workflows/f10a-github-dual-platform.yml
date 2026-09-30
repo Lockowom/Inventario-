@@ -55,6 +55,17 @@ jobs:
       - name: Static release preflight
         run: npm run release:preflight:static
 
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Production dependency audit
+        run: npm audit --omit=dev
 
   prepare-web:
     name: Certify and build canonical QA web bundle
@@ -87,18 +98,6 @@ jobs:
 
       - name: Fail-closed release preflight
         run: npm run release:preflight
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Unit tests
-        run: npm run test
-
-      - name: Production dependency audit
-        run: npm audit --omit=dev
 
       - name: Build QA/BETA web bundle once
         run: npm run build

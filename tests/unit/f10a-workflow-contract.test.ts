@@ -34,14 +34,37 @@ describe('F10A GitHub workflow contract', () => {
 
   test('does not duplicate expensive static checks inside prepare-web', () => {
     const yaml = workflow()
+    const staticStart = yaml.indexOf('  static-validation:')
     const prepareStart = yaml.indexOf('  prepare-web:')
     const androidStart = yaml.indexOf('\n  android:')
+    const staticGate = yaml.slice(staticStart, prepareStart)
     const prepare = yaml.slice(prepareStart, androidStart)
+
+    expect(staticGate).toContain('run: npm run release:preflight:static')
+    expect(staticGate).toContain('run: npm run typecheck')
+    expect(staticGate).toContain('run: npm run lint')
+    expect(staticGate).toContain('run: npm run test')
+    expect(staticGate).toContain('run: npm audit --omit=dev')
+
     expect(prepare).toContain('run: npm run release:preflight')
     expect(prepare).toContain('run: npm run build')
     expect(prepare).not.toContain('run: npm run typecheck')
     expect(prepare).not.toContain('run: npm run lint')
     expect(prepare).not.toContain('run: npm run test')
     expect(prepare).not.toContain('run: npm audit --omit=dev')
+  })
+
+  test('avoids duplicate push and pull-request executions on working branches', () => {
+    for (const file of [
+      '.github/workflows/ci.yml',
+      '.github/workflows/ios-certification.yml',
+      '.github/workflows/ios-virtual-certification.yml',
+    ]) {
+      const yaml = fs.readFileSync(path.resolve(process.cwd(), file), 'utf8')
+      const pushBlock = yaml.slice(yaml.indexOf('  push:'), yaml.indexOf('  pull_request:'))
+      expect(pushBlock).not.toContain('feature/**')
+      expect(pushBlock).not.toContain('fix/**')
+      expect(pushBlock).toContain('release/**')
+    }
   })
 })
