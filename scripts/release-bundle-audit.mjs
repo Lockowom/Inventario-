@@ -55,7 +55,7 @@ for (const token of jwtCandidates) {
 }
 
 const runtimeForbidden = [
-  { label: 'localhost Supabase', regex: /https?:\/\/(?:127\.0\.0\.1|localhost)(?::54321)?(?:\/|["'\`]|$)/i },
+  { label: 'localhost Supabase', regex: /https?:\/\/(?:127\.0\.0\.1|localhost)(?::54321)?(?:\/|["'`]|$)/i },
 ]
 
 for (const item of runtimeForbidden) {
