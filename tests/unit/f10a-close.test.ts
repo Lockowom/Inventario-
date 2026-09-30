@@ -38,6 +38,7 @@ function candidate(platform:'android'|'ios', nativeBuildNumber:number) {
       status:'PASS',
       platform,
       verifiedFileCount:2,
+      nativeFileCount:2,
       webBundleSha256:webHash,
       evidencePath:`INVEN3-${platform}-native-web-evidence.json`,
       evidenceSha256:platform === 'android' ? '7'.repeat(64) : '8'.repeat(64),
@@ -107,7 +108,7 @@ function write(dir:string, overrides:{
   const i={...candidate('ios',10010),...(overrides.ios??{})}
   const p={
     product:'INVEN3', gate:'F10A_PLATFORM_PARITY', status:'READY_FOR_BETA_SMOKE', version:'1.0.0',
-    environment:'qa', channel:'beta', commit:sha, productionLocked:true, webBundleSha256:webHash,
+    environment:'qa', channel:'beta', build:a.build, nativeBuildNumber:a.nativeBuildNumber, commit:sha, productionLocked:true, webBundleSha256:webHash,
     platforms:{
       android:{build:a.build,nativeBuildNumber:a.nativeBuildNumber,nativeWebVerification:a.nativeWebVerification,artifacts:a.artifacts},
       ios:{build:i.build,nativeBuildNumber:i.nativeBuildNumber,nativeWebVerification:i.nativeWebVerification,artifacts:i.artifacts},
@@ -149,9 +150,13 @@ describe('F10A evidence-driven closure',()=>{
     expect(result.stdout).toContain('F10A_RELEASE_ENGINEERING')
     const closure=JSON.parse(fs.readFileSync(path.join(dir,'artifacts/release/INVEN3-F10A-closure.json'),'utf8'))
     expect(closure.status).toBe('PASS')
+    expect(closure.build).toBe(`${sha.slice(0,8)}.10`)
+    expect(closure.nativeBuildNumber).toBe(10010)
     expect(closure.nextGate).toBe('F10B_NOT_AUTHORIZED')
     expect(closure.android.sourceCandidateArtifactPath).toBe('INVEN3-android-lab.apk')
     expect(closure.ios.sourceCandidateArtifactPath).toBe('INVEN3-ios-unsigned.ipa')
+    expect(closure.android.nativeWebFileCount).toBe(2)
+    expect(closure.ios.nativeWebFileCount).toBe(2)
     expect(closure.android.nativeWebEvidenceSha256).toBe('7'.repeat(64))
     expect(closure.ios.nativeWebEvidenceSha256).toBe('8'.repeat(64))
   })
@@ -233,6 +238,7 @@ describe('F10A evidence-driven closure',()=>{
       status:'PASS',
       platform:'ios',
       verifiedFileCount:2,
+      nativeFileCount:2,
       webBundleSha256:webHash,
       evidencePath:'INVEN3-ios-native-web-evidence.json',
       evidenceSha256:'f'.repeat(64),
@@ -245,6 +251,16 @@ describe('F10A evidence-driven closure',()=>{
     expect(result.ok).toBe(false)
     expect(result.status).toBe(117)
     expect(result.stderr).toContain('native web evidence mismatch')
+  })
+
+  test('rejects candidate evidence with inconsistent native exact file count',()=>{
+    const dir=temp()
+    const nativeWebVerification={...candidate('android',10010).nativeWebVerification,nativeFileCount:3}
+    write(dir,{android:{nativeWebVerification}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(116)
+    expect(result.stderr).toContain('native web parity evidence invalid')
   })
 
   test('rejects candidate evidence without artifact hashes',()=>{

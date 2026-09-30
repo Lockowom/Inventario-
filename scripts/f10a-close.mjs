@@ -92,6 +92,8 @@ function validNativeWebVerification(candidate, platform) {
     && evidence.platform === platform
     && Number.isInteger(evidence.verifiedFileCount)
     && evidence.verifiedFileCount > 0
+    && Number.isInteger(evidence.nativeFileCount)
+    && evidence.nativeFileCount === evidence.verifiedFileCount
     && evidence.webBundleSha256 === candidate.webBundleSha256
     && typeof evidence.evidencePath === 'string'
     && evidence.evidencePath.trim().length > 0
@@ -104,6 +106,7 @@ function normalizedNativeWebVerification(evidence) {
     status: evidence.status,
     platform: evidence.platform,
     verifiedFileCount: evidence.verifiedFileCount,
+    nativeFileCount: evidence.nativeFileCount,
     webBundleSha256: evidence.webBundleSha256,
     evidencePath: evidence.evidencePath,
     evidenceSha256: evidence.evidenceSha256,
@@ -243,6 +246,7 @@ const result = {
   productionLocked: true,
   android: {
     nativeBuildNumber: androidCandidate.nativeBuildNumber,
+    nativeWebFileCount: androidCandidate.nativeWebVerification.nativeFileCount,
     nativeWebEvidenceSha256: androidCandidate.nativeWebVerification.evidenceSha256,
     smokeExecutionId: androidSmoke.execution_id,
     sourceCandidateArtifactPath: androidSourceArtifact.path,
@@ -253,6 +257,7 @@ const result = {
   },
   ios: {
     nativeBuildNumber: iosCandidate.nativeBuildNumber,
+    nativeWebFileCount: iosCandidate.nativeWebVerification.nativeFileCount,
     nativeWebEvidenceSha256: iosCandidate.nativeWebVerification.evidenceSha256,
     smokeExecutionId: iosSmoke.execution_id,
     sourceCandidateArtifactPath: iosSourceArtifact.path,

@@ -144,6 +144,11 @@ if (nativeWeb.verifiedFileCount !== manifest.webBundle.files.length
   || nativeWeb.verifiedFileCount <= 0) {
   fail(63, 'native web evidence file count mismatch')
 }
+if (!Number.isInteger(nativeWeb.nativeFileCount)
+  || nativeWeb.nativeFileCount <= 0
+  || nativeWeb.nativeFileCount !== nativeWeb.verifiedFileCount) {
+  fail(63, 'native web evidence exact file set count mismatch')
+}
 if (typeof nativeWeb.nativeDirectory !== 'string' || !nativeWeb.nativeDirectory.trim()) {
   fail(62, 'native web evidence directory is missing')
 }
@@ -196,6 +201,7 @@ const evidence = {
     status: nativeWeb.status,
     platform: nativeWeb.platform,
     verifiedFileCount: nativeWeb.verifiedFileCount,
+    nativeFileCount: nativeWeb.nativeFileCount,
     webBundleSha256: nativeWeb.webBundleSha256,
     evidencePath: path.relative(root, nativeWebEvidencePath).replaceAll('\\', '/'),
     evidenceSha256: sha256(nativeWebEvidencePath),

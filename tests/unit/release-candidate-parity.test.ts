@@ -34,6 +34,7 @@ function evidence(platform:'android'|'ios', overrides:Record<string,unknown>={})
       status:'PASS',
       platform,
       verifiedFileCount:2,
+      nativeFileCount:2,
       webBundleSha256:'0'.repeat(64),
       evidencePath:`INVEN3-${platform}-native-web-evidence.json`,
       evidenceSha256:platform==='android'?'1'.repeat(64):'2'.repeat(64),
@@ -108,6 +109,15 @@ describe('F10A platform parity',()=>{
 
   test('rejects a candidate without native web parity evidence',()=>{
     const dir=temp(); write(dir,evidence('android',{nativeWebVerification:null}),evidence('ios'))
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(78)
+  })
+
+  test('rejects a candidate with inconsistent native exact file count',()=>{
+    const dir=temp()
+    const invalidNativeWeb={...evidence('android').nativeWebVerification,nativeFileCount:3}
+    write(dir,evidence('android',{nativeWebVerification:invalidNativeWeb}),evidence('ios'))
     const result=run(dir)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(78)

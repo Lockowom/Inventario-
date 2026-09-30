@@ -85,6 +85,7 @@ function fixture(
     productionLocked: true,
     webBundleSha256: webHash,
     verifiedFileCount: 1,
+    nativeFileCount: 1,
     nativeDirectory: platform === 'android'
       ? 'android/app/src/main/assets/public'
       : 'ios/App/App/public',
@@ -132,6 +133,7 @@ describe('F10A release candidate verifier', () => {
     const evidence = JSON.parse(fs.readFileSync(path.join(dir, 'artifacts/release/INVEN3-android-candidate-evidence.json'), 'utf8'))
     expect(evidence.status).toBe('READY_FOR_BETA_SMOKE')
     expect(evidence.nativeBuildNumber).toBe(10042)
+    expect(evidence.nativeWebVerification.nativeFileCount).toBe(1)
     expect(evidence.artifacts).toHaveLength(2)
   })
 
@@ -159,6 +161,18 @@ describe('F10A release candidate verifier', () => {
     const result = run(dir, artifacts)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(62)
+  })
+
+  test('rejects native web evidence whose exact native file count differs', () => {
+    const { dir, artifacts } = fixture()
+    const evidencePath = path.join(dir, 'artifacts/release/native-web.json')
+    const evidence = JSON.parse(fs.readFileSync(evidencePath, 'utf8'))
+    evidence.nativeFileCount = 2
+    fs.writeFileSync(evidencePath, JSON.stringify(evidence))
+    const result = run(dir, artifacts)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(63)
+    expect(result.stderr).toContain('exact file set count mismatch')
   })
 
   test('rejects an inconsistent manifest aggregate hash', () => {

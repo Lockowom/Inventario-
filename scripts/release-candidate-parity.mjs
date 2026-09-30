@@ -30,6 +30,8 @@ function validNativeWebVerification(candidate, platform) {
     && evidence.platform === platform
     && Number.isInteger(evidence.verifiedFileCount)
     && evidence.verifiedFileCount > 0
+    && Number.isInteger(evidence.nativeFileCount)
+    && evidence.nativeFileCount === evidence.verifiedFileCount
     && evidence.webBundleSha256 === candidate.webBundleSha256
     && typeof evidence.evidencePath === 'string'
     && evidence.evidencePath.trim().length > 0
