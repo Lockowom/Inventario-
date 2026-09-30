@@ -11,6 +11,7 @@
   "install_method": "managed_device_lab",
   "signing_provenance": "laboratory_resign",
   "version": "1.0.0",
+  "build": "",
   "environment": "qa",
   "channel": "beta",
   "production_locked": true,
