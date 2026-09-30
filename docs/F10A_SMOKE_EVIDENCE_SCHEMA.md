@@ -12,6 +12,7 @@ Este registro corresponde a una ejecución real de un **artefacto Release QA/BET
 | `platform` | `android` o `ios` |
 | `candidate_sha` | SHA de 40 caracteres del candidato |
 | `candidate_evidence_ref` | Referencia al JSON de candidate evidence |
+| `candidate_evidence_sha256` | SHA-256 exacto del JSON de candidate evidence usado para ejecutar el smoke |
 | `source_candidate_artifact_sha256` | SHA-256 presente en candidate evidence; debe resolver a APK en Android o IPA unsigned en iOS |
 | `installed_artifact_sha256` | SHA-256 exacto del APK/IPA instalado y probado |
 | `install_method` | `local_device` o `managed_device_lab` |
@@ -73,11 +74,12 @@ El cierre exige simultáneamente:
 4. Beta Smoke Android = `PASS`;
 5. Beta Smoke iOS = `PASS`;
 6. mismo commit, versión, QA/BETA y production lock;
-7. el hash fuente del smoke existe en candidate evidence;
-8. la fuente Android es un APK y la fuente iOS es una IPA;
-9. el hash instalado y la procedencia de firma son coherentes;
-10. ningún defecto bloqueante abierto.
+7. el SHA-256 del candidate evidence registrado por el smoke coincide con el JSON entregado al cierre;
+8. el hash fuente del smoke existe en candidate evidence;
+9. la fuente Android es un APK y la fuente iOS es una IPA;
+10. el hash instalado y la procedencia de firma son coherentes;
+11. ningún defecto bloqueante abierto.
 
-El JSON de cierre conserva la ruta y el SHA-256 del artefacto fuente, el SHA-256 instalado, el método de instalación y la procedencia de firma para cada plataforma.
+El JSON de cierre conserva además el SHA-256 de cada candidate evidence y del platform parity evidence, junto con la ruta y SHA-256 del artefacto fuente, el SHA-256 instalado, el método de instalación y la procedencia de firma para cada plataforma.
 
 El cierre de F10A **no autoriza F10B, producción, TestFlight ni Google Play**.

@@ -16,19 +16,21 @@ Objetivo: comprobar que el **artefacto Release QA/BETA** funciona después del e
 
 La evidencia debe demostrar qué artefacto candidato originó exactamente el binario instalado:
 
-1. Tomar `source_candidate_artifact_sha256` del campo `artifacts[].sha256` del candidate evidence de la plataforma.
-2. Registrar el hash SHA-256 del binario que se instala como `installed_artifact_sha256`.
-3. Registrar `install_method`:
+1. Calcular y registrar `candidate_evidence_sha256` sobre el JSON de candidate evidence exacto usado para el smoke.
+2. Tomar `source_candidate_artifact_sha256` del campo `artifacts[].sha256` del mismo candidate evidence.
+3. Registrar el hash SHA-256 del binario que se instala como `installed_artifact_sha256`.
+4. Registrar `install_method`:
    - `local_device`;
    - `managed_device_lab`.
-4. Registrar `signing_provenance`:
+5. Registrar `signing_provenance`:
    - Android de laboratorio generado por el pipeline: `ephemeral_lab_signing`;
    - artefacto instalado sin transformación: `candidate_as_built`;
    - IPA iOS firmado de nuevo en laboratorio: `laboratory_resign`.
-5. Añadir a `evidence_refs` la referencia al candidate evidence, la salida del hash y, si aplica, el registro controlado de re-firma/instalación.
+6. Añadir a `evidence_refs` la referencia al candidate evidence, la salida del hash y, si aplica, el registro controlado de re-firma/instalación.
 
 Reglas obligatorias:
 
+- `candidate_evidence_sha256` debe coincidir con el SHA-256 real del JSON de candidate evidence entregado al cierre;
 - `source_candidate_artifact_sha256` debe existir en `artifacts[]` del candidate evidence correspondiente;
 - la fuente Android debe ser el APK instalable, nunca el AAB;
 - la fuente iOS debe ser una IPA;
@@ -47,7 +49,7 @@ shasum -a 256 <artefacto>   # macOS
 
 ## Secuencia Android / iOS
 
-1. Verificar la cadena candidato → instalación y completar los cuatro campos de trazabilidad.
+1. Verificar la cadena candidato → instalación y completar los campos de trazabilidad, incluido el SHA-256 del candidate evidence.
 2. Instalar el artefacto Release candidato o su derivado iOS re-firmado y trazable.
 3. Abrir INVEN3.
 4. Confirmar en diagnóstico:
@@ -145,6 +147,7 @@ No cerrar F10A si:
 - el conteo no se confirma;
 - scanner cancelar auto-guarda;
 - candidate SHA/build no coincide;
+- el SHA-256 del candidate evidence no coincide con el JSON usado en el cierre;
 - el hash fuente no pertenece al candidate evidence;
 - la fuente Android no es APK o la fuente iOS no es IPA;
 - la relación entre hash fuente, hash instalado y procedencia de firma es inválida;

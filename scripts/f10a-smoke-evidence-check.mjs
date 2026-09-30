@@ -3,7 +3,7 @@ import path from 'node:path'
 import process from 'node:process'
 
 const requiredFields = [
-  'execution_id','gate','status','platform','candidate_sha','candidate_evidence_ref',
+  'execution_id','gate','status','platform','candidate_sha','candidate_evidence_ref','candidate_evidence_sha256',
   'source_candidate_artifact_sha256','installed_artifact_sha256','install_method','signing_provenance',
   'version','environment','channel','production_locked','native_build_number',
   'app_display_version','device_model','os','os_version','started_at','finished_at',
@@ -45,6 +45,7 @@ function validate(record) {
   if (!['NOT_RUN','PASS','FAIL','BLOCKED'].includes(record.status)) errors.push('INVALID_STATUS')
   if (!['android','ios'].includes(record.platform)) errors.push('INVALID_PLATFORM')
   if (!/^[0-9a-f]{40}$/i.test(String(record.candidate_sha ?? ''))) errors.push('INVALID_CANDIDATE_SHA')
+  if (!/^[0-9a-f]{64}$/i.test(String(record.candidate_evidence_sha256 ?? ''))) errors.push('INVALID_CANDIDATE_EVIDENCE_SHA256')
   if (!/^[0-9a-f]{64}$/i.test(String(record.source_candidate_artifact_sha256 ?? ''))) errors.push('INVALID_SOURCE_CANDIDATE_ARTIFACT_SHA256')
   if (!/^[0-9a-f]{64}$/i.test(String(record.installed_artifact_sha256 ?? ''))) errors.push('INVALID_INSTALLED_ARTIFACT_SHA256')
   if (!['local_device','managed_device_lab'].includes(record.install_method)) errors.push('INVALID_INSTALL_METHOD')

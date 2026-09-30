@@ -5,6 +5,7 @@
   "platform": "ios",
   "candidate_sha": "",
   "candidate_evidence_ref": "",
+  "candidate_evidence_sha256": "",
   "source_candidate_artifact_sha256": "",
   "installed_artifact_sha256": "",
   "install_method": "managed_device_lab",

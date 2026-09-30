@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -54,6 +55,10 @@ function candidate(platform:'android'|'ios', nativeBuildNumber:number) {
   }
 }
 
+function hash(value:string) {
+  return crypto.createHash('sha256').update(value).digest('hex')
+}
+
 function smoke(platform:'android'|'ios', native_build_number:number, overrides:Record<string,unknown>={}) {
   return {
     execution_id:`smoke-${platform}`,
@@ -61,7 +66,8 @@ function smoke(platform:'android'|'ios', native_build_number:number, overrides:R
     status:'PASS',
     platform,
     candidate_sha:sha,
-    candidate_evidence_ref:`INVEN3-${platform}-candidate-evidence.json`,
+    candidate_evidence_ref:platform === 'android' ? 'android.json' : 'ios.json',
+    candidate_evidence_sha256:'',
     source_candidate_artifact_sha256:platform === 'android' ? 'c'.repeat(64) : 'd'.repeat(64),
     installed_artifact_sha256:platform === 'android' ? 'c'.repeat(64) : 'e'.repeat(64),
     install_method:platform === 'android' ? 'local_device' : 'managed_device_lab',
@@ -115,12 +121,18 @@ function write(dir:string, overrides:{
     },
     ...(overrides.parity??{})
   }
-  const as={...smoke('android',10010),...(overrides.androidSmoke??{})}
-  const is={...smoke('ios',10010),...(overrides.iosSmoke??{})}
+  const androidJson=JSON.stringify(a)
+  const iosJson=JSON.stringify(i)
+  const as={...smoke('android',10010),candidate_evidence_sha256:hash(androidJson),...(overrides.androidSmoke??{})}
+  const is={...smoke('ios',10010),candidate_evidence_sha256:hash(iosJson),...(overrides.iosSmoke??{})}
   const files={
-    'android.json':a, 'ios.json':i, 'parity.json':p, 'android-smoke.json':as, 'ios-smoke.json':is
+    'android.json':androidJson,
+    'ios.json':iosJson,
+    'parity.json':JSON.stringify(p),
+    'android-smoke.json':JSON.stringify(as),
+    'ios-smoke.json':JSON.stringify(is),
   }
-  for(const [name,value] of Object.entries(files)) fs.writeFileSync(path.join(dir,name),JSON.stringify(value))
+  for(const [name,value] of Object.entries(files)) fs.writeFileSync(path.join(dir,name),value)
 }
 
 function run(dir:string) {
@@ -159,6 +171,9 @@ describe('F10A evidence-driven closure',()=>{
     expect(closure.ios.nativeWebFileCount).toBe(2)
     expect(closure.android.nativeWebEvidenceSha256).toBe('7'.repeat(64))
     expect(closure.ios.nativeWebEvidenceSha256).toBe('8'.repeat(64))
+    expect(closure.android.candidateEvidenceSha256).toMatch(/^[0-9a-f]{64}$/)
+    expect(closure.ios.candidateEvidenceSha256).toMatch(/^[0-9a-f]{64}$/)
+    expect(closure.parityEvidenceSha256).toMatch(/^[0-9a-f]{64}$/)
   })
 
   test('rejects candidates with different build identities',()=>{
@@ -197,6 +212,14 @@ describe('F10A evidence-driven closure',()=>{
     const result=run(dir)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(110)
+  })
+
+  test('rejects smoke bound to a different candidate evidence file hash',()=>{
+    const dir=temp(); write(dir,{androidSmoke:{candidate_evidence_sha256:'f'.repeat(64)}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(120)
+    expect(result.stderr).toContain('candidate evidence SHA-256 mismatch')
   })
 
   test('rejects smoke whose source artifact is absent from candidate evidence',()=>{

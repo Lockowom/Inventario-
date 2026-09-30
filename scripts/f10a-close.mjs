@@ -1,3 +1,4 @@
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
@@ -40,6 +41,11 @@ function read(root, value, label) {
   } catch {
     fail(93, `${label} is not valid JSON`)
   }
+}
+
+function fileSha256(root, value) {
+  const full = path.resolve(root, value)
+  return crypto.createHash('sha256').update(fs.readFileSync(full)).digest('hex')
 }
 
 function validateSmokeEvidence(root, evidencePath, label) {
@@ -133,6 +139,9 @@ const iosCandidate = read(root, args.iosCandidate, 'ios candidate evidence')
 const parity = read(root, args.parity, 'platform parity evidence')
 const androidSmoke = read(root, args.androidSmoke, 'android smoke evidence')
 const iosSmoke = read(root, args.iosSmoke, 'ios smoke evidence')
+const androidCandidateEvidenceSha256 = fileSha256(root, args.androidCandidate)
+const iosCandidateEvidenceSha256 = fileSha256(root, args.iosCandidate)
+const parityEvidenceSha256 = fileSha256(root, args.parity)
 
 validateSmokeEvidence(root, args.androidSmoke, 'android smoke')
 validateSmokeEvidence(root, args.iosSmoke, 'ios smoke')
@@ -211,6 +220,8 @@ for (const [platform, candidate] of [['android', androidCandidate], ['ios', iosC
 
 if (androidSmoke.candidate_sha !== androidCandidate.commit) fail(110, 'android smoke candidate SHA mismatch')
 if (iosSmoke.candidate_sha !== iosCandidate.commit) fail(111, 'ios smoke candidate SHA mismatch')
+if (androidSmoke.candidate_evidence_sha256 !== androidCandidateEvidenceSha256) fail(120, 'android smoke candidate evidence SHA-256 mismatch')
+if (iosSmoke.candidate_evidence_sha256 !== iosCandidateEvidenceSha256) fail(121, 'ios smoke candidate evidence SHA-256 mismatch')
 if (androidSmoke.version !== androidCandidate.version || iosSmoke.version !== iosCandidate.version) fail(112, 'smoke version mismatch')
 if (androidSmoke.native_build_number !== androidCandidate.nativeBuildNumber) fail(113, 'android smoke native build mismatch')
 if (iosSmoke.native_build_number !== iosCandidate.nativeBuildNumber) fail(114, 'ios smoke native build mismatch')
@@ -243,11 +254,13 @@ const result = {
   nativeBuildNumber: androidCandidate.nativeBuildNumber,
   commit: androidCandidate.commit,
   webBundleSha256: androidCandidate.webBundleSha256,
+  parityEvidenceSha256,
   productionLocked: true,
   android: {
     nativeBuildNumber: androidCandidate.nativeBuildNumber,
     nativeWebFileCount: androidCandidate.nativeWebVerification.nativeFileCount,
     nativeWebEvidenceSha256: androidCandidate.nativeWebVerification.evidenceSha256,
+    candidateEvidenceSha256: androidCandidateEvidenceSha256,
     smokeExecutionId: androidSmoke.execution_id,
     sourceCandidateArtifactPath: androidSourceArtifact.path,
     sourceCandidateArtifactSha256: androidSmoke.source_candidate_artifact_sha256,
@@ -259,6 +272,7 @@ const result = {
     nativeBuildNumber: iosCandidate.nativeBuildNumber,
     nativeWebFileCount: iosCandidate.nativeWebVerification.nativeFileCount,
     nativeWebEvidenceSha256: iosCandidate.nativeWebVerification.evidenceSha256,
+    candidateEvidenceSha256: iosCandidateEvidenceSha256,
     smokeExecutionId: iosSmoke.execution_id,
     sourceCandidateArtifactPath: iosSourceArtifact.path,
     sourceCandidateArtifactSha256: iosSmoke.source_candidate_artifact_sha256,
