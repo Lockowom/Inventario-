@@ -29,12 +29,13 @@ function fixture() {
 }
 
 function run(dir: string, env: Record<string, string>) {
+  const candidateSha = env.INVEN3_CANDIDATE_SHA || env.GITHUB_SHA || 'c'.repeat(40)
   try {
     const stdout = execFileSync(process.execPath, [script], {
       cwd: dir,
       env: {
         ...process.env,
-        VITE_APP_BUILD: 'candidate.42',
+        VITE_APP_BUILD: `${candidateSha.slice(0, 8)}.42`,
         INVEN3_NATIVE_BUILD_NUMBER: '10042',
         ...env,
       },
@@ -69,6 +70,44 @@ describe('release manifest candidate identity', () => {
     expect(manifest.commit).toBe(candidateSha)
     expect(manifest.commit).not.toBe(mergeSha)
     expect(manifest.native.effectiveBuildNumber).toBe(10042)
+  })
+
+  test('rejects a build identity not bound to the candidate SHA', () => {
+    const dir = fixture()
+    const candidateSha = 'c'.repeat(40)
+    const result = run(dir, { INVEN3_CANDIDATE_SHA: candidateSha, VITE_APP_BUILD: 'deadbeef.42' })
+    expect(result.ok).toBe(false)
+    expect(result.stderr).toContain('build identity must be')
+  })
+
+  test('rejects native build number not derived from the same run number', () => {
+    const dir = fixture()
+    const candidateSha = 'c'.repeat(40)
+    const result = run(dir, { INVEN3_CANDIDATE_SHA: candidateSha, INVEN3_NATIVE_BUILD_NUMBER: '10043' })
+    expect(result.ok).toBe(false)
+    expect(result.stderr).toContain('native build number is not bound')
+  })
+
+  test('rejects unequal Android/iOS native base build policies', () => {
+    const dir = fixture()
+    const policyPath = path.join(dir, 'release-policy.json')
+    const policy = JSON.parse(fs.readFileSync(policyPath, 'utf8'))
+    policy.native.iosBaseBuildNumber = 10001
+    fs.writeFileSync(policyPath, JSON.stringify(policy))
+    const result = run(dir, { INVEN3_CANDIDATE_SHA: 'c'.repeat(40) })
+    expect(result.ok).toBe(false)
+    expect(result.stderr).toContain('equal integer Android/iOS native base build numbers')
+  })
+
+  test('rejects a symbolic link inside dist when supported', () => {
+    if (process.platform === 'win32') return
+    const dir = fixture()
+    const outside = path.join(dir, 'outside.txt')
+    fs.writeFileSync(outside, 'outside')
+    fs.symlinkSync(outside, path.join(dir, 'dist/linked.txt'))
+    const result = run(dir, { INVEN3_CANDIDATE_SHA: 'c'.repeat(40) })
+    expect(result.ok).toBe(false)
+    expect(result.stderr).toContain('refuses symbolic link')
   })
 
   test('rejects an abbreviated explicit candidate SHA', () => {

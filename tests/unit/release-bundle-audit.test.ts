@@ -84,6 +84,18 @@ describe('F10A built bundle audit',()=>{
     expect(result.status).toBe(62)
   })
 
+  test('rejects a symbolic link inside dist when supported',()=>{
+    if(process.platform==='win32') return
+    const dir=make('const qa="https://uazunvlxlszdyweddxtb.supabase.co";')
+    const outside=path.join(dir,'outside.txt')
+    fs.writeFileSync(outside,'outside')
+    fs.symlinkSync(outside,path.join(dir,'dist/assets/linked.txt'))
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(65)
+    expect(result.stderr).toContain('refuses symbolic link')
+  })
+
   test('refuses audit when production lock is disabled',()=>{
     const dir=make('const qa="https://uazunvlxlszdyweddxtb.supabase.co";', false)
     const result=run(dir)

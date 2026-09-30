@@ -7,11 +7,14 @@ function fail(code, message) {
   process.exit(code)
 }
 
-function collect(dir) {
+function collect(dir, base = dir) {
   if (!fs.existsSync(dir)) return []
   return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
     const full = path.join(dir, entry.name)
-    return entry.isDirectory() ? collect(full) : [full]
+    if (entry.isSymbolicLink()) fail(65, `bundle audit refuses symbolic link: ${path.relative(base, full)}`)
+    if (entry.isDirectory()) return collect(full, base)
+    if (!entry.isFile()) fail(65, `bundle audit refuses unsupported entry: ${path.relative(base, full)}`)
+    return [full]
   })
 }
 
