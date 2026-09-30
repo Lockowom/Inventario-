@@ -52,6 +52,27 @@ describe('F10A built bundle audit',()=>{
     expect(result.status).toBe(63)
   })
 
+  test('allows localhost text that exists only in a source map',()=>{
+    const dir=make('const qa="https://uazunvlxlszdyweddxtb.supabase.co";')
+    fs.writeFileSync(path.join(dir,'dist/assets/app.js.map'), JSON.stringify({
+      version:3,
+      sources:['../../src/example.ts'],
+      sourcesContent:['const localDev="http://127.0.0.1:54321"'],
+      names:[],
+      mappings:'',
+    }))
+    const result=run(dir)
+    expect(result.ok).toBe(true)
+  })
+
+  test('rejects a localhost Supabase URL in executable runtime content',()=>{
+    const dir=make('const qa="https://uazunvlxlszdyweddxtb.supabase.co"; const local="http://localhost:54321/rest/v1";')
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(63)
+    expect(result.stderr).toContain('forbidden runtime reference')
+  })
+
   test('rejects Supabase server secret material',()=>{
     const dir=make('const qa="https://uazunvlxlszdyweddxtb.supabase.co"; const x="sb_secret_forbidden";')
     const result=run(dir)
@@ -59,11 +80,41 @@ describe('F10A built bundle audit',()=>{
     expect(result.status).toBe(63)
   })
 
+  test('rejects a second Supabase project in the same bundle',()=>{
+    const dir=make('const qa="https://uazunvlxlszdyweddxtb.supabase.co"; const foreign="https://aaaaaaaaaaaaaaaaaaaa.supabase.co";')
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(63)
+    expect(result.stderr).toContain('unauthorized Supabase host')
+  })
+
+  test('rejects a legacy service_role JWT embedded in the bundle',()=>{
+    const header=Buffer.from(JSON.stringify({alg:'HS256',typ:'JWT'})).toString('base64url')
+    const payload=Buffer.from(JSON.stringify({role:'service_role'})).toString('base64url')
+    const dir=make(`const qa="https://uazunvlxlszdyweddxtb.supabase.co"; const forbidden="${header}.${payload}.signature";`)
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(63)
+    expect(result.stderr).toContain('service_role JWT')
+  })
+
   test('rejects a bundle that does not contain the QA backend host',()=>{
     const dir=make('console.log("no backend")')
     const result=run(dir)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(62)
+  })
+
+  test('rejects a symbolic link inside dist when supported',()=>{
+    if(process.platform==='win32') return
+    const dir=make('const qa="https://uazunvlxlszdyweddxtb.supabase.co";')
+    const outside=path.join(dir,'outside.txt')
+    fs.writeFileSync(outside,'outside')
+    fs.symlinkSync(outside,path.join(dir,'dist/assets/linked.txt'))
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(65)
+    expect(result.stderr).toContain('refuses symbolic link')
   })
 
   test('refuses audit when production lock is disabled',()=>{

@@ -21,7 +21,13 @@ function record(overrides: Record<string, unknown> = {}) {
     platform: 'android',
     candidate_sha: 'a'.repeat(40),
     candidate_evidence_ref: 'INVEN3-android-candidate-evidence.json',
+    candidate_evidence_sha256: 'b'.repeat(64),
+    source_candidate_artifact_sha256: 'c'.repeat(64),
+    installed_artifact_sha256: 'c'.repeat(64),
+    install_method: 'local_device',
+    signing_provenance: 'ephemeral_lab_signing',
     version: '1.0.0',
+    build: 'aaaaaaaa.42',
     environment: 'qa',
     channel: 'beta',
     production_locked: true,
@@ -82,6 +88,34 @@ describe('F10A smoke evidence validator', () => {
     expect(result.ok).toBe(false)
     expect(result.status).toBe(83)
     expect(result.stderr).toContain('PASS_REQUIRES_SYNTHETIC_COUNT_CONFIRMED')
+  })
+
+  test('rejects an unsafe candidate evidence reference', () => {
+    const result = run(temp(), record({ candidate_evidence_ref: '../candidate.json' }))
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(83)
+    expect(result.stderr).toContain('INVALID_CANDIDATE_EVIDENCE_REF')
+  })
+
+  test('rejects an invalid candidate evidence hash', () => {
+    const result = run(temp(), record({ candidate_evidence_sha256: 'not-a-hash' }))
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(83)
+    expect(result.stderr).toContain('INVALID_CANDIDATE_EVIDENCE_SHA256')
+  })
+
+  test('rejects a build identity not bound to the candidate SHA', () => {
+    const result = run(temp(), record({ build: 'deadbeef.42', app_display_version: '1.0.0-beta+deadbeef.42' }))
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(83)
+    expect(result.stderr).toContain('INVALID_BUILD')
+  })
+
+  test('rejects a visible app version that does not match the exact candidate build', () => {
+    const result = run(temp(), record({ app_display_version: '1.0.0-beta+aaaaaaaa.99' }))
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(83)
+    expect(result.stderr).toContain('INVALID_APP_DISPLAY_VERSION')
   })
 
   test('rejects production evidence', () => {
