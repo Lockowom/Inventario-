@@ -19,7 +19,10 @@ function writeJson(file: string, value: unknown) {
   fs.writeFileSync(file, JSON.stringify(value, null, 2))
 }
 
-function fixture(overrides: Record<string, unknown> = {}) {
+function fixture(
+  overrides: Record<string, unknown> = {},
+  platform: 'android' | 'ios' = 'android',
+) {
   const dir = tmp()
   writeJson(path.join(dir, 'release-policy.json'), {
     schemaVersion: 1,
@@ -40,7 +43,10 @@ function fixture(overrides: Record<string, unknown> = {}) {
   const aab = path.join(dir, 'candidate.aab')
   fs.writeFileSync(apk, Buffer.from('apk candidate'))
   fs.writeFileSync(aab, Buffer.from('aab candidate'))
-  const webHash = crypto.createHash('sha256').update('web').digest('hex')
+  const fileHash = crypto.createHash('sha256').update('web').digest('hex')
+  const webHash = crypto.createHash('sha256')
+    .update(`index.html:${fileHash}:3`)
+    .digest('hex')
   const manifest = {
     schemaVersion: 1,
     product: 'INVEN3',
@@ -60,11 +66,30 @@ function fixture(overrides: Record<string, unknown> = {}) {
     webBundle: {
       fileCount: 1,
       aggregateSha256: webHash,
-      files: [{ path: 'index.html', sha256: webHash, bytes: 3 }],
+      files: [{ path: 'index.html', sha256: fileHash, bytes: 3 }],
     },
     ...overrides,
   }
   writeJson(path.join(dir, 'artifacts/release/INVEN3-release-manifest.json'), manifest)
+  writeJson(path.join(dir, 'artifacts/release/native-web.json'), {
+    schemaVersion: 1,
+    product: 'INVEN3',
+    gate: 'F10A_NATIVE_WEB_PARITY',
+    status: 'PASS',
+    platform,
+    version: '1.0.0',
+    environment: 'qa',
+    channel: 'beta',
+    build: manifest.build,
+    commit: manifest.commit,
+    productionLocked: true,
+    webBundleSha256: webHash,
+    verifiedFileCount: 1,
+    nativeDirectory: platform === 'android'
+      ? 'android/app/src/main/assets/public'
+      : 'ios/App/App/public',
+    generatedAt: '2026-09-30T12:00:00.000Z',
+  })
   return { dir, artifacts: [apk, aab] }
 }
 
@@ -79,6 +104,7 @@ function run(
     const stdout = execFileSync(process.execPath, [
       script,
       '--platform', platform,
+      '--native-web-evidence', 'artifacts/release/native-web.json',
       ...artifactArgs,
     ], {
       cwd: dir,
@@ -110,7 +136,7 @@ describe('F10A release candidate verifier', () => {
   })
 
   test('accepts an IPA-only iOS candidate', () => {
-    const { dir } = fixture()
+    const { dir } = fixture({}, 'ios')
     const ipa = path.join(dir, 'candidate.ipa')
     fs.writeFileSync(ipa, Buffer.from('ipa candidate'))
     const result = run(dir, [ipa], 'ios')
@@ -118,6 +144,32 @@ describe('F10A release candidate verifier', () => {
     const evidence = JSON.parse(fs.readFileSync(path.join(dir, 'artifacts/release/INVEN3-ios-candidate-evidence.json'), 'utf8'))
     expect(evidence.platform).toBe('ios')
     expect(evidence.artifacts[0].path).toBe('candidate.ipa')
+  })
+
+  test('rejects candidate without native web parity evidence', () => {
+    const { dir, artifacts } = fixture()
+    fs.rmSync(path.join(dir, 'artifacts/release/native-web.json'))
+    const result = run(dir, artifacts)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(61)
+  })
+
+  test('rejects native web evidence for another platform', () => {
+    const { dir, artifacts } = fixture({}, 'ios')
+    const result = run(dir, artifacts)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(62)
+  })
+
+  test('rejects an inconsistent manifest aggregate hash', () => {
+    const { dir, artifacts } = fixture({ webBundle: {
+      fileCount: 1,
+      aggregateSha256: 'f'.repeat(64),
+      files: [{ path: 'index.html', sha256: 'e'.repeat(64), bytes: 3 }],
+    } })
+    const result = run(dir, artifacts)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(64)
   })
 
   test('rejects Android candidate without an AAB', () => {
