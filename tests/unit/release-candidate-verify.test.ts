@@ -110,7 +110,12 @@ function run(
       ...artifactArgs,
     ], {
       cwd: dir,
-      env: { ...process.env, GITHUB_SHA: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef', ...env },
+      env: {
+        ...process.env,
+        INVEN3_CANDIDATE_SHA: env.INVEN3_CANDIDATE_SHA ?? 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+        GITHUB_SHA: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
+        ...env,
+      },
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
     })
