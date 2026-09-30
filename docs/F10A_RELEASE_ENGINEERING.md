@@ -110,7 +110,9 @@ iOS produce:
 - `INVEN3-ios-candidate-evidence.json`;
 - build log.
 
-El job de paridad descarga las evidencias de ambas plataformas, compara byte a byte los manifests y emite la evidencia común. Los workflows separados de GitHub y Codemagic quedan como contingencia manual; no son necesarios para la ruta dual.
+Después de cada `cap sync`, `npm run release:verify-native-web` comprueba archivo por archivo que el bundle certificado por el manifest quedó copiado sin cambios dentro de `android/app/src/main/assets/public` e `ios/App/App/public`. Un archivo ausente, modificado o una ruta insegura bloquea el candidato.
+
+El job de paridad descarga las evidencias de ambas plataformas, compara byte a byte los manifests y exige además `F10A_NATIVE_WEB_PARITY = PASS` en Android e iOS. Los workflows separados de GitHub y Codemagic quedan como contingencia manual; no son necesarios para la ruta dual.
 
 La firma efímera Android no es identidad productiva. La IPA unsigned iOS no se considera instalable ni smoke aprobado.
 
@@ -149,8 +151,8 @@ El preflight estático también valida la configuración nativa mínima: cámara
 
 Valida cada artefacto nativo contra el manifest y emite:
 
-- Android: `INVEN3-android-candidate-evidence.json`, con APK y AAB;
-- iOS: `INVEN3-ios-candidate-evidence.json`, con IPA.
+- Android: `INVEN3-android-candidate-evidence.json`, con APK, AAB y evidencia del bundle dentro del proyecto Android;
+- iOS: `INVEN3-ios-candidate-evidence.json`, con IPA y evidencia del bundle dentro del proyecto iOS.
 
 El estado válido previo al smoke es:
 
@@ -195,12 +197,13 @@ F10A sólo puede declararse PASS cuando:
 2. Android QA/BETA candidate se genera;
 3. iOS QA/BETA candidate se genera;
 4. ambos manifests, hashes y candidate evidence quedan disponibles;
-5. `F10A_PLATFORM_PARITY = PASS`;
-6. ambos candidatos quedan `READY_FOR_BETA_SMOKE`;
-7. Beta Smoke Android = `PASS`;
-8. Beta Smoke iOS = `PASS`;
-9. `INVEN3-F10A-closure.json` queda en `PASS`;
-10. producción sigue bloqueada y `F10B_NOT_AUTHORIZED`.
+5. `F10A_NATIVE_WEB_PARITY = PASS` en Android e iOS;
+6. `F10A_PLATFORM_PARITY = PASS`;
+7. ambos candidatos quedan `READY_FOR_BETA_SMOKE`;
+8. Beta Smoke Android = `PASS`;
+9. Beta Smoke iOS = `PASS`;
+10. `INVEN3-F10A-closure.json` queda en `PASS`;
+11. producción sigue bloqueada y `F10B_NOT_AUTHORIZED`.
 
 ## Bloqueos de ejecución actuales
 
