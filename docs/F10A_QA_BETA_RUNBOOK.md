@@ -44,6 +44,7 @@ Artefactos esperados:
 - `app-release.aab`;
 - `INVEN3-1.0.0-beta-<build>-lab.apk` instalable sólo para laboratorio;
 - `INVEN3-release-manifest.json`;
+- `INVEN3-android-native-web-evidence.json`;
 - `INVEN3-android-candidate-evidence.json`;
 - `android-package-badging.txt`;
 - `android-sha256.txt`.
@@ -61,6 +62,7 @@ Artefactos esperados:
 - `INVEN3-1.0.0-beta-<build>-unsigned.ipa`;
 - SHA-256;
 - manifest;
+- `INVEN3-ios-native-web-evidence.json`;
 - `INVEN3-ios-candidate-evidence.json`;
 - build log;
 - `.app`.
@@ -88,7 +90,7 @@ Resultado esperado:
 
 `[PASS] F10A_PLATFORM_PARITY`
 
-No hacer smoke si los candidatos no representan el mismo commit/bundle.
+No hacer smoke si los candidatos no representan el mismo commit/bundle o si falta `F10A_NATIVE_WEB_PARITY = PASS` en cualquiera de las plataformas.
 
 ## 5. Verificación en dispositivo
 
