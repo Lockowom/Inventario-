@@ -84,6 +84,32 @@ function normalizedArtifacts(artifacts) {
     .sort((a, b) => a.path.localeCompare(b.path))
 }
 
+function validNativeWebVerification(candidate, platform) {
+  const evidence = candidate?.nativeWebVerification
+  return evidence
+    && evidence.gate === 'F10A_NATIVE_WEB_PARITY'
+    && evidence.status === 'PASS'
+    && evidence.platform === platform
+    && Number.isInteger(evidence.verifiedFileCount)
+    && evidence.verifiedFileCount > 0
+    && evidence.webBundleSha256 === candidate.webBundleSha256
+    && typeof evidence.evidencePath === 'string'
+    && evidence.evidencePath.trim().length > 0
+    && isSha256(evidence.evidenceSha256)
+}
+
+function normalizedNativeWebVerification(evidence) {
+  return {
+    gate: evidence.gate,
+    status: evidence.status,
+    platform: evidence.platform,
+    verifiedFileCount: evidence.verifiedFileCount,
+    webBundleSha256: evidence.webBundleSha256,
+    evidencePath: evidence.evidencePath,
+    evidenceSha256: evidence.evidenceSha256,
+  }
+}
+
 function findArtifactByHash(candidate, value) {
   const expected = String(value ?? '').toLowerCase()
   return candidate.artifacts.find((artifact) => String(artifact.sha256).toLowerCase() === expected)
@@ -124,6 +150,7 @@ for (const [label, candidate, platform] of [
   if (!isSha256(candidate.webBundleSha256)) fail(116, `${label} web bundle hash invalid`)
   if (!Number.isInteger(candidate.nativeBuildNumber) || candidate.nativeBuildNumber <= 0) fail(116, `${label} native build invalid`)
   if (!validArtifacts(candidate.artifacts)) fail(116, `${label} artifact evidence invalid`)
+  if (!validNativeWebVerification(candidate, platform)) fail(116, `${label} native web parity evidence invalid`)
 }
 
 if (parity.gate !== 'F10A_PLATFORM_PARITY' || parity.status !== 'READY_FOR_BETA_SMOKE') {
@@ -161,6 +188,13 @@ for (const [platform, candidate] of [['android', androidCandidate], ['ios', iosC
   if (!parityPlatform || parityPlatform.build !== candidate.build) fail(117, `parity ${platform} build mismatch`)
   if (parityPlatform.nativeBuildNumber !== candidate.nativeBuildNumber) fail(117, `parity ${platform} native build mismatch`)
   if (!validArtifacts(parityPlatform.artifacts)) fail(117, `parity ${platform} artifacts invalid`)
+  if (!validNativeWebVerification({ ...candidate, nativeWebVerification: parityPlatform.nativeWebVerification }, platform)) {
+    fail(117, `parity ${platform} native web evidence invalid`)
+  }
+  if (JSON.stringify(normalizedNativeWebVerification(parityPlatform.nativeWebVerification))
+    !== JSON.stringify(normalizedNativeWebVerification(candidate.nativeWebVerification))) {
+    fail(117, `parity ${platform} native web evidence mismatch`)
+  }
   if (JSON.stringify(normalizedArtifacts(parityPlatform.artifacts)) !== JSON.stringify(normalizedArtifacts(candidate.artifacts))) {
     fail(117, `parity ${platform} artifact evidence mismatch`)
   }
@@ -201,6 +235,7 @@ const result = {
   productionLocked: true,
   android: {
     nativeBuildNumber: androidCandidate.nativeBuildNumber,
+    nativeWebEvidenceSha256: androidCandidate.nativeWebVerification.evidenceSha256,
     smokeExecutionId: androidSmoke.execution_id,
     sourceCandidateArtifactPath: androidSourceArtifact.path,
     sourceCandidateArtifactSha256: androidSmoke.source_candidate_artifact_sha256,
@@ -210,6 +245,7 @@ const result = {
   },
   ios: {
     nativeBuildNumber: iosCandidate.nativeBuildNumber,
+    nativeWebEvidenceSha256: iosCandidate.nativeWebVerification.evidenceSha256,
     smokeExecutionId: iosSmoke.execution_id,
     sourceCandidateArtifactPath: iosSourceArtifact.path,
     sourceCandidateArtifactSha256: iosSmoke.source_candidate_artifact_sha256,
