@@ -57,7 +57,8 @@ shasum -a 256 <artefacto>   # macOS
    - Supabase = `CONFIGURED`;
    - Entorno = `QA`;
    - Canal = `BETA`;
-   - versión visible = `1.0.0-beta+...`.
+   - `build` = `<candidate-sha8>.<run-number>`;
+   - versión visible = exactamente `1.0.0-beta+<build>`.
 5. Iniciar sesión con usuario QA sintético.
 6. Confirmar que Health Check queda no bloqueante:
    - `READY`, `READY_OFFLINE` o `READY_WITH_WARNINGS`;
@@ -148,6 +149,7 @@ No cerrar F10A si:
 - el conteo no se confirma;
 - scanner cancelar auto-guarda;
 - candidate SHA/build no coincide;
+- la versión visible no es exactamente `1.0.0-beta+<build>`;
 - `candidate_evidence_ref` apunta a otro archivo;
 - el SHA-256 del candidate evidence no coincide con el JSON usado en el cierre;
 - el hash fuente no pertenece al candidate evidence;
