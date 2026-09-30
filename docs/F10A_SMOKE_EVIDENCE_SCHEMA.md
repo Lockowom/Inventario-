@@ -18,11 +18,12 @@ Este registro corresponde a una ejecución real de un **artefacto Release QA/BET
 | `install_method` | `local_device` o `managed_device_lab` |
 | `signing_provenance` | `candidate_as_built`, `ephemeral_lab_signing` o `laboratory_resign` |
 | `version` | Debe ser `1.0.0` para F10A |
+| `build` | Identidad exacta `<candidate-sha8>.<run-number>`; debe coincidir con candidate evidence |
 | `environment` | Debe ser `qa` |
 | `channel` | Debe ser `beta` |
 | `production_locked` | Debe ser `true` |
 | `native_build_number` | Entero positivo |
-| `app_display_version` | Versión observada en la app |
+| `app_display_version` | Debe ser exactamente `1.0.0-beta+<build>` |
 | `device_model` | Dispositivo físico/laboratorio real usado |
 | `os` / `os_version` | Sistema operativo observado |
 | `started_at` / `finished_at` | ISO-8601 |
@@ -73,7 +74,7 @@ El cierre exige simultáneamente:
 3. platform parity = `READY_FOR_BETA_SMOKE`;
 4. Beta Smoke Android = `PASS`;
 5. Beta Smoke iOS = `PASS`;
-6. mismo commit, versión, QA/BETA y production lock;
+6. mismo commit, versión, build exacto, versión visible, QA/BETA y production lock;
 7. la ruta `candidate_evidence_ref` coincide exactamente con el candidate evidence entregado al cierre;
 8. el SHA-256 del candidate evidence registrado por el smoke coincide con ese JSON;
 9. el hash fuente del smoke existe en candidate evidence;
