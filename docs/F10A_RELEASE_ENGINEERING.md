@@ -254,3 +254,11 @@ Para evitar ejecutar la misma validación dos veces por cada actualización de u
 
 Esto conserva cobertura del candidato y reduce consumo duplicado de runners, especialmente macOS.
 
+## Ruta canónica única F10A
+
+El workflow legado de candidato Android independiente fue retirado. La única ruta autorizada para generar candidatos F10A es:
+
+`.github/workflows/f10a-github-dual-platform.yml`
+
+Esto evita candidatos parciales fuera de la paridad Android/iOS y garantiza que manifest, native web evidence, candidate evidence y platform parity se generen dentro de la misma cadena de release.
+

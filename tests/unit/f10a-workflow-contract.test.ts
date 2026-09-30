@@ -54,6 +54,11 @@ describe('F10A GitHub workflow contract', () => {
     expect(prepare).not.toContain('run: npm audit --omit=dev')
   })
 
+  test('keeps one canonical F10A candidate workflow', () => {
+    expect(fs.existsSync(path.resolve(process.cwd(), '.github/workflows/f10a-github-dual-platform.yml'))).toBe(true)
+    expect(fs.existsSync(path.resolve(process.cwd(), '.github/workflows/f10a-release-candidate.yml'))).toBe(false)
+  })
+
   test('avoids duplicate push and pull-request executions on working branches', () => {
     for (const file of [
       '.github/workflows/ci.yml',
