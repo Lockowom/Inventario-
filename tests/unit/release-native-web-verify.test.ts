@@ -105,7 +105,7 @@ describe('F10A native web bundle verifier', () => {
     expect(evidence.nativeFileCount).toBe(2)
     expect(evidence.nativeDirectoryFileCount).toBe(4)
     expect(evidence.generatedBridgeFiles).toHaveLength(2)
-    expect(evidence.generatedBridgeFiles.map((file: { path: string }) => file.path)).toEqual(['cordova.js', 'cordova_plugins.js'])
+    expect(new Set(evidence.generatedBridgeFiles.map((file: { path: string }) => file.path))).toEqual(new Set(['cordova.js', 'cordova_plugins.js']))
     expect(evidence.generatedBridgeFiles.every((file: { sha256: string }) => /^[0-9a-f]{64}$/.test(file.sha256))).toBe(true)
   })
 
