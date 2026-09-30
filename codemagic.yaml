@@ -232,6 +232,9 @@ workflows:
       - name: Sync Capacitor iOS
         script: npx cap sync ios
 
+      - name: Verify canonical bundle inside iOS
+        script: npm run release:verify-native-web -- --platform ios
+
       - name: Install CocoaPods dependencies
         script: |
           set -e
@@ -295,6 +298,7 @@ workflows:
           cd "$CM_BUILD_DIR"
           npm run release:verify-candidate -- \
             --platform ios \
+            --native-web-evidence artifacts/release/INVEN3-ios-native-web-evidence.json \
             --artifact "$IPA" \
             --out artifacts/release/INVEN3-ios-candidate-evidence.json
 
@@ -305,6 +309,7 @@ workflows:
       - ios-f10a-release-errors.log
       - artifacts/release/INVEN3-release-manifest.json
       - artifacts/release/INVEN3-ios-candidate-evidence.json
+      - artifacts/release/INVEN3-ios-native-web-evidence.json
       - build-ios-f10a/Build/Products/**/*.app
       - build-ios-f10a/Build/Products/**/*.dSYM
 
@@ -354,6 +359,9 @@ workflows:
 
       - name: Sync Capacitor Android
         script: npx cap sync android
+
+      - name: Verify canonical bundle inside Android
+        script: npm run release:verify-native-web -- --platform android
 
       - name: Build unsigned Android release artifacts
         script: |
@@ -413,7 +421,7 @@ workflows:
           cd "$CM_BUILD_DIR"
           APK=$(find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print -quit)
           AAB=$(find android/app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)
-          npm run release:verify-candidate --             --platform android             --artifact "$APK"             --artifact "$AAB"             --out artifacts/release/INVEN3-android-candidate-evidence.json
+          npm run release:verify-candidate --             --platform android             --native-web-evidence artifacts/release/INVEN3-android-native-web-evidence.json             --artifact "$APK"             --artifact "$AAB"             --out artifacts/release/INVEN3-android-candidate-evidence.json
 
     artifacts:
       - artifacts/release/INVEN3-1.0.0-beta-*-lab.apk
@@ -424,6 +432,7 @@ workflows:
       - artifacts/release/android-sha256.txt
       - artifacts/release/INVEN3-release-manifest.json
       - artifacts/release/INVEN3-android-candidate-evidence.json
+      - artifacts/release/INVEN3-android-native-web-evidence.json
 
 
   dual-platform-release-candidate-f10a:
@@ -493,6 +502,12 @@ workflows:
           npx cap sync android
           npx cap sync ios
 
+      - name: Verify canonical bundle inside both native projects
+        script: |
+          set -e
+          npm run release:verify-native-web -- --platform android
+          npm run release:verify-native-web -- --platform ios
+
       - name: Build Android Release APK/AAB
         script: |
           set -e
@@ -551,7 +566,7 @@ workflows:
           cd "$CM_BUILD_DIR"
           APK=$(find artifacts/release -type f -name 'INVEN3-1.0.0-beta-*-lab.apk' -print -quit)
           AAB=$(find android/app/build/outputs/bundle/release -type f -name '*.aab' -print -quit)
-          npm run release:verify-candidate --             --platform android             --artifact "$APK"             --artifact "$AAB"             --out artifacts/release/INVEN3-android-candidate-evidence.json
+          npm run release:verify-candidate --             --platform android             --native-web-evidence artifacts/release/INVEN3-android-native-web-evidence.json             --artifact "$APK"             --artifact "$AAB"             --out artifacts/release/INVEN3-android-candidate-evidence.json
 
       - name: Install CocoaPods dependencies
         script: |
@@ -600,7 +615,7 @@ workflows:
           set -e
           cd "$CM_BUILD_DIR"
           IPA="$CM_BUILD_DIR/INVEN3-1.0.0-beta-${BUILD_NUMBER}-unsigned.ipa"
-          npm run release:verify-candidate --             --platform ios             --artifact "$IPA"             --out artifacts/release/INVEN3-ios-candidate-evidence.json
+          npm run release:verify-candidate --             --platform ios             --native-web-evidence artifacts/release/INVEN3-ios-native-web-evidence.json             --artifact "$IPA"             --out artifacts/release/INVEN3-ios-candidate-evidence.json
 
       - name: Verify Android iOS platform parity
         script: |
@@ -621,7 +636,9 @@ workflows:
       - ios-f10a-release-errors.log
       - artifacts/release/INVEN3-release-manifest.json
       - artifacts/release/INVEN3-android-candidate-evidence.json
+      - artifacts/release/INVEN3-android-native-web-evidence.json
       - artifacts/release/INVEN3-ios-candidate-evidence.json
+      - artifacts/release/INVEN3-ios-native-web-evidence.json
       - artifacts/release/INVEN3-f10a-platform-parity.json
       - build-ios-f10a/Build/Products/**/*.app
       - build-ios-f10a/Build/Products/**/*.dSYM
