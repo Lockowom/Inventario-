@@ -28,8 +28,17 @@ function evidence(platform:'android'|'ios', overrides:Record<string,unknown>={})
     nativeBuildNumber:platform==='android'?10010:10011,
     commit:'abcdefabcdefabcdefabcdefabcdefabcdefabcd',
     productionLocked:true,
-    webBundleSha256:'0123456789abcdef',
-    artifacts:[{path:platform==='android'?'app.apk':'app.ipa',bytes:1,sha256:'aa'}],
+    webBundleSha256:'0'.repeat(64),
+    nativeWebVerification:{
+      gate:'F10A_NATIVE_WEB_PARITY',
+      status:'PASS',
+      platform,
+      verifiedFileCount:2,
+      webBundleSha256:'0'.repeat(64),
+      evidencePath:`INVEN3-${platform}-native-web-evidence.json`,
+      evidenceSha256:platform==='android'?'1'.repeat(64):'2'.repeat(64),
+    },
+    artifacts:[{path:platform==='android'?'app.apk':'app.ipa',bytes:1,sha256:'a'.repeat(64)}],
     ...overrides,
   }
 }
@@ -69,10 +78,23 @@ describe('F10A platform parity',()=>{
   })
 
   test('rejects different web bundle hashes',()=>{
-    const dir=temp(); write(dir,evidence('android'),evidence('ios',{webBundleSha256:'different'}))
+    const dir=temp(); write(dir,evidence('android'),evidence('ios',{
+      webBundleSha256:'3'.repeat(64),
+      nativeWebVerification:{
+        ...evidence('ios').nativeWebVerification,
+        webBundleSha256:'3'.repeat(64),
+      },
+    }))
     const result=run(dir)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(77)
+  })
+
+  test('rejects a candidate without native web parity evidence',()=>{
+    const dir=temp(); write(dir,evidence('android',{nativeWebVerification:null}),evidence('ios'))
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(78)
   })
 
   test('rejects a candidate without production lock',()=>{
