@@ -177,10 +177,16 @@ for (const [label, smoke, platform] of [
   if (hasOpenBlockingDefect(smoke.defects)) fail(107, `${label} has open BLOCKER/CRITICAL defect`)
 }
 
-const fields = ['version','environment','channel','commit','webBundleSha256']
+const fields = ['version','environment','channel','build','commit','webBundleSha256']
 for (const field of fields) {
   if (androidCandidate[field] !== iosCandidate[field]) fail(108, `candidate mismatch: ${field}`)
   if (parity[field] !== androidCandidate[field]) fail(109, `parity mismatch: ${field}`)
+}
+if (androidCandidate.nativeBuildNumber !== iosCandidate.nativeBuildNumber) {
+  fail(108, 'candidate mismatch: nativeBuildNumber')
+}
+if (parity.nativeBuildNumber !== androidCandidate.nativeBuildNumber) {
+  fail(109, 'parity mismatch: nativeBuildNumber')
 }
 
 for (const [platform, candidate] of [['android', androidCandidate], ['ios', iosCandidate]]) {
@@ -230,6 +236,8 @@ const result = {
   version: androidCandidate.version,
   environment: 'qa',
   channel: 'beta',
+  build: androidCandidate.build,
+  nativeBuildNumber: androidCandidate.nativeBuildNumber,
   commit: androidCandidate.commit,
   webBundleSha256: androidCandidate.webBundleSha256,
   productionLocked: true,

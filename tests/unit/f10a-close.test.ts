@@ -104,7 +104,7 @@ function write(dir:string, overrides:{
   iosSmoke?:Record<string,unknown>,
 }={}) {
   const a={...candidate('android',10010),...(overrides.android??{})}
-  const i={...candidate('ios',10011),...(overrides.ios??{})}
+  const i={...candidate('ios',10010),...(overrides.ios??{})}
   const p={
     product:'INVEN3', gate:'F10A_PLATFORM_PARITY', status:'READY_FOR_BETA_SMOKE', version:'1.0.0',
     environment:'qa', channel:'beta', commit:sha, productionLocked:true, webBundleSha256:webHash,
@@ -115,7 +115,7 @@ function write(dir:string, overrides:{
     ...(overrides.parity??{})
   }
   const as={...smoke('android',10010),...(overrides.androidSmoke??{})}
-  const is={...smoke('ios',10011),...(overrides.iosSmoke??{})}
+  const is={...smoke('ios',10010),...(overrides.iosSmoke??{})}
   const files={
     'android.json':a, 'ios.json':i, 'parity.json':p, 'android-smoke.json':as, 'ios-smoke.json':is
   }
@@ -154,6 +154,22 @@ describe('F10A evidence-driven closure',()=>{
     expect(closure.ios.sourceCandidateArtifactPath).toBe('INVEN3-ios-unsigned.ipa')
     expect(closure.android.nativeWebEvidenceSha256).toBe('7'.repeat(64))
     expect(closure.ios.nativeWebEvidenceSha256).toBe('8'.repeat(64))
+  })
+
+  test('rejects candidates with different build identities',()=>{
+    const dir=temp(); write(dir,{ios:{build:`${sha.slice(0,8)}.11`}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(108)
+    expect(result.stderr).toContain('candidate mismatch: build')
+  })
+
+  test('rejects candidates with different native build numbers',()=>{
+    const dir=temp(); write(dir,{ios:{nativeBuildNumber:10011},iosSmoke:{native_build_number:10011}})
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(108)
+    expect(result.stderr).toContain('candidate mismatch: nativeBuildNumber')
   })
 
   test('rejects a failed iOS smoke',()=>{
@@ -223,7 +239,7 @@ describe('F10A evidence-driven closure',()=>{
     }
     write(dir,{parity:{platforms:{
       android:{build:`${sha.slice(0,8)}.10`,nativeBuildNumber:10010,nativeWebVerification:candidate('android',10010).nativeWebVerification,artifacts:candidate('android',10010).artifacts},
-      ios:{build:`${sha.slice(0,8)}.10`,nativeBuildNumber:10011,nativeWebVerification:changed,artifacts:candidate('ios',10011).artifacts},
+      ios:{build:`${sha.slice(0,8)}.10`,nativeBuildNumber:10010,nativeWebVerification:changed,artifacts:candidate('ios',10010).artifacts},
     }}})
     const result=run(dir)
     expect(result.ok).toBe(false)

@@ -24,8 +24,8 @@ function evidence(platform:'android'|'ios', overrides:Record<string,unknown>={})
     version:'1.0.0',
     environment:'qa',
     channel:'beta',
-    build:platform==='android'?'abc.10':'abc.11',
-    nativeBuildNumber:platform==='android'?10010:10011,
+    build:'abc.10',
+    nativeBuildNumber:10010,
     commit:'abcdefabcdefabcdefabcdefabcdefabcdefabcd',
     productionLocked:true,
     webBundleSha256:'0'.repeat(64),
@@ -68,6 +68,22 @@ describe('F10A platform parity',()=>{
     expect(result.stdout).toContain('F10A_PLATFORM_PARITY')
     const summary=JSON.parse(fs.readFileSync(path.join(dir,'artifacts/release/INVEN3-f10a-platform-parity.json'),'utf8'))
     expect(summary.status).toBe('READY_FOR_BETA_SMOKE')
+  })
+
+  test('rejects different builds',()=>{
+    const dir=temp(); write(dir,evidence('android'),evidence('ios',{build:'abc.11'}))
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(77)
+    expect(result.stderr).toContain('platform parity mismatch for build')
+  })
+
+  test('rejects different native build numbers',()=>{
+    const dir=temp(); write(dir,evidence('android'),evidence('ios',{nativeBuildNumber:10011}))
+    const result=run(dir)
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(77)
+    expect(result.stderr).toContain('platform parity mismatch for nativeBuildNumber')
   })
 
   test('rejects different commits',()=>{

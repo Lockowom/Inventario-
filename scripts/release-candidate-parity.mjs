@@ -86,11 +86,14 @@ const root = process.cwd()
 const android = readEvidence(root, args.android, 'android')
 const ios = readEvidence(root, args.ios, 'ios')
 
-const equalFields = ['product','gate','version','environment','channel','commit','webBundleSha256']
+const equalFields = ['product','gate','version','environment','channel','build','commit','webBundleSha256']
 for (const field of equalFields) {
   if (android[field] !== ios[field]) {
     fail(77, `platform parity mismatch for ${field}: android=${android[field]} ios=${ios[field]}`)
   }
+}
+if (android.nativeBuildNumber !== ios.nativeBuildNumber) {
+  fail(77, `platform parity mismatch for nativeBuildNumber: android=${android.nativeBuildNumber} ios=${ios.nativeBuildNumber}`)
 }
 
 const summary = {
@@ -101,6 +104,8 @@ const summary = {
   version: android.version,
   environment: android.environment,
   channel: android.channel,
+  build: android.build,
+  nativeBuildNumber: android.nativeBuildNumber,
   commit: android.commit,
   productionLocked: true,
   webBundleSha256: android.webBundleSha256,

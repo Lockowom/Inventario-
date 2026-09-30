@@ -109,6 +109,15 @@ describe('F10A native web bundle verifier', () => {
     expect(result.stderr).toContain('certified web file missing')
   })
 
+  test('rejects an extra native file that is absent from the canonical manifest', () => {
+    const { dir, nativeDir } = fixture('android')
+    fs.writeFileSync(path.join(nativeDir, 'assets/injected.js'), 'console.log("unexpected")')
+    const result = run(dir, 'android')
+    expect(result.ok).toBe(false)
+    expect(result.status).toBe(130)
+    expect(result.stderr).toContain('uncertified native web file')
+  })
+
   test('rejects unsafe paths in the release manifest', () => {
     const { dir } = fixture('android')
     const manifestPath = path.join(dir, 'artifacts/release/INVEN3-release-manifest.json')

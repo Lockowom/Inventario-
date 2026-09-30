@@ -46,6 +46,25 @@ function validManifestPath(value) {
   return normalized === value && normalized !== '.' && !normalized.startsWith('../')
 }
 
+function collectNativeFiles(baseDir, currentDir = baseDir) {
+  const files = []
+  for (const entry of fs.readdirSync(currentDir, { withFileTypes: true })) {
+    const full = path.join(currentDir, entry.name)
+    if (entry.isSymbolicLink()) {
+      fail(130, `native web directory contains a symbolic link: ${path.relative(baseDir, full).replaceAll('\\', '/')}`)
+    }
+    if (entry.isDirectory()) {
+      files.push(...collectNativeFiles(baseDir, full))
+      continue
+    }
+    if (!entry.isFile()) {
+      fail(130, `native web directory contains an unsupported entry: ${path.relative(baseDir, full).replaceAll('\\', '/')}`)
+    }
+    files.push(path.relative(baseDir, full).replaceAll('\\', '/'))
+  }
+  return files.sort((a, b) => a.localeCompare(b))
+}
+
 const args = parseArgs(process.argv.slice(2))
 if (!['android', 'ios'].includes(args.platform)) fail(123, '--platform must be android or ios')
 
@@ -118,6 +137,15 @@ for (const file of sorted) {
   }
 }
 
+const nativeFiles = collectNativeFiles(nativeDir)
+const uncertifiedFiles = nativeFiles.filter((file) => !seen.has(file))
+if (uncertifiedFiles.length > 0) {
+  fail(130, `uncertified native web file in ${args.platform}: ${uncertifiedFiles[0]}`)
+}
+if (nativeFiles.length !== sorted.length) {
+  fail(130, `native web file set mismatch in ${args.platform}: manifest=${sorted.length} native=${nativeFiles.length}`)
+}
+
 const evidence = {
   schemaVersion: 1,
   product: policy.product,
@@ -132,6 +160,7 @@ const evidence = {
   productionLocked: true,
   webBundleSha256: bundle.aggregateSha256,
   verifiedFileCount: sorted.length,
+  nativeFileCount: nativeFiles.length,
   nativeDirectory: path.relative(root, nativeDir).replaceAll('\\', '/'),
   generatedAt: new Date().toISOString(),
 }
