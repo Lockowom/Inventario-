@@ -91,8 +91,9 @@ describe('F10A native web bundle verifier', () => {
     expect(evidence.verifiedFileCount).toBe(2)
   })
 
-  test.each(['android', 'ios'] as const)('accepts only the explicit Capacitor bridge file on %s and records its hash', (platform) => {
+  test.each(['android', 'ios'] as const)('accepts only the explicit Capacitor bridge files on %s and records their hashes', (platform) => {
     const { dir, nativeDir } = fixture(platform)
+    fs.writeFileSync(path.join(nativeDir, 'cordova.js'), 'window.cordova = {};')
     fs.writeFileSync(path.join(nativeDir, 'cordova_plugins.js'), 'cordova.define("cordova/plugin_list", function(require, exports, module) { module.exports = []; });')
     const result = run(dir, platform)
     expect(result.ok).toBe(true)
@@ -102,10 +103,10 @@ describe('F10A native web bundle verifier', () => {
     ))
     expect(evidence.verifiedFileCount).toBe(2)
     expect(evidence.nativeFileCount).toBe(2)
-    expect(evidence.nativeDirectoryFileCount).toBe(3)
-    expect(evidence.generatedBridgeFiles).toHaveLength(1)
-    expect(evidence.generatedBridgeFiles[0].path).toBe('cordova_plugins.js')
-    expect(evidence.generatedBridgeFiles[0].sha256).toMatch(/^[0-9a-f]{64}$/)
+    expect(evidence.nativeDirectoryFileCount).toBe(4)
+    expect(evidence.generatedBridgeFiles).toHaveLength(2)
+    expect(evidence.generatedBridgeFiles.map((file: { path: string }) => file.path)).toEqual(['cordova.js', 'cordova_plugins.js'])
+    expect(evidence.generatedBridgeFiles.every((file: { sha256: string }) => /^[0-9a-f]{64}$/.test(file.sha256))).toBe(true)
   })
 
   test('rejects a native file changed after the canonical manifest', () => {

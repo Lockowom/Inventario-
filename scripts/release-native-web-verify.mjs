@@ -138,7 +138,7 @@ for (const file of sorted) {
 }
 
 const nativeFiles = collectNativeFiles(nativeDir)
-const allowedGeneratedBridgeFiles = new Set(['cordova_plugins.js'])
+const allowedGeneratedBridgeFiles = new Set(['cordova.js', 'cordova_plugins.js'])
 const generatedBridgeFiles = nativeFiles.filter((file) => !seen.has(file) && allowedGeneratedBridgeFiles.has(file))
 const uncertifiedFiles = nativeFiles.filter((file) => !seen.has(file) && !allowedGeneratedBridgeFiles.has(file))
 if (uncertifiedFiles.length > 0) {
