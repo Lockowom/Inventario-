@@ -6,6 +6,7 @@ returns table(
  event_type text,
  actor_user_id uuid,
  actor_display_name text,
+ target_display_name text,
  payload jsonb,
  created_at timestamptz
 )
@@ -17,9 +18,21 @@ begin
  if v_inventory_id is null then raise exception 'Reconciliation case not found' using errcode='P0002'; end if;
  if not app_private.can_manage_inventory(v_inventory_id) then raise exception 'Not authorized for reconciliation timeline' using errcode='42501'; end if;
  return query
- select e.id,e.case_id,e.event_type,e.actor_user_id,p.display_name,e.payload,e.created_at
+ select
+  e.id,
+  e.case_id,
+  e.event_type,
+  e.actor_user_id,
+  actor_profile.display_name,
+  case
+   when e.event_type='SECOND_ASSIGNED' then (select p.display_name from public.profiles p where p.user_id=(e.payload->>'assigned_user_id')::uuid)
+   when e.event_type='THIRD_ASSIGNED' then (select p.display_name from public.profiles p where p.user_id=(e.payload->>'assigned_analyst_id')::uuid)
+   else null
+  end as target_display_name,
+  e.payload,
+  e.created_at
  from public.reconciliation_events e
- join public.profiles p on p.user_id=e.actor_user_id
+ join public.profiles actor_profile on actor_profile.user_id=e.actor_user_id
  where e.case_id=p_case_id
  order by e.created_at,e.id;
 end $$;
