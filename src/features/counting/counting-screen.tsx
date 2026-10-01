@@ -120,7 +120,6 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
       setPending(saved.pending)
       setDraft((current) => resetAfterSuccessfulSave(current))
       setMaster(null)
-      if(recountClientId&&activeRecount&&summary.confirmed>0){try{await reconciliation.recordMyRecount(activeRecount.id,recountClientId);setMessage(`RECONTEO ${activeRecount.round} CONFIRMADO`);setActiveRecount(null);setPendingRecountClientId(null)}catch{setMessage('Conteo sincronizado; conciliación pendiente de vincular. Reintente sincronización.')}}
       setRefreshCounts((value) => value + 1)
       void runSync(activeRecount ? saved.record.clientCountId : undefined)
       requestAnimationFrame(() => codeInput.current?.focus())
@@ -135,6 +134,7 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     try {
       const summary = await syncCoordinator.runInventorySync(activeRuntime.context.inventoryId, { forceRetry })
       setSyncMessage(summary.claimed === 0 ? (summary.diagnostic ? `Sincronización requiere revisión: ${summary.diagnostic}.` : 'No hay conteos elegibles para sincronizar.') : `Sincronización: ${summary.confirmed} confirmados, ${summary.rejected} requieren revisión, ${summary.failed} para reintentar.`)
+      if(recountClientId&&activeRecount){try{await reconciliation.recordMyRecount(activeRecount.id,recountClientId);setMessage(`RECONTEO ${activeRecount.round} CONFIRMADO`);setActiveRecount(null);setPendingRecountClientId(null)}catch{setMessage('Reconteo aún no confirmado en servidor; la vinculación queda pendiente y puede reintentarse.')}}
       setRefreshCounts((value) => value + 1)
     } catch { setSyncMessage('No fue posible sincronizar ahora. Sus conteos locales siguen protegidos.') } finally { setSyncing(false) }
   }
