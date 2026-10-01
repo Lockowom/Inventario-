@@ -1,11 +1,18 @@
 # F10A — Release Engineering
 
 Fecha de inicio: 2026-09-28  
-Última actualización: 2026-09-29  
-Estado: ENGINEERING_READY / EXECUTION_BLOCKED  
+Última actualización: 2026-10-01
+Estado: CANDIDATE_READY / PHYSICAL_SMOKE_PENDING
 Entorno permitido: INVEN3-QA  
 Canal permitido: BETA  
 Producción: LOCKED
+
+La ruta canónica ya fue verificada en el run
+[`36754978267`](https://github.com/Lockowom/Inventario-/actions/runs/36754978267)
+para `6935ebc692ed6f129653b9d0f21d0bf66cd574d0`: validación estática,
+bundle QA/BETA, Android, iOS y paridad finalizaron `PASS`. El paso pendiente
+no es una reconstrucción: es la re-firma/instalación iOS y los smokes físicos
+trazables de ambos artefactos de ese run.
 
 ## Objetivo
 
