@@ -61,7 +61,7 @@ returns public.reconciliation_cases language plpgsql security definer set search
 declare v public.reconciliation_cases; actor uuid:=app_private.require_active_actor();
 begin
  select * into v from public.reconciliation_cases where id=p_case_id for update;
- if not app_private.is_analyst() or v.id is null or not app_private.can_manage_inventory(v.inventory_id) then raise exception 'Only assigned analyst may resolve reconciliation' using errcode='42501'; end if;
+ if not app_private.is_analyst() or v.id is null or not app_private.can_manage_inventory(v.inventory_id) then raise exception 'Only ANALISTA may resolve reconciliation' using errcode='42501'; end if;
  if v.status<>'FISICO_CONFIRMADO' or length(btrim(coalesce(p_reason,'')))=0 then raise exception 'Physical confirmation and reason required' using errcode='23514'; end if;
  update public.reconciliation_cases set status='RESUELTO',disposition=p_disposition,resolution_reason=btrim(p_reason),resolved_by=actor,resolved_at=now() where id=v.id returning * into v;
  perform app_private.append_reconciliation_event(v.id,v.inventory_id,'RESOLVED',actor,jsonb_build_object('disposition',p_disposition,'reason',btrim(p_reason))); return v;
