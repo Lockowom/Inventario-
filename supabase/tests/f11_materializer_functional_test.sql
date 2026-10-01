@@ -1,5 +1,5 @@
 begin;
-select plan(10);
+select plan(12);
 insert into auth.users(id,aud,role,email,encrypted_password,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
 ('95000000-0000-0000-0000-000000000001','authenticated','authenticated','mat-admin@example.invalid','','{}','{}',now(),now()),
 ('95000000-0000-0000-0000-000000000002','authenticated','authenticated','mat-analyst@example.invalid','','{}','{}',now(),now()),
@@ -24,21 +24,24 @@ select set_config('request.jwt.claim.sub','95000000-0000-0000-0000-000000000003'
 select * from public.sync_counts('96000000-0000-0000-0000-000000000001','97000000-0000-0000-0000-000000000003','WEB','1.0.0','MAT',
 '[
 {"client_count_id":"98000000-0000-0000-0000-000000000001","ubicacion":"A-01-01","codigo":"MAT001S","serie":"PHY-S","cantidad_contada":1,"captured_at":"2026-10-01T09:00:00Z"},
+{"client_count_id":"98000000-0000-0000-0000-000000000005","ubicacion":"A-01-02","codigo":"MAT001S","serie":"PHY-S","cantidad_contada":1,"captured_at":"2026-10-01T09:00:30Z"},
 {"client_count_id":"98000000-0000-0000-0000-000000000002","ubicacion":"A-01-01","codigo":"MAT002P","partida":"LOT-A","cantidad_contada":3,"captured_at":"2026-10-01T09:01:00Z"},
 {"client_count_id":"98000000-0000-0000-0000-000000000003","ubicacion":"A-01-01","codigo":"MAT002P","partida":"LOT-PHY","cantidad_contada":2,"captured_at":"2026-10-01T09:02:00Z"},
 {"client_count_id":"98000000-0000-0000-0000-000000000004","ubicacion":"A-01-01","codigo":"MAT003","cantidad_contada":2,"captured_at":"2026-10-01T09:03:00Z"}
 ]');
 reset role;
 select set_config('request.jwt.claim.sub','95000000-0000-0000-0000-000000000002',true); set local role authenticated;
-select is((select created_count from public.materialize_reconciliation_cases('96000000-0000-0000-0000-000000000001')),6,'first materialization creates six anomalies');
+select is((select created_count from public.materialize_reconciliation_cases('96000000-0000-0000-0000-000000000001')),7,'first materialization creates seven anomalies');
 select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and anomaly_type='SERIE_FISICA_NO_EN_SISTEMA'),1::bigint,'physical-only serial detected');
+select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and anomaly_type='DUPLICADO_SERIE'),1::bigint,'duplicate serial detected');
 select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and anomaly_type='SERIE_SISTEMA_NO_CONTADA'),1::bigint,'system-only serial detected');
 select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and anomaly_type='DIFERENCIA_CANTIDAD_PARTIDA'),1::bigint,'batch quantity difference detected');
 select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and anomaly_type='PARTIDA_FISICA_NO_EN_SISTEMA'),1::bigint,'physical-only batch detected');
 select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and anomaly_type='PARTIDA_SISTEMA_NO_CONTADA'),1::bigint,'system-only batch detected');
 select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and anomaly_type='DIFERENCIA_CANTIDAD_SKU'),1::bigint,'legacy quantity difference detected');
 select is((select created_count from public.materialize_reconciliation_cases('96000000-0000-0000-0000-000000000001')),0,'second materialization creates no duplicates');
-select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001'),6::bigint,'case count remains stable after replay');
+select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001'),7::bigint,'case count remains stable after replay');
+select is((select first_count_record_id from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and anomaly_type='DUPLICADO_SERIE'),'98000000-0000-0000-0000-000000000001'::uuid,'duplicate serial anchors earliest accepted physical count');
 select ok(not exists(select 1 from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and status='RESUELTO'),'materialization never auto-resolves cases');
 reset role;
 select * from finish();
