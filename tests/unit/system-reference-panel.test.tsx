@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { SystemReferencePanel } from '../../src/features/reconciliation/system-reference-panel'
 
-const materialize=vi.fn(()=>Promise.resolve({created_count:2,existing_count:5,source_fingerprint:'abc'}))
+const materialize=vi.fn((_inventoryId:string)=>Promise.resolve({created_count:2,existing_count:5,source_fingerprint:'abc'}))
 
 vi.mock('../../src/services/supabase-reconciliation-repository',()=>({
  SupabaseReconciliationRepository:class{
