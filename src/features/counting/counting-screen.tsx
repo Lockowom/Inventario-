@@ -8,6 +8,7 @@ import { consumeRestoredScannerResult, subscribeToScannerRestoration } from '../
 import { emptyPhysicalCountDraft, resetAfterSuccessfulSave } from './form-state'
 import { getCapacityStatus } from './capacity-status'
 import type { SyncCoordinator } from '../../domain/sync/sync-coordinator'
+import { SupabaseReconciliationRepository, type RecountAssignment } from '../../services/supabase-reconciliation-repository'
 
 export interface CountingRuntime extends SavePhysicalCountDependencies { context: ActiveCountingContext }
 export interface CaptureGate { blocked: boolean; message: string | null }
@@ -24,7 +25,12 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
   const [syncing, setSyncing] = useState(false)
   const codeInput = useRef<HTMLInputElement>(null)
   const healthBlocked = captureGate?.blocked === true
+  const [recounts,setRecounts]=useState<RecountAssignment[]>([])
+  const [activeRecount,setActiveRecount]=useState<RecountAssignment|null>(null)
+  const [pendingRecountClientId,setPendingRecountClientId]=useState<string|null>(null)
+  const reconciliation=useRef(new SupabaseReconciliationRepository()).current
 
+  useEffect(()=>{if(!runtime)return; void reconciliation.myAssignments(runtime.context.inventoryId).then(setRecounts).catch(()=>setRecounts([]))},[runtime,reconciliation,refreshCounts])
   useEffect(() => {
     if (!runtime) return
     void runtime.masters.getMetadata(runtime.context.inventoryId).then((metadata) => setMasterAvailable(Boolean(metadata))).catch(() => setMasterAvailable(false))
@@ -97,6 +103,11 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     if (field === 'codigo') await resolveSku(result.value)
     else setDraft((current) => ({ ...current, [field]: result.value! }))
   }
+  async function selectRecount(item:RecountAssignment){
+    setActiveRecount(item); setPendingRecountClientId(null)
+    const next={...emptyPhysicalCountDraft,codigo:item.codigo,serie:item.reference_type==='SERIAL'?(item.reference_value??''):'',partida:item.reference_type==='PARTIDA'?(item.reference_value??''):''}
+    setDraft(next); const resolution=await resolveCountSku(activeRuntime.context.inventoryId,item.codigo,next,activeRuntime.masters); setMaster(resolution.master); setDraft(resolution.draft); setMessage(resolution.error??'')
+  }
   async function save() {
     if (healthBlocked) { setMessage(captureGate?.message ?? 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.'); return }
     if (capacity === 'BLOCKED') { setMessage('Se alcanzó el límite de 50 conteos pendientes en este dispositivo. Sincronice antes de continuar.'); return }
@@ -104,19 +115,21 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     try {
       const { savePhysicalCount } = await import('../../domain/count/save-physical-count')
       const saved = await savePhysicalCount(activeRuntime.context, draft, activeRuntime)
-      setMessage('CONTEO GUARDADO')
+      setMessage(activeRecount ? `RECONTEO ${activeRecount.round} GUARDADO · SINCRONIZANDO` : 'CONTEO GUARDADO')
+      if(activeRecount) setPendingRecountClientId(saved.record.clientCountId)
       setPending(saved.pending)
       setDraft((current) => resetAfterSuccessfulSave(current))
       setMaster(null)
+      if(recountClientId&&activeRecount&&summary.confirmed>0){try{await reconciliation.recordMyRecount(activeRecount.id,recountClientId);setMessage(`RECONTEO ${activeRecount.round} CONFIRMADO`);setActiveRecount(null);setPendingRecountClientId(null)}catch{setMessage('Conteo sincronizado; conciliación pendiente de vincular. Reintente sincronización.')}}
       setRefreshCounts((value) => value + 1)
-      void runSync()
+      void runSync(activeRecount ? saved.record.clientCountId : undefined)
       requestAnimationFrame(() => codeInput.current?.focus())
     } catch (error: unknown) {
       setMessage(error instanceof PhysicalCountValidationError || error instanceof Error ? error.message : 'No fue posible guardar localmente. Sus datos siguen en el formulario.')
     } finally { setSaving(false) }
   }
 
-  async function runSync(forceRetry = false) {
+  async function runSync(recountClientId?: string, forceRetry = false) {
     if (!syncCoordinator || syncing) return
     setSyncing(true)
     try {
@@ -131,7 +144,9 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     {healthBlocked && <p className="form-error" role="alert">{captureGate?.message ?? 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.'}</p>}
     {masterAvailable === false && <p className="form-error" role="alert">No existe un maestro SKU disponible en este dispositivo. Actualice el maestro antes de iniciar el conteo.</p>}
     <CapacityStatus pending={pending} capacity={capacity} />
-    <section className="sync-status" aria-label="Estado de sincronización"><p role="status">{syncMessage || startupSyncMessage || 'Sincronización preparada. Los conteos locales permanecen disponibles sin conexión.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runSync(true)}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section>
+    {recounts.length>0&&<section className="sync-status" aria-label="Reconteos asignados"><strong>RECONTEOS ASIGNADOS</strong>{recounts.map(item=><button key={item.id} type="button" className="button-secondary" onClick={()=>void selectRecount(item)}>C{item.round} · {item.codigo}{item.reference_value?` · ${item.reference_value}`:''}</button>)}</section>}
+    {activeRecount&&<p className="form-warning" role="status">RECONTEO C{activeRecount.round} ACTIVO · {activeRecount.codigo}. Captura ciega: la cantidad anterior no se muestra.</p>}
+    <section className="sync-status" aria-label="Estado de sincronización"><p role="status">{syncMessage || startupSyncMessage || 'Sincronización preparada. Los conteos locales permanecen disponibles sin conexión.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runSync(pendingRecountClientId ?? undefined, true)}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section>
     {message && <p className={message === 'CONTEO GUARDADO' ? 'form-success' : 'form-error'} role="status">{message}</p>}
     <div className="counting-form" aria-disabled={disabled}>
       <Field label="UBICACION"><TextInput value={draft.ubicacion} onChange={(value) => setDraft((current) => ({ ...current, ubicacion: value }))} disabled={disabled} /><ScanButton field="ubicacion" onScan={scan} disabled={disabled} /></Field>
