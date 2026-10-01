@@ -1,0 +1,27 @@
+import { useEffect, useMemo, useState } from 'react'
+import { SupabaseReconciliationRepository, type ReconciliationRow } from '../../services/supabase-reconciliation-repository'
+import { SupabaseSupervisionRepository } from '../../services/supabase-supervision-repository'
+
+const repo=new SupabaseReconciliationRepository()
+const supervision=new SupabaseSupervisionRepository()
+type Profile={role:'CONTADOR'|'ANALISTA'|'ADMIN'}
+type Inventory={id:string;name:string;status:string}
+
+export function ReconciliationScreen(){
+ const [profile,setProfile]=useState<Profile|null>(null),[inventories,setInventories]=useState<Inventory[]>([]),[inventoryId,setInventoryId]=useState('')
+ const [rows,setRows]=useState<ReconciliationRow[]>([]),[message,setMessage]=useState(''),[filter,setFilter]=useState('TODOS')
+ const [reason,setReason]=useState<Record<string,string>>({})
+ useEffect(()=>{void Promise.all([supervision.myProfile(),supervision.inventories()]).then(([p,i])=>{setProfile(p as Profile);setInventories(i);setInventoryId(i[0]?.id??'')}).catch(e=>setMessage(e instanceof Error?e.message:'Conciliación no disponible.'))},[])
+ useEffect(()=>{if(inventoryId&&(profile?.role==='ANALISTA'||profile?.role==='ADMIN')) void refresh()},[inventoryId,profile?.role])
+ async function refresh(){try{setRows(await repo.list(inventoryId));setMessage('')}catch(e){setMessage(e instanceof Error?e.message:'No fue posible cargar conciliación.')}}
+ const visible=useMemo(()=>filter==='TODOS'?rows:rows.filter(r=>r.status===filter),[rows,filter])
+ if(profile?.role==='CONTADOR') return null
+ return <section className="supervision-screen" aria-labelledby="reconciliation-title">
+  <header><p className="eyebrow">F11 · control de inventario</p><h1 id="reconciliation-title">CENTRO DE CONCILIACIÓN</h1><p>Una diferencia es un hallazgo a investigar; no se interpreta automáticamente como error del contador ni genera ajuste de stock.</p></header>
+  <div className="supervision-actions"><label className="field"><span>Inventario</span><select value={inventoryId} onChange={e=>setInventoryId(e.target.value)}>{inventories.map(i=><option key={i.id} value={i.id}>{i.name} · {i.status}</option>)}</select></label><label className="field"><span>Estado</span><select value={filter} onChange={e=>setFilter(e.target.value)}><option>TODOS</option><option>PENDIENTE_ANALISIS</option><option>2DO_CONTEO_ASIGNADO</option><option>REQUIERE_3ER_CONTEO</option><option>3ER_CONTEO_ASIGNADO</option><option>FISICO_CONFIRMADO</option><option>RESUELTO</option></select></label><button className="button-secondary" onClick={()=>void refresh()}>ACTUALIZAR</button></div>
+  {message&&<p className="form-warning" role="status">{message}</p>}
+  <div className="supervision-cards">{visible.map(r=><article key={r.id}><strong>{r.codigo}{r.reference_value?` · ${r.reference_value}`:''}</strong><span>{r.anomaly_type}</span><span>Sistema: {r.system_quantity} · Físico inicial: {r.physical_quantity} · Diferencia: {r.physical_quantity-r.system_quantity}</span><span>Estado: {r.status}</span>{r.confirmed_physical_quantity!==null&&<span>Físico confirmado: {r.confirmed_physical_quantity}</span>}
+   {r.status==='FISICO_CONFIRMADO'&&profile?.role==='ANALISTA'&&<><label className="field"><span>Justificación de dictamen</span><textarea value={reason[r.id]??''} onChange={e=>setReason({...reason,[r.id]:e.target.value})}/></label><button className="button-primary" onClick={()=>void repo.resolve(r.id,'AJUSTE_PROPUESTO',reason[r.id]??'').then(refresh).catch(e=>setMessage(e.message))}>PROPONER AJUSTE Y CERRAR</button></>}
+   {r.status==='RESUELTO'&&<span>Dictamen: {r.disposition} · {r.resolution_reason}</span>}</article>)}</div>
+ </section>
+}
