@@ -4,7 +4,7 @@ Sistema de captura para Inventario General físico, offline-first, con soporte A
 
 ## Estado
 
-**Fase actual:** Fase 10A — Release Engineering en QA/BETA. F9 quedó consolidada; la prueba física iOS exhaustiva permanece diferida sin falso PASS. Producción continúa bloqueada y no se han ejecutado despliegues, migraciones ni promoción productiva.
+**Fase actual:** Fase 11 — Conciliación de Inventario por Analista, en desarrollo y revisión. F10A ya completó el pipeline QA/BETA de candidatos Android/iOS y su paridad; su cierre sigue requiriendo smoke físico de los artefactos exactos. F9 quedó consolidada. Producción continúa bloqueada y no se han ejecutado despliegues, migraciones ni promoción productiva.
 
 ## Inicio rápido
 
