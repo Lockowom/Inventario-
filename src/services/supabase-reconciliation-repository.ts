@@ -9,7 +9,10 @@ export type ReconciliationRow = {
 async function rpc<T>(name:string,args:Record<string,unknown>):Promise<T>{
  const client=getSupabaseClient(); if(!client) throw new Error('Conciliación no configurada.'); const {data,error}=await client.rpc(name,args); if(error) throw new Error(error.message); return data as T
 }
+export type RecountAssignment={id:string;inventory_id:string;codigo:string;reference_type:'SERIAL'|'PARTIDA'|'LEGACY';reference_value:string|null;round:2|3}
 export class SupabaseReconciliationRepository {
+ myAssignments(inventoryId:string){return rpc<RecountAssignment[]>('get_my_recount_assignments',{p_inventory_id:inventoryId})}
+ recordMyRecount(caseId:string,clientCountId:string){return rpc<ReconciliationRow>('record_my_recount',{p_case_id:caseId,p_client_count_id:clientCountId})}
  list(inventoryId:string){return rpc<ReconciliationRow[]>('list_reconciliation_cases',{p_inventory_id:inventoryId})}
  assignSecond(caseId:string,userId:string){return rpc<ReconciliationRow>('assign_second_recount',{p_case_id:caseId,p_user_id:userId})}
  assignThird(caseId:string,userId:string){return rpc<ReconciliationRow>('assign_third_recount',{p_case_id:caseId,p_analyst_id:userId})}
