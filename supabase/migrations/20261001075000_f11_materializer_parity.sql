@@ -5,6 +5,7 @@ language plpgsql security definer set search_path=public,app_private,pg_temp as 
 declare actor uuid:=app_private.require_active_actor(); fp text; made integer:=0; existed integer:=0;
 begin
  if not app_private.can_manage_inventory(p_inventory_id) then raise exception 'Not authorized for reconciliation materialization' using errcode='42501'; end if;
+ if not exists(select 1 from public.inventories where id=p_inventory_id and status='ABIERTO') then raise exception 'Reconciliation materialization requires an open inventory' using errcode='23514'; end if;
  select fingerprint into fp from public.inventory_system_reference_metadata where inventory_id=p_inventory_id;
  if fp is null then raise exception 'System reference snapshot is required' using errcode='23514'; end if;
 
