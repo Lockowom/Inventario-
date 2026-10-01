@@ -34,7 +34,6 @@ alter table public.reconciliation_cases enable row level security;
 revoke all on public.reconciliation_cases from anon, authenticated;
 grant select on public.reconciliation_cases to authenticated;
 create policy reconciliation_manager_read on public.reconciliation_cases for select to authenticated using (app_private.can_manage_inventory(inventory_id));
-create policy reconciliation_second_assignee_read on public.reconciliation_cases for select to authenticated using (status='2DO_CONTEO_ASIGNADO' and assigned_second_user_id=(select auth.uid()));
 
 create function public.list_reconciliation_cases(p_inventory_id uuid)
 returns setof public.reconciliation_cases language plpgsql stable security definer set search_path=public,app_private,pg_temp as $$
