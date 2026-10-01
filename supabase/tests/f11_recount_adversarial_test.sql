@@ -1,5 +1,5 @@
 begin;
-select plan(4);
+select plan(5);
 -- F11 adversarial recount tests use the production ingestion path.
 insert into auth.users(id,aud,role,email,encrypted_password,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
 ('91000000-0000-0000-0000-000000000001','authenticated','authenticated','f11-admin@example.invalid','','{}','{}',now(),now()),
@@ -29,6 +29,10 @@ select lives_ok(format('select public.assign_second_recount(%L,%L)',(select id f
 reset role;
 select set_config('request.jwt.claim.sub','91000000-0000-0000-0000-000000000003',true); set local role authenticated;
 select is((select count(*) from public.reconciliation_cases where inventory_id='92000000-0000-0000-0000-000000000001'),0::bigint,'C1 has no direct reconciliation row visibility');
+select throws_ok(
+ 'select public.get_reconciliation_summary(''92000000-0000-0000-0000-000000000001''::uuid)',
+ '42501','Not authorized for reconciliation summary','CONTADOR cannot read reconciliation summary'
+);
 reset role;
 select set_config('request.jwt.claim.sub','91000000-0000-0000-0000-000000000004',true); set local role authenticated;
 select is((select count(*) from public.reconciliation_cases where inventory_id='92000000-0000-0000-0000-000000000001'),0::bigint,'C2 remains blind through table RLS');
