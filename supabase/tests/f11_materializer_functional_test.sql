@@ -41,7 +41,7 @@ select is((select count(*) from public.reconciliation_cases where inventory_id='
 select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and anomaly_type='DIFERENCIA_CANTIDAD_SKU'),1::bigint,'legacy quantity difference detected');
 select is((select created_count from public.materialize_reconciliation_cases('96000000-0000-0000-0000-000000000001')),0,'second materialization creates no duplicates');
 select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001'),7::bigint,'case count remains stable after replay');
-select is((select first_count_record_id from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and anomaly_type='DUPLICADO_SERIE'),'98000000-0000-0000-0000-000000000001'::uuid,'duplicate serial anchors earliest accepted physical count');
+select is((select first_count_record_id from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and anomaly_type='DUPLICADO_SERIE'),(select id from public.count_records where client_count_id='98000000-0000-0000-0000-000000000001'),'duplicate serial anchors earliest accepted physical count');
 select ok(not exists(select 1 from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and status='RESUELTO'),'materialization never auto-resolves cases');
 reset role;
 select * from finish();
