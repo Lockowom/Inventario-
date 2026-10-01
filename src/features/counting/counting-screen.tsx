@@ -28,9 +28,10 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
   const [recounts,setRecounts]=useState<RecountAssignment[]>([])
   const [activeRecount,setActiveRecount]=useState<RecountAssignment|null>(null)
   const [pendingRecountClientId,setPendingRecountClientId]=useState<string|null>(null)
+  const recountStorageKey=runtime?`inven3.recount.${runtime.context.inventoryId}.${runtime.context.userId}`:null
   const reconciliation=useRef(new SupabaseReconciliationRepository()).current
 
-  useEffect(()=>{if(!runtime)return; void reconciliation.myAssignments(runtime.context.inventoryId).then(setRecounts).catch(()=>setRecounts([]))},[runtime,reconciliation,refreshCounts])
+  useEffect(()=>{if(!runtime)return; void reconciliation.myAssignments(runtime.context.inventoryId).then(items=>{setRecounts(items);if(typeof localStorage!=='undefined'){const raw=localStorage.getItem(`inven3.recount.${runtime.context.inventoryId}.${runtime.context.userId}`);if(raw){try{const saved=JSON.parse(raw) as {caseId:string;clientCountId:string};const item=items.find(x=>x.id===saved.caseId);if(item){setActiveRecount(item);setPendingRecountClientId(saved.clientCountId)}else localStorage.removeItem(`inven3.recount.${runtime.context.inventoryId}.${runtime.context.userId}`)}catch{localStorage.removeItem(`inven3.recount.${runtime.context.inventoryId}.${runtime.context.userId}`)}}}}).catch(()=>setRecounts([]))},[runtime,reconciliation,refreshCounts])
   useEffect(() => {
     if (!runtime) return
     void runtime.masters.getMetadata(runtime.context.inventoryId).then((metadata) => setMasterAvailable(Boolean(metadata))).catch(() => setMasterAvailable(false))
@@ -116,7 +117,7 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
       const { savePhysicalCount } = await import('../../domain/count/save-physical-count')
       const saved = await savePhysicalCount(activeRuntime.context, draft, activeRuntime)
       setMessage(activeRecount ? `RECONTEO ${activeRecount.round} GUARDADO · SINCRONIZANDO` : 'CONTEO GUARDADO')
-      if(activeRecount) setPendingRecountClientId(saved.record.clientCountId)
+      if(activeRecount){setPendingRecountClientId(saved.record.clientCountId);if(recountStorageKey&&typeof localStorage!=='undefined')localStorage.setItem(recountStorageKey,JSON.stringify({caseId:activeRecount.id,clientCountId:saved.record.clientCountId}))}
       setPending(saved.pending)
       setDraft((current) => resetAfterSuccessfulSave(current))
       setMaster(null)
@@ -134,7 +135,7 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     try {
       const summary = await syncCoordinator.runInventorySync(activeRuntime.context.inventoryId, { forceRetry })
       setSyncMessage(summary.claimed === 0 ? (summary.diagnostic ? `Sincronización requiere revisión: ${summary.diagnostic}.` : 'No hay conteos elegibles para sincronizar.') : `Sincronización: ${summary.confirmed} confirmados, ${summary.rejected} requieren revisión, ${summary.failed} para reintentar.`)
-      if(recountClientId&&activeRecount){try{await reconciliation.recordMyRecount(activeRecount.id,recountClientId);setMessage(`RECONTEO ${activeRecount.round} CONFIRMADO`);setActiveRecount(null);setPendingRecountClientId(null)}catch{setMessage('Reconteo aún no confirmado en servidor; la vinculación queda pendiente y puede reintentarse.')}}
+      if(recountClientId&&activeRecount){try{await reconciliation.recordMyRecount(activeRecount.id,recountClientId);setMessage(`RECONTEO ${activeRecount.round} CONFIRMADO`);setActiveRecount(null);setPendingRecountClientId(null);if(recountStorageKey&&typeof localStorage!=='undefined')localStorage.removeItem(recountStorageKey)}catch{setMessage('Reconteo aún no confirmado en servidor; la vinculación queda pendiente y puede reintentarse.')}}
       setRefreshCounts((value) => value + 1)
     } catch { setSyncMessage('No fue posible sincronizar ahora. Sus conteos locales siguen protegidos.') } finally { setSyncing(false) }
   }
