@@ -8,6 +8,7 @@ begin
  if v.id is null then raise exception 'Reconciliation case not found' using errcode='P0002'; end if;
  if not app_private.can_manage_inventory(v.inventory_id) then raise exception 'Not authorized for reconciliation candidates' using errcode='42501'; end if;
  if p_round=2 then
+   if v.status not in ('PENDIENTE_ANALISIS','REQUIERE_2DO_CONTEO') then raise exception 'Case does not admit second recount' using errcode='23514'; end if;
    select user_id into c1_user from public.count_records where id=v.first_count_record_id;
    return query
    select p.user_id,p.display_name,p.role
@@ -16,6 +17,7 @@ begin
      and p.user_id is distinct from c1_user
    order by p.display_name,p.user_id;
  elsif p_round=3 then
+   if v.status<>'REQUIERE_3ER_CONTEO' then raise exception 'Case does not admit third recount' using errcode='23514'; end if;
    return query
    select p.user_id,p.display_name,p.role
    from public.inventory_assignments a join public.profiles p on p.user_id=a.user_id
