@@ -63,16 +63,18 @@ select
  '9b000000-0000-0000-0000-000000000001','EVT001P','PARTIDA','LOT-EV','DIFERENCIA_CANTIDAD_PARTIDA',6,5,id,'9a000000-0000-0000-0000-000000000002'
 from public.count_records where client_count_id='9d000000-0000-0000-0000-000000000003';
 
+select set_config('f11.case_id',(select id::text from public.reconciliation_cases where inventory_id='9b000000-0000-0000-0000-000000000001'),true);
+
 select set_config('request.jwt.claim.sub','9a000000-0000-0000-0000-000000000002',true); set local role authenticated;
 
 select throws_ok(
- format('select public.assign_second_recount(%L,%L)',(select id from public.reconciliation_cases where inventory_id='9b000000-0000-0000-0000-000000000001'),'9a000000-0000-0000-0000-000000000003'),
+ format('select public.assign_second_recount(%L,%L)',current_setting('f11.case_id'),'9a000000-0000-0000-0000-000000000003'),
  '23514','Invalid second counter','invalid C2 assignment is rejected'
 );
 select is((select count(*) from public.reconciliation_events where inventory_id='9b000000-0000-0000-0000-000000000001'),0::bigint,'rejected assignment creates no event');
 
 select lives_ok(
- format('select public.assign_second_recount(%L,%L)',(select id from public.reconciliation_cases where inventory_id='9b000000-0000-0000-0000-000000000001'),'9a000000-0000-0000-0000-000000000004'),
+ format('select public.assign_second_recount(%L,%L)',current_setting('f11.case_id'),'9a000000-0000-0000-0000-000000000004'),
  'valid C2 assignment succeeds'
 );
 select is((select count(*) from public.reconciliation_events where inventory_id='9b000000-0000-0000-0000-000000000001' and event_type='SECOND_ASSIGNED'),1::bigint,'C2 assignment emits one event');
@@ -80,36 +82,36 @@ reset role;
 
 select set_config('request.jwt.claim.sub','9a000000-0000-0000-0000-000000000004',true); set local role authenticated;
 select lives_ok(
- format('select public.record_second_recount(%L,%L)',(select id from public.reconciliation_cases where inventory_id='9b000000-0000-0000-0000-000000000001'),(select id from public.count_records where client_count_id='9d000000-0000-0000-0000-000000000004')),
+ format('select public.record_second_recount(%L,%L)',current_setting('f11.case_id'),(select id from public.count_records where client_count_id='9d000000-0000-0000-0000-000000000004')),
  'assigned C2 can record recount'
 );
-select is((select status::text from public.reconciliation_cases where inventory_id='9b000000-0000-0000-0000-000000000001'),'REQUIERE_3ER_CONTEO','C1/C2 mismatch requires C3');
 reset role;
 
 select set_config('request.jwt.claim.sub','9a000000-0000-0000-0000-000000000002',true); set local role authenticated;
+select is((select status::text from public.reconciliation_cases where id=current_setting('f11.case_id')::uuid),'REQUIERE_3ER_CONTEO','C1/C2 mismatch requires C3');
 select is((select count(*) from public.reconciliation_events where inventory_id='9b000000-0000-0000-0000-000000000001' and event_type='SECOND_RECORDED'),1::bigint,'C2 record emits one event');
 
 select lives_ok(
- format('select public.assign_third_recount(%L,%L)',(select id from public.reconciliation_cases where inventory_id='9b000000-0000-0000-0000-000000000001'),'9a000000-0000-0000-0000-000000000002'),
+ format('select public.assign_third_recount(%L,%L)',current_setting('f11.case_id'),'9a000000-0000-0000-0000-000000000002'),
  'assigned analyst may take C3'
 );
 select is((select count(*) from public.reconciliation_events where inventory_id='9b000000-0000-0000-0000-000000000001' and event_type='THIRD_ASSIGNED'),1::bigint,'C3 assignment emits one event');
 
 select lives_ok(
- format('select public.record_third_recount(%L,%L)',(select id from public.reconciliation_cases where inventory_id='9b000000-0000-0000-0000-000000000001'),(select id from public.count_records where client_count_id='9d000000-0000-0000-0000-000000000002')),
+ format('select public.record_third_recount(%L,%L)',current_setting('f11.case_id'),(select id from public.count_records where client_count_id='9d000000-0000-0000-0000-000000000002')),
  'assigned analyst records C3'
 );
 select is((select status::text from public.reconciliation_cases where inventory_id='9b000000-0000-0000-0000-000000000001'),'FISICO_CONFIRMADO','C3 confirms physical quantity');
 select is((select count(*) from public.reconciliation_events where inventory_id='9b000000-0000-0000-0000-000000000001' and event_type='THIRD_RECORDED'),1::bigint,'C3 record emits one event');
 
 select throws_ok(
- format('select public.resolve_reconciliation(%L,%L,%L)',(select id from public.reconciliation_cases where inventory_id='9b000000-0000-0000-0000-000000000001'),'SIN_AJUSTE',''),
+ format('select public.resolve_reconciliation(%L,%L,%L)',current_setting('f11.case_id'),'SIN_AJUSTE',''),
  '23514','Physical confirmation and reason required','blank resolution reason is rejected'
 );
 select is((select count(*) from public.reconciliation_events where inventory_id='9b000000-0000-0000-0000-000000000001'),4::bigint,'rejected resolution creates no event');
 
 select lives_ok(
- format('select public.resolve_reconciliation(%L,%L,%L)',(select id from public.reconciliation_cases where inventory_id='9b000000-0000-0000-0000-000000000001'),'SIN_AJUSTE','Synthetic evidence confirmed'),
+ format('select public.resolve_reconciliation(%L,%L,%L)',current_setting('f11.case_id'),'SIN_AJUSTE','Synthetic evidence confirmed'),
  'valid analyst resolution succeeds'
 );
 select is((select count(*) from public.reconciliation_events where inventory_id='9b000000-0000-0000-0000-000000000001' and event_type='RESOLVED'),1::bigint,'resolution emits one event');
