@@ -12,3 +12,12 @@ describe('ReconciliationScreen authorization surface',()=>{
   expect(container.textContent).not.toContain('CENTRO DE CONCILIACIÓN')
  })
 })
+
+
+describe('F11 reconciliation decision vocabulary',()=>{
+ it('keeps the counter surface blind to analyst resolution controls',async()=>{
+  const {container}=render(<ReconciliationScreen/>); await new Promise(r=>setTimeout(r,0));
+  expect(container.textContent).not.toContain('REGISTRAR DICTAMEN Y CERRAR')
+  expect(container.textContent).not.toContain('AJUSTE PROPUESTO')
+ })
+})
