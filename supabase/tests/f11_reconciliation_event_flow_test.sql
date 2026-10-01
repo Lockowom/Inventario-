@@ -1,5 +1,5 @@
 begin;
-select plan(18);
+select plan(20);
 
 insert into auth.users(id,aud,role,email,encrypted_password,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
 ('9a000000-0000-0000-0000-000000000001','authenticated','authenticated','event-admin@example.invalid','','{}','{}',now(),now()),
@@ -65,6 +65,13 @@ from public.count_records where client_count_id='9d000000-0000-0000-0000-0000000
 
 select set_config('f11.case_id',(select id::text from public.reconciliation_cases where inventory_id='9b000000-0000-0000-0000-000000000001'),true);
 
+select set_config('request.jwt.claim.sub','9a000000-0000-0000-0000-000000000003',true); set local role authenticated;
+select throws_ok(
+ format('select * from public.list_reconciliation_events(%L)',current_setting('f11.case_id')),
+ '42501','Not authorized for reconciliation timeline','CONTADOR cannot read reconciliation timeline'
+);
+reset role;
+
 select set_config('request.jwt.claim.sub','9a000000-0000-0000-0000-000000000002',true); set local role authenticated;
 
 select throws_ok(
@@ -117,6 +124,7 @@ select lives_ok(
 select is((select count(*) from public.reconciliation_events where inventory_id='9b000000-0000-0000-0000-000000000001' and event_type='RESOLVED'),1::bigint,'resolution emits one event');
 select is((select count(*) from public.reconciliation_events where inventory_id='9b000000-0000-0000-0000-000000000001'),5::bigint,'successful lifecycle emits exactly five events');
 select is((select status::text from public.reconciliation_cases where inventory_id='9b000000-0000-0000-0000-000000000001'),'RESUELTO','case closes only after explicit analyst resolution');
+select is((select count(*) from public.list_reconciliation_events(current_setting('f11.case_id')::uuid)),5::bigint,'manager timeline returns the five lifecycle events');
 
 reset role;
 select * from finish();
