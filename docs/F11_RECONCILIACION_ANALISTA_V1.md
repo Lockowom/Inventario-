@@ -1,7 +1,7 @@
 # F11 — Conciliación de Inventario por Analista
 
-Estado: desarrollo en `feature/f11-analyst-reconciliation` / PR #12.  
-Producción: **LOCKED**.  
+Estado: desarrollo en `feature/f11-analyst-reconciliation` / PR #12.
+Producción: **LOCKED**.
 Aplicación de migraciones a INVEN3-QA remoto: **NO autorizada en este bloque**.
 
 ## 1. Objetivo
