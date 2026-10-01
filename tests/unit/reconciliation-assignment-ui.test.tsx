@@ -19,6 +19,13 @@ vi.mock('../../src/services/supabase-reconciliation-repository',()=>({
    anomaly_type:'DIFERENCIA_CANTIDAD_SKU',system_quantity:5,physical_quantity:4,status:'PENDIENTE_ANALISIS',
    assigned_second_user_id:null,assigned_third_analyst_id:null,confirmed_physical_quantity:null,disposition:null,resolution_reason:null
   }])}
+  summary(){return Promise.resolve({
+   inventory_id:'inv-1',
+   source_reference:{reference_version:2,row_count:4,fingerprint:'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',source:'RP_XLSX:synthetic.xlsx',import_identifier:'hash',imported_at:'2026-10-01T10:00:00Z'},
+   summary:{total:4,open:3,pending_analysis:1,second_recount:1,third_recount:0,physical_confirmed:1,resolved:1},
+   anomalies:{DIFERENCIA_CANTIDAD_SKU:1},
+   last_materialized_at:'2026-10-01T10:10:00Z'
+  })}
   candidates(caseId:string,round:number){return candidates(caseId,round)}
   assignSecond(caseId:string,userId:string){return assignSecond(caseId,userId)}
  }
@@ -30,6 +37,8 @@ describe('F11 reconciliation assignment UI',()=>{
   expect(await screen.findByText('CENTRO DE CONCILIACIÓN')).toBeTruthy()
   expect(await screen.findByText('SKU001')).toBeTruthy()
   expect(screen.queryByText(/UUID contador/i)).toBeNull()
+  expect(await screen.findByText('Casos abiertos')).toBeTruthy()
+  expect(screen.getByText(/Snapshot RP v2 · 4 referencias · fingerprint abcdef123456/)).toBeTruthy()
   const select=screen.getByLabelText('Contador para 2.º conteo')
   fireEvent.focus(select)
   await waitFor(()=>expect(candidates).toHaveBeenCalledWith('case-1',2))
