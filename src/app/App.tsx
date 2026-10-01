@@ -19,6 +19,7 @@ import { createCaptureGate } from '../features/device-health/capture-gate'
 import { CertificationFixture } from './certification-fixture'
 import { isCertificationFixtureEnabled } from './certification-fixture-mode'
 import { releaseMetadata } from '../config/release-metadata'
+import { ReconciliationScreen } from '../features/reconciliation/reconciliation-screen'
 
 export function App() {
   if (isCertificationFixtureEnabled({ dev: import.meta.env.DEV, fixture: import.meta.env.VITE_CERTIFICATION_FIXTURE })) return <CertificationFixture />
@@ -113,7 +114,7 @@ function AuthenticatedRuntime() {
     <InfrastructureDiagnostic supabaseState="CONFIGURED" />
     <div className="session-actions"><button className="button-secondary" type="button" onClick={() => void authService.signOut()}>CERRAR SESIÓN</button></div>
     <DeviceHealthScreen report={healthReport} loading={healthLoading} error={healthError} onRefresh={() => void runHealth('LIGHT')} onFullCheck={() => void runHealth('FULL')} />
-    <SupervisionScreen /><CutsScreen /><MasterSkuScreen />
+    <SupervisionScreen /><ReconciliationScreen /><CutsScreen /><MasterSkuScreen />
     <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} captureGate={captureGate} />
   </main>
 }
