@@ -84,8 +84,8 @@ begin
  select count(*)::integer into made from ins;
 
  select count(*)::integer into existed
- from public.reconciliation_cases
- where inventory_id=p_inventory_id and source_fingerprint=fp and status<>'RESUELTO';
+ from public.reconciliation_cases rc
+ where rc.inventory_id=p_inventory_id and rc.source_fingerprint=fp and rc.status<>'RESUELTO';
 
  insert into public.audit_events(inventory_id,actor_user_id,event_type,entity_type,entity_id,payload)
  values(
