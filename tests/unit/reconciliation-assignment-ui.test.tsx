@@ -2,8 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ReconciliationScreen } from '../../src/features/reconciliation/reconciliation-screen'
 
-const assignSecond=vi.fn((_caseId:string,_userId:string)=>Promise.resolve({}))
-const candidates=vi.fn((_caseId:string,_round:number)=>Promise.resolve([{user_id:'counter-2',display_name:'Counter Two',role:'CONTADOR' as const}]))
+const assignSecond=vi.fn((caseId:string,userId:string)=>{void caseId;void userId;return Promise.resolve({})})
+const candidates=vi.fn((caseId:string,round:number)=>{void caseId;void round;return Promise.resolve([{user_id:'counter-2',display_name:'Counter Two',role:'CONTADOR' as const}])})
 
 vi.mock('../../src/services/supabase-supervision-repository',()=>({
  SupabaseSupervisionRepository:class{
