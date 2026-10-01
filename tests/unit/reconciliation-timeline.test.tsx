@@ -17,7 +17,7 @@ describe('F11 reconciliation timeline UI',()=>{
   fireEvent.click(screen.getByRole('button',{name:'VER TRAZABILIDAD'}))
   await waitFor(()=>expect(events).toHaveBeenCalledWith('case-1'))
   expect(await screen.findByText('2.º conteo asignado')).toBeTruthy()
-  expect(screen.getByText(/Analista Uno/)).toBeTruthy()
+  expect(screen.getAllByText(/Analista Uno/)).toHaveLength(2)
   expect(screen.getByText('Asignado a Contador Dos')).toBeTruthy()
   expect(screen.getByText('Conciliación resuelta')).toBeTruthy()
   expect(screen.getByText('SIN AJUSTE · Conteo confirmado')).toBeTruthy()
