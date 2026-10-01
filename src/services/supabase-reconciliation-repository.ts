@@ -14,10 +14,12 @@ export type RecountAssignment={id:string;inventory_id:string;codigo:string;refer
 export type RecountCandidate={user_id:string;display_name:string;role:'CONTADOR'|'ANALISTA'}
 export type SystemReferenceImportResult={reference_version:number;row_count:number;fingerprint:string}
 export type MaterializationResult={created_count:number;existing_count:number;source_fingerprint:string}
+export type ReconciliationEvent={id:string;case_id:string;event_type:string;actor_user_id:string;actor_display_name:string;payload:Record<string,unknown>;created_at:string}
 export class SupabaseReconciliationRepository {
  myAssignments(inventoryId:string){return rpc<RecountAssignment[]>('get_my_recount_assignments',{p_inventory_id:inventoryId})}
  recordMyRecount(caseId:string,clientCountId:string){return rpc<ReconciliationRow>('record_my_recount',{p_case_id:caseId,p_client_count_id:clientCountId})}
  list(inventoryId:string){return rpc<ReconciliationRow[]>('list_reconciliation_cases',{p_inventory_id:inventoryId})}
+ events(caseId:string){return rpc<ReconciliationEvent[]>('list_reconciliation_events',{p_case_id:caseId})}
  candidates(caseId:string,round:2|3){return rpc<RecountCandidate[]>('list_recount_candidates',{p_case_id:caseId,p_round:round})}
  async importSystemReference(inventoryId:string,items:SystemReferenceItem[],fileName:string,fileSha256:string){
   const rows=await rpc<SystemReferenceImportResult[]>('import_inventory_system_reference',{p_inventory_id:inventoryId,p_items:items.map(item=>({codigo:item.codigo,reference_value:item.referenceValue,quantity:item.quantity})),p_source:`RP_XLSX:${fileName}`,p_import_identifier:fileSha256})
