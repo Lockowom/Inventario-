@@ -14,7 +14,7 @@ export type RecountAssignment={id:string;inventory_id:string;codigo:string;refer
 export type RecountCandidate={user_id:string;display_name:string;role:'CONTADOR'|'ANALISTA'}
 export type SystemReferenceImportResult={reference_version:number;row_count:number;fingerprint:string}
 export type MaterializationResult={created_count:number;existing_count:number;source_fingerprint:string}
-export type ReconciliationEvent={id:string;case_id:string;event_type:string;actor_user_id:string;actor_display_name:string;payload:Record<string,unknown>;created_at:string}
+export type ReconciliationEvent={id:string;case_id:string;event_type:string;actor_user_id:string;actor_display_name:string;target_display_name:string|null;payload:Record<string,unknown>;created_at:string}
 export class SupabaseReconciliationRepository {
  myAssignments(inventoryId:string){return rpc<RecountAssignment[]>('get_my_recount_assignments',{p_inventory_id:inventoryId})}
  recordMyRecount(caseId:string,clientCountId:string){return rpc<ReconciliationRow>('record_my_recount',{p_case_id:caseId,p_client_count_id:clientCountId})}
