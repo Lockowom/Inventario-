@@ -1,3 +1,4 @@
+import type { SystemReferenceItem } from '../domain/reconciliation/system-reference-contracts'
 import { getSupabaseClient } from './supabase'
 
 export type ReconciliationRow = {
@@ -11,11 +12,21 @@ async function rpc<T>(name:string,args:Record<string,unknown>):Promise<T>{
 }
 export type RecountAssignment={id:string;inventory_id:string;codigo:string;reference_type:'SERIAL'|'PARTIDA'|'LEGACY';reference_value:string|null;round:2|3}
 export type RecountCandidate={user_id:string;display_name:string;role:'CONTADOR'|'ANALISTA'}
+export type SystemReferenceImportResult={reference_version:number;row_count:number;fingerprint:string}
+export type MaterializationResult={created_count:number;existing_count:number;source_fingerprint:string}
 export class SupabaseReconciliationRepository {
  myAssignments(inventoryId:string){return rpc<RecountAssignment[]>('get_my_recount_assignments',{p_inventory_id:inventoryId})}
  recordMyRecount(caseId:string,clientCountId:string){return rpc<ReconciliationRow>('record_my_recount',{p_case_id:caseId,p_client_count_id:clientCountId})}
  list(inventoryId:string){return rpc<ReconciliationRow[]>('list_reconciliation_cases',{p_inventory_id:inventoryId})}
  candidates(caseId:string,round:2|3){return rpc<RecountCandidate[]>('list_recount_candidates',{p_case_id:caseId,p_round:round})}
+ async importSystemReference(inventoryId:string,items:SystemReferenceItem[],fileName:string,fileSha256:string){
+  const rows=await rpc<SystemReferenceImportResult[]>('import_inventory_system_reference',{p_inventory_id:inventoryId,p_items:items.map(item=>({codigo:item.codigo,reference_value:item.referenceValue,quantity:item.quantity})),p_source:`RP_XLSX:${fileName}`,p_import_identifier:fileSha256})
+  const result=rows[0];if(!result)throw new Error('La referencia de sistema no devolvió metadata.');return result
+ }
+ async materialize(inventoryId:string){
+  const rows=await rpc<MaterializationResult[]>('materialize_reconciliation_cases',{p_inventory_id:inventoryId})
+  const result=rows[0];if(!result)throw new Error('La materialización no devolvió resultado.');return result
+ }
  assignSecond(caseId:string,userId:string){return rpc<ReconciliationRow>('assign_second_recount',{p_case_id:caseId,p_user_id:userId})}
  assignThird(caseId:string,userId:string){return rpc<ReconciliationRow>('assign_third_recount',{p_case_id:caseId,p_analyst_id:userId})}
  resolve(caseId:string,disposition:string,reason:string){return rpc<ReconciliationRow>('resolve_reconciliation',{p_case_id:caseId,p_disposition:disposition,p_reason:reason})}
