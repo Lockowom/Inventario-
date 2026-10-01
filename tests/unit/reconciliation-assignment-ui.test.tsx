@@ -28,6 +28,7 @@ describe('F11 reconciliation assignment UI',()=>{
  it('uses eligible named candidates instead of raw UUID entry',async()=>{
   render(<ReconciliationScreen/>)
   expect(await screen.findByText('CENTRO DE CONCILIACIÓN')).toBeTruthy()
+  expect(await screen.findByText('SKU001')).toBeTruthy()
   expect(screen.queryByText(/UUID contador/i)).toBeNull()
   const select=screen.getByLabelText('Contador para 2.º conteo')
   fireEvent.focus(select)
