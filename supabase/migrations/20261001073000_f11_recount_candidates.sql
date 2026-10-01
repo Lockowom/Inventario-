@@ -1,6 +1,6 @@
 -- F11 eligible recount candidates. Keeps assignment invariants server-side.
 create function public.list_recount_candidates(p_case_id uuid,p_round integer)
-returns table(user_id uuid,display_name text,role public.profile_role)
+returns table(user_id uuid,display_name text,role public.app_role)
 language plpgsql stable security definer set search_path=public,app_private,pg_temp as $$
 declare v public.reconciliation_cases; actor uuid:=app_private.require_active_actor(); c1_user uuid;
 begin
