@@ -214,11 +214,17 @@ F10A sólo puede declararse PASS cuando:
 
 ## Bloqueos de ejecución actuales
 
-GitHub acepta el workflow, pero los jobs finalizan antes del primer step por la configuración de facturación/límite de uso de Actions. No se modificaron pagos ni presupuestos.
+El run `36754978267` demuestra que GitHub Actions ejecutó todos los jobs y
+resolvió la configuración QA necesaria para el candidato exacto. Los valores
+de secretos no se documentan ni se almacenan en el repositorio.
 
-Además, `INVEN3_QA_ANON_KEY` no está configurado como secret autorizado. Aun con runners disponibles, el preflight debe fallar mientras falte esa variable.
+Los bloqueos actuales son externos al build: instalación física Android,
+re-firma autorizada de la IPA iOS y ejecución documentada de ambos smokes.
+El closure sigue rechazando evidencia que no corresponda al candidato
+certificado.
 
-Estos bloqueos no se convierten en PASS y no alteran el candidato congelado.
+Estos bloqueos no se convierten en PASS, no autorizan F10B y no alteran el
+candidato ni sus artefactos congelados.
 
 ## Fuera de alcance
 
