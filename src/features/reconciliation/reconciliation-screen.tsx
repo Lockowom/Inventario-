@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SupabaseReconciliationRepository, type ReconciliationRow, type RecountCandidate } from '../../services/supabase-reconciliation-repository'
 import { SupabaseSupervisionRepository } from '../../services/supabase-supervision-repository'
 import { SystemReferencePanel } from './system-reference-panel'
+import { ReconciliationTimeline } from './reconciliation-timeline'
 
 const repo=new SupabaseReconciliationRepository()
 const supervision=new SupabaseSupervisionRepository()
@@ -33,6 +34,6 @@ export function ReconciliationScreen(){
    {(r.status==='PENDIENTE_ANALISIS'||r.status==='REQUIERE_2DO_CONTEO')&&<><label className="field"><span>Contador para 2.º conteo</span><select value={assignee[r.id]??''} onFocus={()=>void loadCandidates(r.id,2)} onChange={e=>setAssignee({...assignee,[r.id]:e.target.value})}><option value="">Seleccionar contador</option>{(candidates[`${r.id}:2`]??[]).map(c=><option key={c.user_id} value={c.user_id}>{c.display_name}</option>)}</select></label><button className="button-secondary" disabled={!assignee[r.id]} onClick={()=>void repo.assignSecond(r.id,assignee[r.id]??'').then(refresh).catch(e=>setMessage(e.message))}>ASIGNAR 2.º CONTEO</button></>}
    {r.status==='REQUIERE_3ER_CONTEO'&&profile?.role==='ANALISTA'&&<><label className="field"><span>Analista para 3.er conteo</span><select value={assignee[r.id]??''} onFocus={()=>void loadCandidates(r.id,3)} onChange={e=>setAssignee({...assignee,[r.id]:e.target.value})}><option value="">Seleccionar analista</option>{(candidates[`${r.id}:3`]??[]).map(c=><option key={c.user_id} value={c.user_id}>{c.display_name}</option>)}</select></label><button className="button-secondary" disabled={!assignee[r.id]} onClick={()=>void repo.assignThird(r.id,assignee[r.id]??'').then(refresh).catch(e=>setMessage(e.message))}>ASIGNAR 3.er CONTEO</button></>}
    {r.status==='FISICO_CONFIRMADO'&&profile?.role==='ANALISTA'&&<><label className="field"><span>Dictamen</span><select value={disposition[r.id]??''} onChange={e=>setDisposition({...disposition,[r.id]:e.target.value as Disposition})}><option value="">Seleccionar dictamen</option>{dispositions.map(value=><option key={value} value={value}>{value.replaceAll('_',' ')}</option>)}</select></label><label className="field"><span>Justificación de dictamen</span><textarea value={reason[r.id]??''} onChange={e=>setReason({...reason,[r.id]:e.target.value})}/></label><button className="button-primary" disabled={!disposition[r.id]||!(reason[r.id]??'').trim()} onClick={()=>{const selected=disposition[r.id];if(!selected)return;void repo.resolve(r.id,selected,reason[r.id]??'').then(refresh).catch(e=>setMessage(e.message))}}>REGISTRAR DICTAMEN Y CERRAR</button></>}
-   {r.status==='RESUELTO'&&<span>Dictamen: {r.disposition} · {r.resolution_reason}</span>}</article>)}</div>
+   {r.status==='RESUELTO'&&<span>Dictamen: {r.disposition} · {r.resolution_reason}</span>}<ReconciliationTimeline caseId={r.id}/></article>)}</div>
  </section>
 }
