@@ -56,6 +56,10 @@ select is(
  'round 2 excludes C1 and returns C2'
 );
 
+reset role;
+update public.reconciliation_cases set status='REQUIERE_3ER_CONTEO' where inventory_id='99100000-0000-0000-0000-000000000001';
+select set_config('request.jwt.claim.sub','99000000-0000-0000-0000-000000000002',true); set local role authenticated;
+
 select is(
  (select user_id from public.list_recount_candidates((select id from public.reconciliation_cases where inventory_id='99100000-0000-0000-0000-000000000001'),3)),
  '99000000-0000-0000-0000-000000000002'::uuid,
