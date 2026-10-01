@@ -1,5 +1,5 @@
 begin;
-select plan(9);
+select plan(10);
 insert into auth.users(id,aud,role,email,encrypted_password,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
 ('95000000-0000-0000-0000-000000000001','authenticated','authenticated','mat-admin@example.invalid','','{}','{}',now(),now()),
 ('95000000-0000-0000-0000-000000000002','authenticated','authenticated','mat-analyst@example.invalid','','{}','{}',now(),now()),
@@ -18,7 +18,7 @@ insert into public.inventory_master_items(inventory_id,codigo,descripcion,contro
 ('96000000-0000-0000-0000-000000000001','MAT003','Synthetic legacy','LEGACY','TEST','95000000-0000-0000-0000-000000000001');
 select set_config('request.jwt.claim.sub','95000000-0000-0000-0000-000000000001',true); set local role authenticated;
 select * from public.import_inventory_system_reference('96000000-0000-0000-0000-000000000001',
-'[{"codigo":"MAT001S","reference_value":"SYS-S","quantity":1},{"codigo":"MAT002P","reference_value":"LOT-A","quantity":5},{"codigo":"MAT003","quantity":4}]','SYNTHETIC','F11-MAT');
+'[{"codigo":"MAT001S","reference_value":"SYS-S","quantity":1},{"codigo":"MAT002P","reference_value":"LOT-A","quantity":5},{"codigo":"MAT002P","reference_value":"LOT-SYS","quantity":2},{"codigo":"MAT003","quantity":4}]','SYNTHETIC','F11-MAT');
 select public.prepare_inventory('96000000-0000-0000-0000-000000000001'); select public.open_inventory('96000000-0000-0000-0000-000000000001'); reset role;
 select set_config('request.jwt.claim.sub','95000000-0000-0000-0000-000000000003',true); set local role authenticated;
 select * from public.sync_counts('96000000-0000-0000-0000-000000000001','97000000-0000-0000-0000-000000000003','WEB','1.0.0','MAT',
@@ -35,6 +35,7 @@ select is((select count(*) from public.reconciliation_cases where inventory_id='
 select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and anomaly_type='SERIE_SISTEMA_NO_CONTADA'),1::bigint,'system-only serial detected');
 select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and anomaly_type='DIFERENCIA_CANTIDAD_PARTIDA'),1::bigint,'batch quantity difference detected');
 select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and anomaly_type='PARTIDA_FISICA_NO_EN_SISTEMA'),1::bigint,'physical-only batch detected');
+select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and anomaly_type='PARTIDA_SISTEMA_NO_CONTADA'),1::bigint,'system-only batch detected');
 select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001' and anomaly_type='DIFERENCIA_CANTIDAD_SKU'),1::bigint,'legacy quantity difference detected');
 select is((select created_count from public.materialize_reconciliation_cases('96000000-0000-0000-0000-000000000001')),0,'second materialization creates no duplicates');
 select is((select count(*) from public.reconciliation_cases where inventory_id='96000000-0000-0000-0000-000000000001'),6::bigint,'case count remains stable after replay');
