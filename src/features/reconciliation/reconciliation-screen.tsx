@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { SupabaseReconciliationRepository, type ReconciliationRow } from '../../services/supabase-reconciliation-repository'
 import { SupabaseSupervisionRepository } from '../../services/supabase-supervision-repository'
 
@@ -13,8 +13,8 @@ export function ReconciliationScreen(){
  const [reason,setReason]=useState<Record<string,string>>({})
  const [assignee,setAssignee]=useState<Record<string,string>>({})
  useEffect(()=>{void Promise.all([supervision.myProfile(),supervision.inventories()]).then(([p,i])=>{setProfile(p as Profile);setInventories(i);setInventoryId(i[0]?.id??'')}).catch(e=>setMessage(e instanceof Error?e.message:'Conciliación no disponible.'))},[])
- useEffect(()=>{if(inventoryId&&(profile?.role==='ANALISTA'||profile?.role==='ADMIN')) void refresh()},[inventoryId,profile?.role])
- async function refresh(){try{setRows(await repo.list(inventoryId));setMessage('')}catch(e){setMessage(e instanceof Error?e.message:'No fue posible cargar conciliación.')}}
+ const refresh=useCallback(async()=>{try{setRows(await repo.list(inventoryId));setMessage('')}catch(e){setMessage(e instanceof Error?e.message:'No fue posible cargar conciliación.')}},[inventoryId])
+ useEffect(()=>{if(inventoryId&&(profile?.role==='ANALISTA'||profile?.role==='ADMIN')) void refresh()},[inventoryId,profile?.role,refresh])
  const visible=useMemo(()=>filter==='TODOS'?rows:rows.filter(r=>r.status===filter),[rows,filter])
  if(profile?.role==='CONTADOR') return null
  return <section className="supervision-screen" aria-labelledby="reconciliation-title">
