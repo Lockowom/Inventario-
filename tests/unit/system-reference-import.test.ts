@@ -6,19 +6,19 @@ import { hasBlockingSystemReferenceIssues } from '../../src/domain/reconciliatio
 function workbookBytes(options:{missingBatch?:boolean;duplicateSerial?:boolean;dropFromSerialUniverse?:boolean}={}){
  const total=[
   ['Cod. Producto','Producto','Cod. U. Medida','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
-  ['LEG001','Legacy','UNI',2,0,0,0,2],
+  ['LEG001','Legacy','UNI',2,1,0,0,3],
   ['BAT001P','Batch','UNI',5,0,0,0,5],
   ['SER001S','Serial','UNI',2,0,0,0,2],
  ]
  const p=[
   ['Cod. Producto','Producto','Cod. U. Medida','Partida / Talla','Fecha Venc','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
-  ['LEG001','Legacy','UNI','', '',2,0,0,0,2],
+  ['LEG001','Legacy','UNI','', '',2,1,0,0,3],
   ['BAT001P','Batch','UNI',options.missingBatch?'':'LOT-01','',5,0,0,0,5],
   ['SER001S','Serial','UNI','', '',2,0,0,0,2],
  ]
  const s=[
   ['Cod. Producto','Producto','Cod. U. Medida','Serie','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
-  ['LEG001','Legacy','UNI','',2,0,0,0,2],
+  ['LEG001','Legacy','UNI','',2,1,0,0,3],
   ['BAT001P','Batch','UNI','',5,0,0,0,5],
   ['SER001S','Serial','UNI','SER-A',1,0,0,0,1],
   ['SER001S','Serial','UNI',options.duplicateSerial?'SER-A':'SER-B',1,0,0,0,1],
@@ -40,9 +40,9 @@ describe('F11 system reference RP parser',()=>{
   expect(preview.batchItems).toBe(1)
   expect(preview.serialItems).toBe(2)
   expect(preview.items).toEqual(expect.arrayContaining([
-   {codigo:'LEG001',referenceType:'LEGACY',referenceValue:null,quantity:2},
-   {codigo:'BAT001P',referenceType:'PARTIDA',referenceValue:'LOT-01',quantity:5},
-   {codigo:'SER001S',referenceType:'SERIAL',referenceValue:'SER-A',quantity:1},
+   {codigo:'LEG001',referenceType:'LEGACY',referenceValue:null,quantity:3,availableQuantity:2,unitCode:'UNI',expirationDate:null},
+   {codigo:'BAT001P',referenceType:'PARTIDA',referenceValue:'LOT-01',quantity:5,availableQuantity:5,unitCode:'UNI',expirationDate:null},
+   {codigo:'SER001S',referenceType:'SERIAL',referenceValue:'SER-A',quantity:1,availableQuantity:1,unitCode:'UNI',expirationDate:null},
   ]))
   expect(preview.fileSha256).toMatch(/^[a-f0-9]{64}$/)
  })

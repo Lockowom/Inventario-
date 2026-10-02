@@ -28,11 +28,23 @@ Hojas obligatorias:
 
 Uso:
 
-- LEGACY: cantidad desde `STOCK TOTAL`;
-- PARTIDA: lote/talla + cantidad desde `STOCK CON P`;
-- SERIAL: serie + cantidad desde `STOCK CON S`.
+- LEGACY: referencia desde `STOCK TOTAL`;
+- PARTIDA: lote/talla desde `STOCK CON P`;
+- SERIAL: serie desde `STOCK CON S`.
+
+### Regla de base conciliable: `Disponible`
+
+Para conciliación física, la única cantidad de sistema que puede compararse contra el conteo es la columna **`Disponible`** de Softland/RP.
+
+- `Reserva`, `Transitoria` y `Consignación` se validan como evidencia de la ecuación fuente, pero no se suman al conteo físico.
+- `Stock Total` se conserva como trazabilidad de importación y para validar que el libro RP sea consistente; nunca es baseline conciliable.
+- Un lote/serie que exista solo en un estado distinto de `Disponible` no se convierte en stock conciliable ni se envía como ajuste a Softland.
+- Una diferencia o un lote/serie detectado por INVEN3 es un hallazgo de investigación, no una instrucción de alta ni un ajuste automático de ERP.
+
+Esto evita que un lote transitorio contado físicamente se trate como una unidad nueva al exportar o revisar resultados, evitando duplicidades y ajustes manuales innecesarios.
 
 El parser conserva texto formateado para códigos, lotes y series, incluyendo ceros iniciales.
+También conserva `Cod. U. Medida` y, para partidas, `Fecha Venc` normalizada para la lectura operativa.
 
 Bloqueos de importación incluyen, entre otros:
 
@@ -83,6 +95,7 @@ Precondiciones:
 - snapshot de sistema existente.
 
 La materialización compara el snapshot activo con `count_records`.
+El snapshot usa exclusivamente `Disponible` como cantidad sistema; `Stock Total` queda fuera de toda clasificación de diferencia.
 
 Tipos de anomalía:
 
@@ -282,6 +295,16 @@ Métricas:
 No mezcla casos pertenecientes a snapshots RP distintos.
 
 CONTADOR no tiene acceso.
+
+## 11.1 Vista operativa en vivo
+
+RPC:
+
+`get_live_reconciliation_workspace(inventory_id, search, status, limit)`
+
+La vista de ANALISTA/ADMIN presenta SKU, producto, unidad de medida, partida/serie, vencimiento, `Disponible`, conteo físico, diferencia y estado (`CUADRADO`, `DIFERENCIA`, `NUEVO_LOTE_SERIE`, `FUERA_DE_DISPONIBLE` o `VENCIMIENTO_DISTINTO`). `FUERA_DE_DISPONIBLE` identifica una partida/serie que sí existe en la fuente, pero únicamente en reserva/transitorio/consignación: nunca se trata como alta ni lote nuevo. Se refresca como lectura operacional; no ejecuta cambios sobre Softland ni sobre stock de sistema.
+
+CONTADOR no puede consultar esta vista ni sus cantidades mediante UI, RLS o RPC.
 
 ## 12. Seguridad
 
