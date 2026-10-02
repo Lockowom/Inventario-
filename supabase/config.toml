@@ -446,3 +446,9 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/download-inventory-artifact/deno.json"
 entrypoint = "./functions/download-inventory-artifact/index.ts"
+
+[functions.manage-users]
+enabled = true
+verify_jwt = true
+import_map = "./functions/manage-users/deno.json"
+entrypoint = "./functions/manage-users/index.ts"
