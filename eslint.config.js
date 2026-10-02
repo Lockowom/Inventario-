@@ -5,7 +5,9 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
-  { ignores: ['dist', 'android', 'ios', 'node_modules'] },
+  // The local Supabase CLI creates ephemeral runtime files here. They are not
+  // application source and must not affect the repository lint result.
+  { ignores: ['dist', 'android', 'ios', 'node_modules', 'supabase/.temp/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
