@@ -11,6 +11,8 @@ insert into public.profiles (user_id, display_name, role, active) values
   ('12000000-0000-0000-0000-000000000003', 'F12 Outsider', 'CONTADOR', true);
 insert into public.inventories (id, name, created_by) values
   ('12000000-0000-0000-0000-000000000010', 'F12 Inventario', '12000000-0000-0000-0000-000000000001');
+-- Isolate the last-admin invariant from the development seed's administrator.
+update public.profiles set active = false where role = 'ADMIN' and user_id <> '12000000-0000-0000-0000-000000000001';
 
 select ok(to_regprocedure('public.admin_upsert_user_profile(uuid,text,public.app_role,boolean,uuid[],public.user_management_event_type)') is not null, 'admin profile procedure exists');
 select ok(to_regprocedure('public.admin_record_user_password_reset(uuid)') is not null, 'password reset audit procedure exists');
