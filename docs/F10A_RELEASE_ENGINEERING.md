@@ -1,11 +1,18 @@
 # F10A — Release Engineering
 
 Fecha de inicio: 2026-09-28  
-Última actualización: 2026-09-29  
-Estado: ENGINEERING_READY / EXECUTION_BLOCKED  
+Última actualización: 2026-10-02
+Estado: ANDROID_SMOKE_PASS / IOS_SMOKE_PENDING
 Entorno permitido: INVEN3-QA  
 Canal permitido: BETA  
 Producción: LOCKED
+
+La ruta canónica ya fue verificada en el run
+[`36754978267`](https://github.com/Lockowom/Inventario-/actions/runs/36754978267)
+para `6935ebc692ed6f129653b9d0f21d0bf66cd574d0`: validación estática,
+bundle QA/BETA, Android, iOS y paridad finalizaron `PASS`. El smoke Android
+ya está en `PASS`; el paso pendiente no es una reconstrucción, sino la
+re-firma/instalación iOS y su smoke físico trazable.
 
 ## Objetivo
 
@@ -207,11 +214,17 @@ F10A sólo puede declararse PASS cuando:
 
 ## Bloqueos de ejecución actuales
 
-GitHub acepta el workflow, pero los jobs finalizan antes del primer step por la configuración de facturación/límite de uso de Actions. No se modificaron pagos ni presupuestos.
+El run `36754978267` demuestra que GitHub Actions ejecutó todos los jobs y
+resolvió la configuración QA necesaria para el candidato exacto. Los valores
+de secretos no se documentan ni se almacenan en el repositorio.
 
-Además, `INVEN3_QA_ANON_KEY` no está configurado como secret autorizado. Aun con runners disponibles, el preflight debe fallar mientras falte esa variable.
+El bloqueo actual es externo al build: re-firma autorizada de la IPA iOS y
+ejecución documentada de su smoke físico.
+El closure sigue rechazando evidencia que no corresponda al candidato
+certificado.
 
-Estos bloqueos no se convierten en PASS y no alteran el candidato congelado.
+Estos bloqueos no se convierten en PASS, no autorizan F10B y no alteran el
+candidato ni sus artefactos congelados.
 
 ## Fuera de alcance
 
