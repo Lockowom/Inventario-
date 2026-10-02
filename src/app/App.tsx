@@ -20,6 +20,8 @@ import { CertificationFixture } from './certification-fixture'
 import { isCertificationFixtureEnabled } from './certification-fixture-mode'
 import { releaseMetadata } from '../config/release-metadata'
 import { ReconciliationScreen } from '../features/reconciliation/reconciliation-screen'
+import { UserManagementScreen } from '../features/user-management/user-management-screen'
+import type { AppRole } from '../domain/auth/contracts'
 
 export function App() {
   if (isCertificationFixtureEnabled({ dev: import.meta.env.DEV, fixture: import.meta.env.VITE_CERTIFICATION_FIXTURE })) return <CertificationFixture />
@@ -48,6 +50,7 @@ function AuthBoundary() {
 }
 
 function AuthenticatedRuntime() {
+  const [role, setRole] = useState<AppRole | null>(null)
   const [countingRuntime, setCountingRuntime] = useState<CountingRuntime | null>(null)
   const [syncCoordinator, setSyncCoordinator] = useState<SyncCoordinator | null>(null)
   const [startupSyncMessage, setStartupSyncMessage] = useState('')
@@ -109,12 +112,21 @@ function AuthenticatedRuntime() {
     return () => { active = false; localSignOut.unsubscribe() }
   }, [runHealth])
 
+  useEffect(() => {
+    // Some isolated runtime tests provide only the auth capabilities they exercise.
+    // A real AuthService always provides getRole; treating its absence as no ADMIN is fail-closed.
+    const getRole = authService.getRole
+    if (typeof getRole !== 'function') return
+    void getRole.call(authService).then(setRole).catch(() => setRole(null))
+  }, [])
+
   const captureGate = createCaptureGate(healthReport, healthLoading, healthError)
   return <main className="app-shell">
     <InfrastructureDiagnostic supabaseState="CONFIGURED" />
     <div className="session-actions"><button className="button-secondary" type="button" onClick={() => void authService.signOut()}>CERRAR SESIÓN</button></div>
     <DeviceHealthScreen report={healthReport} loading={healthLoading} error={healthError} onRefresh={() => void runHealth('LIGHT')} onFullCheck={() => void runHealth('FULL')} />
     <SupervisionScreen /><ReconciliationScreen /><CutsScreen /><MasterSkuScreen />
+    <UserManagementScreen role={role} />
     <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} captureGate={captureGate} />
   </main>
 }
