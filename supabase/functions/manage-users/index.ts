@@ -71,7 +71,7 @@ export default {
         const inventoryIds = readInventoryIds(body.inventoryIds);
         const created = await ctx.supabaseAdmin.auth.admin.createUser({ email, password, email_confirm: true });
         if (created.error || !created.data.user) throw created.error ?? new Error('No se creó el usuario de autenticación.');
-        const provisioned = await ctx.supabase.rpc('admin_upsert_user_profile', { p_target_user_id: created.data.user.id, p_display_name: displayName, p_role: role, p_active: true, p_inventory_ids: inventoryIds, p_event_type: 'USER_CREATED' });
+        const provisioned = await ctx.supabaseAdmin.rpc('admin_upsert_user_profile_from_edge', { p_actor_user_id: actor.data.user.id, p_target_user_id: created.data.user.id, p_display_name: displayName, p_role: role, p_active: true, p_inventory_ids: inventoryIds, p_event_type: 'USER_CREATED' });
         if (provisioned.error) {
           await ctx.supabaseAdmin.auth.admin.updateUserById(created.data.user.id, { ban_duration: '876000h' });
           throw provisioned.error;
@@ -84,7 +84,7 @@ export default {
         const role = readRole(body.role);
         if (typeof body.active !== 'boolean') throw new Error('El estado de usuario no es válido.');
         const inventoryIds = readInventoryIds(body.inventoryIds);
-        const updated = await ctx.supabase.rpc('admin_upsert_user_profile', { p_target_user_id: userId, p_display_name: displayName, p_role: role, p_active: body.active, p_inventory_ids: inventoryIds, p_event_type: 'USER_UPDATED' });
+        const updated = await ctx.supabaseAdmin.rpc('admin_upsert_user_profile_from_edge', { p_actor_user_id: actor.data.user.id, p_target_user_id: userId, p_display_name: displayName, p_role: role, p_active: body.active, p_inventory_ids: inventoryIds, p_event_type: 'USER_UPDATED' });
         if (updated.error) throw updated.error;
         const authUpdated = await ctx.supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: body.active ? 'none' : '876000h' });
         if (authUpdated.error) throw authUpdated.error;
@@ -95,7 +95,7 @@ export default {
         const password = readPassword(body.password);
         const changed = await ctx.supabaseAdmin.auth.admin.updateUserById(userId, { password });
         if (changed.error) throw changed.error;
-        const audited = await ctx.supabase.rpc('admin_record_user_password_reset', { p_target_user_id: userId });
+        const audited = await ctx.supabaseAdmin.rpc('admin_record_user_password_reset_from_edge', { p_actor_user_id: actor.data.user.id, p_target_user_id: userId });
         if (audited.error) throw audited.error;
         return Response.json({ ok: true });
       }
