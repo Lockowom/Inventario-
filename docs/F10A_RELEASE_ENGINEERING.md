@@ -1,8 +1,8 @@
 # F10A — Release Engineering
 
 Fecha de inicio: 2026-09-28  
-Última actualización: 2026-10-01
-Estado: CANDIDATE_READY / PHYSICAL_SMOKE_PENDING
+Última actualización: 2026-10-02
+Estado: ANDROID_SMOKE_PASS / IOS_SMOKE_PENDING
 Entorno permitido: INVEN3-QA  
 Canal permitido: BETA  
 Producción: LOCKED
@@ -10,9 +10,9 @@ Producción: LOCKED
 La ruta canónica ya fue verificada en el run
 [`36754978267`](https://github.com/Lockowom/Inventario-/actions/runs/36754978267)
 para `6935ebc692ed6f129653b9d0f21d0bf66cd574d0`: validación estática,
-bundle QA/BETA, Android, iOS y paridad finalizaron `PASS`. El paso pendiente
-no es una reconstrucción: es la re-firma/instalación iOS y los smokes físicos
-trazables de ambos artefactos de ese run.
+bundle QA/BETA, Android, iOS y paridad finalizaron `PASS`. El smoke Android
+ya está en `PASS`; el paso pendiente no es una reconstrucción, sino la
+re-firma/instalación iOS y su smoke físico trazable.
 
 ## Objetivo
 
@@ -218,8 +218,8 @@ El run `36754978267` demuestra que GitHub Actions ejecutó todos los jobs y
 resolvió la configuración QA necesaria para el candidato exacto. Los valores
 de secretos no se documentan ni se almacenan en el repositorio.
 
-Los bloqueos actuales son externos al build: instalación física Android,
-re-firma autorizada de la IPA iOS y ejecución documentada de ambos smokes.
+El bloqueo actual es externo al build: re-firma autorizada de la IPA iOS y
+ejecución documentada de su smoke físico.
 El closure sigue rechazando evidencia que no corresponda al candidato
 certificado.
 
