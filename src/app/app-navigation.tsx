@@ -1,18 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { AppRole } from '../domain/auth/contracts'
-
-export type AppView = 'home' | 'counting' | 'supervision' | 'reconciliation' | 'cuts' | 'master' | 'users'
-
-type NavigationItem = { id: AppView; label: string; detail: string }
-
-const operationalItems: NavigationItem[] = [
-  { id: 'home', label: 'Inicio', detail: 'Estado del dispositivo' },
-  { id: 'counting', label: 'Conteo', detail: 'Captura de inventario' },
-  { id: 'supervision', label: 'Supervisión', detail: 'Seguimiento operativo' },
-  { id: 'reconciliation', label: 'Conciliación', detail: 'Diferencias y recuentos' },
-  { id: 'cuts', label: 'Cortes', detail: 'Cierres y respaldos' },
-  { id: 'master', label: 'Maestro SKU', detail: 'Datos maestros' },
-]
+import { navigationItemsForRole, type AppView } from './app-navigation-policy'
 
 export function AppNavigation({ role, activeView, onSelect, onSignOut }: {
   role: AppRole | null
@@ -22,9 +10,7 @@ export function AppNavigation({ role, activeView, onSelect, onSignOut }: {
 }) {
   const [open, setOpen] = useState(false)
   const [isDesktop, setIsDesktop] = useState(() => window.matchMedia?.('(min-width: 960px)').matches ?? false)
-  const items = role === 'ADMIN'
-    ? [...operationalItems, { id: 'users' as const, label: 'Usuarios', detail: 'Administración segura' }]
-    : operationalItems
+  const items = navigationItemsForRole(role)
 
   useEffect(() => {
     const query = window.matchMedia?.('(min-width: 960px)')

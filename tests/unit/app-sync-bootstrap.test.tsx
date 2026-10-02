@@ -18,6 +18,7 @@ vi.mock('../../src/features/auth/auth-service', () => ({
     onLocalSignOut: () => ({ unsubscribe: () => undefined }),
     invalidateLocalAuthority: async () => undefined,
     signOut: async () => undefined,
+    getRole: async () => 'CONTADOR',
   },
 }))
 
@@ -84,6 +85,7 @@ describe('App sync bootstrap', () => {
 
     await waitFor(() => expect(h.createSyncCoordinator).toHaveBeenCalledWith(userId))
     fireEvent.click(view.getByRole('button', { name: 'Abrir menú' }))
+    await waitFor(() => expect(view.getByRole('button', { name: /Conteo/ })).toBeInTheDocument())
     fireEvent.click(view.getByRole('button', { name: /Conteo/ }))
     await waitFor(() => expect(view.getByTestId('sync-state')).toHaveTextContent('enabled'))
   })
