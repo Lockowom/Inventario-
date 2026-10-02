@@ -22,6 +22,7 @@ import { releaseMetadata } from '../config/release-metadata'
 import { ReconciliationScreen } from '../features/reconciliation/reconciliation-screen'
 import { UserManagementScreen } from '../features/user-management/user-management-screen'
 import type { AppRole } from '../domain/auth/contracts'
+import { AppNavigation, type AppView } from './app-navigation'
 
 export function App() {
   if (isCertificationFixtureEnabled({ dev: import.meta.env.DEV, fixture: import.meta.env.VITE_CERTIFICATION_FIXTURE })) return <CertificationFixture />
@@ -51,6 +52,7 @@ function AuthBoundary() {
 
 function AuthenticatedRuntime() {
   const [role, setRole] = useState<AppRole | null>(null)
+  const [activeView, setActiveView] = useState<AppView>('home')
   const [countingRuntime, setCountingRuntime] = useState<CountingRuntime | null>(null)
   const [syncCoordinator, setSyncCoordinator] = useState<SyncCoordinator | null>(null)
   const [startupSyncMessage, setStartupSyncMessage] = useState('')
@@ -120,14 +122,28 @@ function AuthenticatedRuntime() {
     void getRole.call(authService).then(setRole).catch(() => setRole(null))
   }, [])
 
+  useEffect(() => {
+    if (role !== 'ADMIN' && activeView === 'users') setActiveView('home')
+  }, [activeView, role])
+
   const captureGate = createCaptureGate(healthReport, healthLoading, healthError)
-  return <main className="app-shell">
-    <InfrastructureDiagnostic supabaseState="CONFIGURED" />
-    <div className="session-actions"><button className="button-secondary" type="button" onClick={() => void authService.signOut()}>CERRAR SESIÓN</button></div>
-    <DeviceHealthScreen report={healthReport} loading={healthLoading} error={healthError} onRefresh={() => void runHealth('LIGHT')} onFullCheck={() => void runHealth('FULL')} />
-    <SupervisionScreen /><ReconciliationScreen /><CutsScreen /><MasterSkuScreen />
-    <UserManagementScreen role={role} />
-    <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} captureGate={captureGate} />
+  const content = activeView === 'home'
+    ? <><InfrastructureDiagnostic supabaseState="CONFIGURED" /><DeviceHealthScreen report={healthReport} loading={healthLoading} error={healthError} onRefresh={() => void runHealth('LIGHT')} onFullCheck={() => void runHealth('FULL')} /></>
+    : activeView === 'counting'
+      ? <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} captureGate={captureGate} />
+      : activeView === 'supervision'
+        ? <SupervisionScreen />
+        : activeView === 'reconciliation'
+          ? <ReconciliationScreen />
+          : activeView === 'cuts'
+            ? <CutsScreen />
+            : activeView === 'master'
+              ? <MasterSkuScreen />
+              : <UserManagementScreen role={role} />
+
+  return <main className="app-shell app-shell--authenticated">
+    <AppNavigation role={role} activeView={activeView} onSelect={setActiveView} onSignOut={() => void authService.signOut()} />
+    <section className="app-workspace" aria-label="Área de trabajo">{content}</section>
   </main>
 }
 
