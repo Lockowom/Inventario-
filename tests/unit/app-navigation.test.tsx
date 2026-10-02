@@ -11,7 +11,7 @@ describe('AppNavigation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Conciliación/ }))
 
     expect(select).toHaveBeenCalledWith('reconciliation')
-    expect(screen.getByRole('navigation', { name: 'Navegación principal' })).toBeInTheDocument()
+    expect(screen.getByRole('navigation', { name: 'Navegación principal', hidden: true })).toBeInTheDocument()
   })
 
   it('muestra Usuarios exclusivamente a ADMIN', () => {

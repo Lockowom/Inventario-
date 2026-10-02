@@ -1,4 +1,4 @@
-import { render, waitFor } from '@testing-library/react'
+import { fireEvent, render, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({
@@ -83,6 +83,8 @@ describe('App sync bootstrap', () => {
     const view = render(<App />)
 
     await waitFor(() => expect(h.createSyncCoordinator).toHaveBeenCalledWith(userId))
+    fireEvent.click(view.getByRole('button', { name: 'Abrir menú' }))
+    fireEvent.click(view.getByRole('button', { name: /Conteo/ }))
     await waitFor(() => expect(view.getByTestId('sync-state')).toHaveTextContent('enabled'))
   })
 })
