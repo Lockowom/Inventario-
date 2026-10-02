@@ -22,7 +22,8 @@ import { releaseMetadata } from '../config/release-metadata'
 import { ReconciliationScreen } from '../features/reconciliation/reconciliation-screen'
 import { UserManagementScreen } from '../features/user-management/user-management-screen'
 import type { AppRole } from '../domain/auth/contracts'
-import { AppNavigation, type AppView } from './app-navigation'
+import { AppNavigation } from './app-navigation'
+import { isAppViewAllowed, type AppView } from './app-navigation-policy'
 
 export function App() {
   if (isCertificationFixtureEnabled({ dev: import.meta.env.DEV, fixture: import.meta.env.VITE_CERTIFICATION_FIXTURE })) return <CertificationFixture />
@@ -123,26 +124,27 @@ function AuthenticatedRuntime() {
   }, [])
 
   useEffect(() => {
-    if (role !== 'ADMIN' && activeView === 'users') setActiveView('home')
+    if (!isAppViewAllowed(role, activeView)) setActiveView('home')
   }, [activeView, role])
 
   const captureGate = createCaptureGate(healthReport, healthLoading, healthError)
-  const content = activeView === 'home'
+  const visibleView = isAppViewAllowed(role, activeView) ? activeView : 'home'
+  const content = visibleView === 'home'
     ? <><InfrastructureDiagnostic supabaseState="CONFIGURED" /><DeviceHealthScreen report={healthReport} loading={healthLoading} error={healthError} onRefresh={() => void runHealth('LIGHT')} onFullCheck={() => void runHealth('FULL')} /></>
-    : activeView === 'counting'
+    : visibleView === 'counting'
       ? <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} captureGate={captureGate} />
-      : activeView === 'supervision'
+      : visibleView === 'supervision'
         ? <SupervisionScreen />
-        : activeView === 'reconciliation'
+        : visibleView === 'reconciliation'
           ? <ReconciliationScreen />
-          : activeView === 'cuts'
+          : visibleView === 'cuts'
             ? <CutsScreen />
-            : activeView === 'master'
+            : visibleView === 'master'
               ? <MasterSkuScreen />
               : <UserManagementScreen role={role} />
 
   return <main className="app-shell app-shell--authenticated">
-    <AppNavigation role={role} activeView={activeView} onSelect={setActiveView} onSignOut={() => void authService.signOut()} />
+    <AppNavigation role={role} activeView={visibleView} onSelect={(view) => { if (isAppViewAllowed(role, view)) setActiveView(view) }} onSignOut={() => void authService.signOut()} />
     <section className="app-workspace" aria-label="Área de trabajo">{content}</section>
   </main>
 }
