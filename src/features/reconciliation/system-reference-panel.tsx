@@ -40,7 +40,7 @@ export function SystemReferencePanel({
    <div><dt>Origen</dt><dd>{source.source}</dd></div>
   </dl>:<p className="form-warning">No existe una referencia RP confirmada para este inventario.</p>}
 
-  {(inventoryStatus==='BORRADOR'||inventoryStatus==='PREPARADO')&&<p className="supervision-note">Completa Maestro + RP desde el módulo Carga de datos antes de abrir el inventario.</p>}
+  {(inventoryStatus==='BORRADOR'||inventoryStatus==='PREPARADO')&&<p className="reconciliation-note">Completa Maestro + RP desde el módulo Carga de datos antes de abrir el inventario.</p>}
   {inventoryStatus==='ABIERTO'&&<button className="button-primary" type="button" disabled={busy||!source} onClick={()=>void handleMaterialize()}>{busy?'PROCESANDO…':'GENERAR / ACTUALIZAR HALLAZGOS'}</button>}
   {message&&<p className="master-message" role="status">{message}</p>}
  </section>
