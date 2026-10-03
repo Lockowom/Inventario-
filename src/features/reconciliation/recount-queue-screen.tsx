@@ -127,7 +127,7 @@ export function RecountQueueScreen(){
 
   {inventories.length>0&&<label className="field"><span>Inventario abierto</span><select value={inventoryId} disabled={busy} onChange={event=>setInventoryId(event.target.value)}>{inventories.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
 
-  {selectedInventory&&profile&&<p className="supervision-note">{selectedInventory.name} · {profile.display_name} · {profile.role}</p>}
+  {selectedInventory&&profile&&<p className="recount-queue__context">{selectedInventory.name} · {profile.display_name} · {profile.role}</p>}
 
   {!mission&&context&&<div className="recount-queue__empty">
    <div><strong>{queue?.queued_count??0} misiones disponibles</strong><small>{queue?.round?' · C'+queue.round:''}</small></div>
@@ -141,7 +141,7 @@ export function RecountQueueScreen(){
    <p className="form-warning">CONTEO CIEGO · No se muestran Softland, C1, C2 ni diferencias.</p>
 
    <h3>Ubicaciones conocidas</h3>
-   <div className="data-load-code-list">{mission.known_locations.length?mission.known_locations.map(item=><code key={item}>{item}</code>):<span>Sin ubicaciones previas.</span>}</div>
+   <div className="recount-mission__locations">{mission.known_locations.length?mission.known_locations.map(item=><code key={item}>{item}</code>):<span>Sin ubicaciones previas.</span>}</div>
 
    <label className="field"><span>Ubicación encontrada</span><input value={ubicacion} disabled={busy} onChange={event=>setUbicacion(event.target.value.toUpperCase())} placeholder="A-21-03"/></label>
    {mission.reference_type!=='SERIAL'&&<label className="field"><span>Cantidad en esta ubicación</span><input value={cantidad} disabled={busy} inputMode="numeric" onChange={event=>setCantidad(event.target.value)}/></label>}
@@ -153,6 +153,6 @@ export function RecountQueueScreen(){
    <button className="button-primary" disabled={busy||mission.observations.length===0} onClick={()=>void finish()}>FINALIZAR C{mission.round}</button>
   </article>}
 
-  <p className="master-message" role="status">{message}</p>
+  <p className="recount-queue__message" role="status">{message}</p>
  </section>
 }
