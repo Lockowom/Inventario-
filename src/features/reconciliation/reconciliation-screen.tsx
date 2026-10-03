@@ -10,6 +10,16 @@ type Profile={role:'CONTADOR'|'ANALISTA'|'ADMIN'}
 type Inventory={id:string;name:string;status:string}
 type Disposition='SIN_AJUSTE'|'AJUSTE_PROPUESTO'|'ERROR_DIGITACION_CONFIRMADO'|'ALTA_EN_SISTEMA_PROPUESTA'|'BAJA_EN_SISTEMA_PROPUESTA'|'OTRO'
 const dispositions:Disposition[]=['SIN_AJUSTE','AJUSTE_PROPUESTO','ERROR_DIGITACION_CONFIRMADO','ALTA_EN_SISTEMA_PROPUESTA','BAJA_EN_SISTEMA_PROPUESTA','OTRO']
+const anomalyLabels:Record<string,string>={
+ PARTIDA_SISTEMA_SIN_REFERENCIA:'STOCK RP SIN PARTIDA / TALLA',
+ PARTIDA_SISTEMA_NO_CONTADA:'PARTIDA DE SISTEMA NO CONTADA',
+ PARTIDA_FISICA_NO_EN_SISTEMA:'PARTIDA FÍSICA NO REGISTRADA EN SISTEMA',
+ DIFERENCIA_CANTIDAD_PARTIDA:'DIFERENCIA DE CANTIDAD EN PARTIDA',
+ SERIE_SISTEMA_NO_CONTADA:'SERIE DE SISTEMA NO CONTADA',
+ SERIE_FISICA_NO_EN_SISTEMA:'SERIE FÍSICA NO REGISTRADA EN SISTEMA',
+ DUPLICADO_SERIE:'SERIE FÍSICA DUPLICADA',
+ DIFERENCIA_CANTIDAD_SKU:'DIFERENCIA DE CANTIDAD SKU',
+}
 
 export function ReconciliationScreen(){
  const [profile,setProfile]=useState<Profile|null>(null),[inventories,setInventories]=useState<Inventory[]>([]),[inventoryId,setInventoryId]=useState('')
@@ -39,7 +49,7 @@ export function ReconciliationScreen(){
    <SummaryMetric label="Resueltos" value={summary.summary.resolved}/>
   </section>}
   {summary?.source_reference&&<p className="supervision-note">Snapshot RP v{summary.source_reference.reference_version} · {summary.source_reference.row_count} referencias · fingerprint {summary.source_reference.fingerprint.slice(0,12)}…</p>}
-  <div className="supervision-cards">{visible.map(r=><article key={r.id}><strong>{r.codigo}{r.reference_value?` · ${r.reference_value}`:''}</strong><span>{r.anomaly_type}</span><span>Sistema: {r.system_quantity} · Físico inicial: {r.physical_quantity} · Diferencia: {r.physical_quantity-r.system_quantity}</span><span>Estado: {r.status}</span>{r.confirmed_physical_quantity!==null&&<span>Físico confirmado: {r.confirmed_physical_quantity}</span>}
+  <div className="supervision-cards">{visible.map(r=><article key={r.id}><strong>{r.codigo}{r.reference_value?` · ${r.reference_value}`:r.reference_type==='PARTIDA'&&r.anomaly_type==='PARTIDA_SISTEMA_SIN_REFERENCIA'?' · SIN PARTIDA / TALLA EN RP':''}</strong><span>{anomalyLabels[r.anomaly_type]??r.anomaly_type.replaceAll('_',' ')}</span><span>Sistema: {r.system_quantity} · Físico inicial: {r.physical_quantity} · Diferencia: {r.physical_quantity-r.system_quantity}</span><span>Estado: {r.status}</span>{r.confirmed_physical_quantity!==null&&<span>Físico confirmado: {r.confirmed_physical_quantity}</span>}
    {(r.status==='PENDIENTE_ANALISIS'||r.status==='REQUIERE_2DO_CONTEO')&&<><label className="field"><span>Contador para 2.º conteo</span><select value={assignee[r.id]??''} onFocus={()=>void loadCandidates(r.id,2)} onChange={e=>setAssignee({...assignee,[r.id]:e.target.value})}><option value="">Seleccionar contador</option>{(candidates[`${r.id}:2`]??[]).map(c=><option key={c.user_id} value={c.user_id}>{c.display_name}</option>)}</select></label><button className="button-secondary" disabled={!assignee[r.id]} onClick={()=>void repo.assignSecond(r.id,assignee[r.id]??'').then(refresh).catch(e=>setMessage(e.message))}>ASIGNAR 2.º CONTEO</button></>}
    {r.status==='REQUIERE_3ER_CONTEO'&&(profile?.role==='ANALISTA'||profile?.role==='ADMIN')&&<><label className="field"><span>Analista para 3.er conteo</span><select value={assignee[r.id]??''} onFocus={()=>void loadCandidates(r.id,3)} onChange={e=>setAssignee({...assignee,[r.id]:e.target.value})}><option value="">Seleccionar analista</option>{(candidates[`${r.id}:3`]??[]).map(c=><option key={c.user_id} value={c.user_id}>{c.display_name}</option>)}</select></label><button className="button-secondary" disabled={!assignee[r.id]} onClick={()=>void repo.assignThird(r.id,assignee[r.id]??'').then(refresh).catch(e=>setMessage(e.message))}>ASIGNAR 3.er CONTEO</button></>}
    {r.status==='FISICO_CONFIRMADO'&&profile?.role==='ANALISTA'&&<><label className="field"><span>Dictamen</span><select value={disposition[r.id]??''} onChange={e=>setDisposition({...disposition,[r.id]:e.target.value as Disposition})}><option value="">Seleccionar dictamen</option>{dispositions.map(value=><option key={value} value={value}>{value.replaceAll('_',' ')}</option>)}</select></label><label className="field"><span>Justificación de dictamen</span><textarea value={reason[r.id]??''} onChange={e=>setReason({...reason,[r.id]:e.target.value})}/></label><button className="button-primary" disabled={!disposition[r.id]||!(reason[r.id]??'').trim()} onClick={()=>{const selected=disposition[r.id];if(!selected)return;void repo.resolve(r.id,selected,reason[r.id]??'').then(refresh).catch(e=>setMessage(e.message))}}>REGISTRAR DICTAMEN Y CERRAR</button></>}
