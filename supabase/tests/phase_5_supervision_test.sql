@@ -85,7 +85,7 @@ set c1_completed_at=now(),
 where i.id='82000000-0000-0000-0000-000000000001';
 
 select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000001', true); set local role authenticated;
-select lives_ok($select public.close_inventory('82000000-0000-0000-0000-000000000001')$, 'F16-complete closed inventory remains consultable');
+select lives_ok($q$select public.close_inventory('82000000-0000-0000-0000-000000000001')$q$, 'F16-complete closed inventory remains consultable');
 select is((select public.get_inventory_supervision('82000000-0000-0000-0000-000000000001')->'inventory'->>'status'), 'CERRADO', 'closed inventory is still readable');
 select lives_ok($$select public.freeze_inventory('82000000-0000-0000-0000-000000000001')$$, 'frozen inventory remains read-only and consultable');
 select is((select public.get_inventory_supervision('82000000-0000-0000-0000-000000000001')->'inventory'->>'status'), 'CONGELADO', 'frozen state is returned as observation only');
