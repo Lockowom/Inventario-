@@ -66,18 +66,23 @@ describe('F10A GitHub workflow contract', () => {
     expect(fs.existsSync(path.resolve(process.cwd(), '.github/workflows/f10a-release-candidate.yml'))).toBe(false)
   })
 
-  test('avoids duplicate push and pull-request executions on working branches', () => {
+  test('keeps development CI active while deferring iOS certification to manual final-stage execution', () => {
+    const ci = fs.readFileSync(path.resolve(process.cwd(), '.github/workflows/ci.yml'), 'utf8').replace(/\r\n/g, '\n')
+    const pushStart = ci.indexOf('  push:')
+    const pushBlock = ci.slice(pushStart, ci.indexOf('\n\n', pushStart))
+    expect(pushBlock).not.toContain('feature/**')
+    expect(pushBlock).not.toContain('fix/**')
+    expect(pushBlock).toContain('release/**')
+    expect(ci).not.toContain('npx cap sync ios')
+
     for (const file of [
-      '.github/workflows/ci.yml',
       '.github/workflows/ios-certification.yml',
       '.github/workflows/ios-virtual-certification.yml',
     ]) {
       const yaml = fs.readFileSync(path.resolve(process.cwd(), file), 'utf8').replace(/\r\n/g, '\n')
-      const pushStart = yaml.indexOf('  push:')
-      const pushBlock = yaml.slice(pushStart, yaml.indexOf('\n\n', pushStart))
-      expect(pushBlock).not.toContain('feature/**')
-      expect(pushBlock).not.toContain('fix/**')
-      expect(pushBlock).toContain('release/**')
+      expect(yaml).toContain('workflow_dispatch:')
+      expect(yaml).not.toContain('pull_request:')
+      expect(yaml).not.toContain('  push:')
     }
   })
 })
