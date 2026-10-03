@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createMasterFingerprint, validMasterItems, type MasterSku } from '../../domain/master/contracts'
 import { hasBlockingSystemReferenceIssues, type SystemReferencePreview } from '../../domain/reconciliation/system-reference-contracts'
+import { SupabaseMasterSkuRepository } from '../../services/supabase-master-sku-repository'
 import { SupabaseReconciliationRepository } from '../../services/supabase-reconciliation-repository'
+import { parseMasterFile } from '../master/master-import-parser'
 import { parseSystemReferenceFiles } from './system-reference-import-parser'
 
 const repo=new SupabaseReconciliationRepository()
+const masters=new SupabaseMasterSkuRepository()
 
 export function SystemReferencePanel({inventoryId,inventoryStatus,role,onMaterialized}:{inventoryId:string;inventoryStatus:string;role:'CONTADOR'|'ANALISTA'|'ADMIN'|null;onMaterialized:()=>Promise<void>|void}){
  const [preview,setPreview]=useState<SystemReferencePreview|null>(null)
@@ -86,6 +90,29 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,role,onMateria
   }finally{setBusy(false)}
  }
 
+ async function initializeMasterFromSourceFiles(){
+  if(!batchFile||!serialFile||role!=='ADMIN')return
+  try{
+   setBusy(true)
+   const previews=await Promise.all([parseMasterFile(batchFile),parseMasterFile(serialFile)])
+   if(previews.some(next=>next.rejectedRows>0))throw new Error('No se puede inicializar el Maestro: revisa las filas rechazadas de los archivos Softland.')
+   const items=new Map<string,Pick<MasterSku,'codigo'|'descripcion'|'controlType'>>()
+   for(const item of previews.flatMap(validMasterItems)){
+    const existing=items.get(item.codigo)
+    if(existing&&existing.descripcion!==item.descripcion)throw new Error(`El SKU ${item.codigo} tiene descripciones distintas entre los dos archivos.`)
+    items.set(item.codigo,item)
+   }
+   const snapshot=[...items.values()]
+   if(!snapshot.length)throw new Error('No se encontraron SKU válidos para inicializar el Maestro.')
+   await masters.importPreview(inventoryId,snapshot,await createMasterFingerprint(snapshot))
+   const next=await parseSystemReferenceFiles(batchFile,serialFile,authorizedBatchCodes)
+   setPreview(next)
+   setMessage(`Maestro inicializado desde Partidas + Series: ${snapshot.length} SKU. Ahora autoriza solo las partidas ausentes que el preview indique.`)
+  }catch(error){
+   setMessage(error instanceof Error?error.message:'No fue posible inicializar el Maestro desde los archivos Softland.')
+  }finally{setBusy(false)}
+ }
+
  async function handleMaterialize(){
   try{
    setBusy(true)
@@ -109,6 +136,7 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,role,onMateria
    </div>}
    {preview&&preview.issues.length>0&&<div className="master-errors"><h3>Validaciones RP</h3><ul>{preview.issues.slice(0,25).map((issue,index)=><li key={issue.sheet+'-'+issue.rowNumber+'-'+index}><strong>{issue.severity} · {issue.sheet}{issue.rowNumber?' · fila '+issue.rowNumber:''}</strong> · {issue.codigo||'—'}{issue.referenceValue?' · '+issue.referenceValue:''}<br/><span>{issue.message}</span></li>)}</ul>{preview.issues.length>25&&<p>Se muestran 25 de {preview.issues.length} observaciones.</p>}</div>}
    {preview&&(preview.unidentifiedBatchCodes??[]).some(codigo=>!authorizedBatchCodes.has(codigo))&&<div className="master-errors"><h3>Excepción controlada: partida ausente</h3><p>Softland reporta stock disponible positivo para {(preview.unidentifiedBatchCodes??[]).filter(codigo=>!authorizedBatchCodes.has(codigo)).length} SKU de partida sin Partida / Talla. La autorización crea una referencia explícita <code>EXC-SIN-PARTIDA:SKU</code>; no inventa una partida ni habilita ajustes de stock.</p>{role==='ADMIN'?<><label className="field"><span>Motivo de excepción (mínimo 10 caracteres)</span><textarea value={exceptionReason} onChange={event=>setExceptionReason(event.target.value)} disabled={busy}/></label><button className="button-secondary" type="button" disabled={busy||exceptionReason.trim().length<10} onClick={()=>void authorizeMissingBatchExceptions()}>AUTORIZAR EXCEPCIÓN CONTROLADA</button></>:<p>Solo un ADMIN asignado puede autorizar esta excepción con motivo y auditoría.</p>}</div>}
+   {role==='ADMIN'&&batchFile&&serialFile&&message==='Missing batch exception requires an existing PARTIDA SKU'&&<div className="master-errors"><h3>Maestro faltante en este inventario</h3><p>Los dos archivos ya contienen código y descripción. Puedes crear el Maestro inicial desde ellos, sin cambiar stock ni Softland, y continuar aquí mismo.</p><button className="button-secondary" type="button" disabled={busy} onClick={()=>void initializeMasterFromSourceFiles()}>INICIALIZAR MAESTRO DESDE PARTIDAS + SERIES</button></div>}
    <button className="button-primary" type="button" disabled={!canImport||busy} onClick={()=>void handleImport()}>{busy?'Procesando…':'CONFIRMAR REFERENCIA DE SISTEMA'}</button>
   </>}
   {inventoryStatus==='ABIERTO'&&<button className="button-primary" type="button" disabled={busy} onClick={()=>void handleMaterialize()}>{busy?'Procesando…':'GENERAR / ACTUALIZAR HALLAZGOS'}</button>}
