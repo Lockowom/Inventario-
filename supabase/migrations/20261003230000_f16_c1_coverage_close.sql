@@ -35,6 +35,353 @@ alter table public.inventories
     )
   );
 
+-- F15 may have queued provisional C2 work created before this coverage gate existed.
+-- Preserve the case history but cancel queued execution until C1 is explicitly finalized.
+update public.recount_missions m
+set status='CANCELLED',
+    updated_at=now()
+from public.inventories i
+where i.id=m.inventory_id
+  and i.c1_completed_at is null
+  and m.status='QUEUED';
+
+create or replace function public.get_my_recount_queue(p_inventory_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path=public,app_private,pg_temp
+as $function$
+declare
+  actor uuid:=app_private.require_active_actor();
+  actor_role public.app_role;
+  active_id uuid;
+  queue_round integer;
+  queued integer:=0;
+  c1_done boolean:=false;
+begin
+  if not app_private.can_access_inventory(p_inventory_id) then
+    raise exception 'Not authorized for inventory' using errcode='42501';
+  end if;
+
+  select role into actor_role
+  from public.profiles
+  where user_id=actor and active;
+
+  queue_round:=case
+    when actor_role='CONTADOR' then 2
+    when actor_role in('ANALISTA','ADMIN') then 3
+    else null
+  end;
+
+  select c1_completed_at is not null
+  into c1_done
+  from public.inventories
+  where id=p_inventory_id;
+
+  select m.id into active_id
+  from public.recount_missions m
+  where m.inventory_id=p_inventory_id
+    and m.assigned_user_id=actor
+    and m.status='ACTIVE'
+  order by m.claimed_at,m.id
+  limit 1;
+
+  if coalesce(c1_done,false) and queue_round is not null then
+    select count(*)::integer into queued
+    from public.recount_missions m
+    where m.inventory_id=p_inventory_id
+      and m.round=queue_round
+      and m.status='QUEUED'
+      and (
+        queue_round<>2
+        or not exists(
+          select 1
+          from public.reconciliation_cases r
+          join public.count_records c
+            on c.inventory_id=r.inventory_id
+           and c.codigo=r.codigo
+           and (
+             (r.reference_type='SERIAL' and coalesce(c.serie,'')=coalesce(r.reference_value,''))
+             or (r.reference_type='PARTIDA' and coalesce(c.partida,'')=coalesce(r.reference_value,''))
+             or r.reference_type='LEGACY'
+           )
+          where r.id=m.case_id
+            and c.user_id=actor
+            and not exists(
+              select 1
+              from public.recount_mission_observations o
+              where o.count_record_id=c.id
+            )
+        )
+      );
+  end if;
+
+  return jsonb_build_object(
+    'inventory_id',p_inventory_id,
+    'round',queue_round,
+    'queued_count',queued,
+    'active',case when active_id is null then null else app_private.recount_mission_json(active_id) end
+  );
+end
+$function$;
+
+create or replace function public.claim_next_recount_mission(p_inventory_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path=public,app_private,pg_temp
+as $function$
+declare
+  actor uuid:=app_private.require_active_actor();
+  actor_role public.app_role;
+  wanted_round integer;
+  mission public.recount_missions;
+  existing_id uuid;
+  transitioned integer:=0;
+begin
+  if not app_private.can_access_inventory(p_inventory_id) then
+    raise exception 'Not authorized for inventory' using errcode='42501';
+  end if;
+
+  select role into actor_role
+  from public.profiles
+  where user_id=actor and active;
+
+  wanted_round:=case
+    when actor_role='CONTADOR' then 2
+    when actor_role in('ANALISTA','ADMIN') then 3
+    else null
+  end;
+
+  if wanted_round is null then
+    raise exception 'Role does not admit recount missions' using errcode='42501';
+  end if;
+
+  select id into existing_id
+  from public.recount_missions
+  where inventory_id=p_inventory_id
+    and assigned_user_id=actor
+    and status='ACTIVE'
+  order by claimed_at,id
+  limit 1;
+
+  if existing_id is not null then
+    return app_private.recount_mission_json(existing_id);
+  end if;
+
+  if not exists(
+    select 1
+    from public.inventories
+    where id=p_inventory_id
+      and status='ABIERTO'
+      and c1_completed_at is not null
+  ) then
+    return null;
+  end if;
+
+  select m.* into mission
+  from public.recount_missions m
+  where m.inventory_id=p_inventory_id
+    and m.round=wanted_round
+    and m.status='QUEUED'
+    and (
+      wanted_round<>2
+      or not exists(
+        select 1
+        from public.reconciliation_cases r
+        join public.count_records c
+          on c.inventory_id=r.inventory_id
+         and c.codigo=r.codigo
+         and (
+           (r.reference_type='SERIAL' and coalesce(c.serie,'')=coalesce(r.reference_value,''))
+           or (r.reference_type='PARTIDA' and coalesce(c.partida,'')=coalesce(r.reference_value,''))
+           or r.reference_type='LEGACY'
+         )
+        where r.id=m.case_id
+          and c.user_id=actor
+          and not exists(
+            select 1
+            from public.recount_mission_observations o
+            where o.count_record_id=c.id
+          )
+      )
+    )
+  order by m.created_at,m.id
+  for update skip locked
+  limit 1;
+
+  if mission.id is null then
+    return null;
+  end if;
+
+  update public.recount_missions
+  set assigned_user_id=actor,status='ACTIVE',claimed_at=now()
+  where id=mission.id;
+
+  update public.reconciliation_cases
+  set status=case
+    when wanted_round=2 then '2DO_CONTEO_ASIGNADO'::public.reconciliation_status
+    else '3ER_CONTEO_ASIGNADO'::public.reconciliation_status
+  end
+  where id=mission.case_id
+    and status=case
+      when wanted_round=2 then 'REQUIERE_2DO_CONTEO'::public.reconciliation_status
+      else 'REQUIERE_3ER_CONTEO'::public.reconciliation_status
+    end;
+  get diagnostics transitioned=row_count;
+
+  if transitioned<>1 then
+    raise exception 'Recount case state changed before mission claim' using errcode='40001';
+  end if;
+
+  perform app_private.append_reconciliation_event(
+    mission.case_id,
+    p_inventory_id,
+    case when wanted_round=2 then 'SECOND_ASSIGNED' else 'THIRD_ASSIGNED' end,
+    actor,
+    jsonb_build_object(
+      'mission_id',mission.id,
+      'assigned_user_id',actor,
+      'round',wanted_round,
+      'assignment_mode','QUEUE_CLAIM'
+    )
+  );
+
+  return app_private.recount_mission_json(mission.id);
+end
+$function$;
+
+create or replace function public.list_reconciliation_cases(p_inventory_id uuid)
+returns setof public.reconciliation_cases
+language plpgsql
+stable
+security definer
+set search_path=public,app_private,pg_temp
+as $function$
+declare
+  fp text;
+  c1_done boolean:=false;
+begin
+  perform app_private.require_active_actor();
+
+  if not app_private.can_manage_inventory(p_inventory_id) then
+    raise exception 'Not authorized for reconciliation' using errcode='42501';
+  end if;
+
+  select i.c1_completed_at is not null,m.fingerprint
+  into c1_done,fp
+  from public.inventories i
+  left join public.inventory_system_reference_metadata m on m.inventory_id=i.id
+  where i.id=p_inventory_id;
+
+  if not coalesce(c1_done,false) then
+    return;
+  end if;
+
+  return query
+  select r.*
+  from public.reconciliation_cases r
+  where r.inventory_id=p_inventory_id
+    and fp is not null
+    and r.source_fingerprint=fp
+  order by r.created_at desc,r.id;
+end
+$function$;
+
+create or replace function public.get_reconciliation_summary(p_inventory_id uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path=public,app_private,pg_temp
+as $function$
+declare
+  fp text;
+  metadata jsonb;
+  result jsonb;
+  c1_done boolean:=false;
+begin
+  perform app_private.require_active_actor();
+
+  if not app_private.can_manage_inventory(p_inventory_id) then
+    raise exception 'Not authorized for reconciliation summary' using errcode='42501';
+  end if;
+
+  if not exists(select 1 from public.inventories where id=p_inventory_id) then
+    raise exception 'Inventory not found' using errcode='P0002';
+  end if;
+
+  select c1_completed_at is not null
+  into c1_done
+  from public.inventories
+  where id=p_inventory_id;
+
+  select m.fingerprint,
+         jsonb_build_object(
+           'reference_version',m.reference_version,
+           'row_count',m.row_count,
+           'fingerprint',m.fingerprint,
+           'source',m.source,
+           'import_identifier',m.import_identifier,
+           'imported_at',m.imported_at
+         )
+  into fp,metadata
+  from public.inventory_system_reference_metadata m
+  where m.inventory_id=p_inventory_id;
+
+  with visible as (
+    select r.*
+    from public.reconciliation_cases r
+    where r.inventory_id=p_inventory_id
+      and coalesce(c1_done,false)
+      and fp is not null
+      and r.source_fingerprint=fp
+  ), totals as (
+    select
+      count(*)::integer total,
+      count(*) filter(where status<>'RESUELTO')::integer open,
+      count(*) filter(where status='PENDIENTE_ANALISIS')::integer pending_analysis,
+      count(*) filter(where status in('REQUIERE_2DO_CONTEO','2DO_CONTEO_ASIGNADO'))::integer second_recount,
+      count(*) filter(where status in('REQUIERE_3ER_CONTEO','3ER_CONTEO_ASIGNADO'))::integer third_recount,
+      count(*) filter(where status='FISICO_CONFIRMADO')::integer physical_confirmed,
+      count(*) filter(where status='RESUELTO')::integer resolved
+    from visible
+  )
+  select jsonb_build_object(
+    'inventory_id',p_inventory_id,
+    'source_reference',metadata,
+    'summary',jsonb_build_object(
+      'total',t.total,
+      'open',t.open,
+      'pending_analysis',t.pending_analysis,
+      'second_recount',t.second_recount,
+      'third_recount',t.third_recount,
+      'physical_confirmed',t.physical_confirmed,
+      'resolved',t.resolved
+    ),
+    'anomalies',coalesce((
+      select jsonb_object_agg(x.anomaly_type,x.total order by x.anomaly_type)
+      from (
+        select v.anomaly_type,count(*)::integer total
+        from visible v
+        group by v.anomaly_type
+      ) x
+    ),'{}'::jsonb),
+    'last_materialized_at',(
+      select max(a.created_at)
+      from public.audit_events a
+      where a.inventory_id=p_inventory_id
+        and a.entity_type='reconciliation_materialization'
+    )
+  )
+  into result
+  from totals t;
+
+  return result;
+end
+$function$;
+
 create or replace function app_private.final_reconciliation_candidates(p_inventory_id uuid)
 returns table(
   codigo text,
