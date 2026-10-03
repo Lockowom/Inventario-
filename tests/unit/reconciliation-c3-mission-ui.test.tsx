@@ -14,7 +14,7 @@ vi.mock('../../src/services/supabase-reconciliation-repository',()=>({
   list(){return Promise.resolve([{
    id:'case-3',inventory_id:'inv-1',codigo:'SKU003P',reference_type:'PARTIDA',reference_value:'LOT-3',
    anomaly_type:'DIFERENCIA_CANTIDAD_PARTIDA',system_quantity:5,physical_quantity:4,status:'REQUIERE_3ER_CONTEO',
-   assigned_second_user_id:'counter-2',assigned_third_analyst_id:null,confirmed_physical_quantity:null,disposition:null,resolution_reason:null
+confirmed_physical_quantity:null,disposition:null,resolution_reason:null
   }])}
   summary(){return Promise.resolve({
    inventory_id:'inv-1',source_reference:null,
