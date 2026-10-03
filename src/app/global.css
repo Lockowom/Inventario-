@@ -169,3 +169,30 @@ button { min-height: var(--touch-target); }
   .reconciliation-compact-card__summary { grid-template-columns: 1fr; gap: var(--space-1); }
   .reconciliation-compact-card__detail dl { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
+
+
+/* F16 · C1 coverage lifecycle */
+.inventory-lifecycle{display:grid;gap:1rem;padding:1rem;border:1px solid var(--border);border-radius:16px;background:var(--surface)}
+.inventory-lifecycle__header{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem}
+.inventory-lifecycle__header h2{margin:.15rem 0 0}
+.inventory-lifecycle__header>strong{font-size:.9rem;padding:.4rem .65rem;border:1px solid var(--border);border-radius:999px}
+.inventory-lifecycle__steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem}
+.inventory-lifecycle__steps article{display:flex;gap:.75rem;align-items:center;padding:.85rem;border:1px solid var(--border);border-radius:12px;opacity:.62}
+.inventory-lifecycle__steps article>span{display:grid;place-items:center;width:2rem;height:2rem;border-radius:999px;border:1px solid var(--border);font-weight:800}
+.inventory-lifecycle__steps article div{display:grid;gap:.15rem}
+.inventory-lifecycle__steps article small{opacity:.75}
+.inventory-lifecycle__steps article.is-active,.inventory-lifecycle__steps article.is-complete{opacity:1}
+.inventory-lifecycle__steps article.is-active{box-shadow:inset 0 0 0 1px currentColor}
+.inventory-lifecycle__confirm{display:flex;align-items:flex-start;gap:.65rem}
+.inventory-lifecycle__confirm input{margin-top:.25rem}
+.inventory-lifecycle__warning,.inventory-lifecycle__note{margin:0;padding:.8rem;border-left:3px solid currentColor;background:rgba(255,255,255,.02)}
+.inventory-lifecycle__metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem}
+.inventory-lifecycle__metrics div{display:grid;gap:.25rem;padding:.8rem;border:1px solid var(--border);border-radius:12px}
+.inventory-lifecycle__metrics span{font-size:.8rem;opacity:.72}
+.inventory-lifecycle__metrics strong{font-size:1.2rem}
+.inventory-lifecycle__closed{font-weight:700}
+.inventory-lifecycle__actor{margin:0;font-size:.8rem;opacity:.65}
+@media(max-width:760px){
+ .inventory-lifecycle__steps,.inventory-lifecycle__metrics{grid-template-columns:1fr}
+ .inventory-lifecycle__header{align-items:flex-start;flex-direction:column}
+}
