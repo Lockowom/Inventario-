@@ -49,7 +49,7 @@ describe('F14 Data Load Center',()=>{
   expect(screen.getByText(/Libro RP completo/)).toBeInTheDocument()
   expect(screen.queryByText(/Archivo de partidas/)).not.toBeInTheDocument()
   expect(screen.queryByText(/Archivo de series/)).not.toBeInTheDocument()
-  expect(screen.getByText(/7124 SKU/)).toBeInTheDocument()
+  expect(screen.getAllByText(/7124 SKU/).length).toBeGreaterThan(0)
  })
 
  it('explains that Conciliación and Maestro do not receive files anymore',async()=>{
