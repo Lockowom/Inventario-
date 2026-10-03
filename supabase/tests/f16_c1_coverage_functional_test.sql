@@ -1,5 +1,5 @@
 begin;
-select plan(16);
+select plan(17);
 
 insert into auth.users(id,aud,role,email,encrypted_password,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
 ('f1600000-0000-0000-0000-000000000001','authenticated','authenticated','f16-admin@example.invalid','','{}','{}',now(),now()),
