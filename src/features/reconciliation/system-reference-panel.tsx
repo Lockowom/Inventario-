@@ -42,6 +42,6 @@ export function SystemReferencePanel({
 
   {(inventoryStatus==='BORRADOR'||inventoryStatus==='PREPARADO')&&<p className="reconciliation-note">Completa Maestro + RP desde el módulo Carga de datos antes de abrir el inventario.</p>}
   {inventoryStatus==='ABIERTO'&&<button className="button-primary" type="button" disabled={busy||!source} onClick={()=>void handleMaterialize()}>{busy?'PROCESANDO…':'GENERAR / ACTUALIZAR HALLAZGOS'}</button>}
-  {message&&<p className="master-message" role="status">{message}</p>}
+  {message&&<p className="reconciliation-message" role="status">{message}</p>}
  </section>
 }
