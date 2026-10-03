@@ -140,6 +140,11 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
     try {
       setBusy('MASTER_IMPORT')
       const fingerprint = await createMasterFingerprint(validMasterRows)
+      if (masterMetadata && masterMetadata.rowCount === validMasterRows.length && masterMetadata.fingerprint.toLowerCase() === fingerprint.toLowerCase()) {
+        await refreshMasterSnapshot(inventoryId, masters, getMasterSkuRepository())
+        setMessage('El Maestro coincide exactamente con el snapshot activo. No se creó una nueva versión ni se invalidó la referencia RP; la copia offline quedó verificada.')
+        return
+      }
       const metadata = await masters.importPreview(inventoryId, validMasterRows, fingerprint, masterSource)
       await refreshMasterSnapshot(inventoryId, masters, getMasterSkuRepository())
       const items = await masters.listByInventory(inventoryId)
@@ -149,7 +154,7 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
       setRpPreview(null)
       setRpFile(null)
       if (rpFileRef.current) rpFileRef.current.value = ''
-      setMessage(`Maestro confirmado: v${metadata.masterVersion}, ${metadata.rowCount} SKU. Copia offline actualizada. Continúa con el libro RP.`)
+      setMessage(`Maestro confirmado: v${metadata.masterVersion}, ${metadata.rowCount} SKU. Copia offline actualizada. La referencia RP anterior fue invalidada; continúa con el libro RP.`)
     } catch (error: unknown) {
       setMessage(describeError(error, 'El Maestro fue rechazado.'))
     } finally { setBusy(null) }
