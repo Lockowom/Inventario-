@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import type { AppRole } from '../../domain/auth/contracts'
 import { SupabaseReconciliationRepository, type ReconciliationSummary } from '../../services/supabase-reconciliation-repository'
 
@@ -14,7 +14,7 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,onMaterialized
  const [message,setMessage]=useState('')
  const [busy,setBusy]=useState(false)
 
- async function refresh(){
+ const refresh=useCallback(async()=>{
   if(!inventoryId)return
   try{
    const next=await repo.summary(inventoryId)
@@ -23,9 +23,10 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,onMaterialized
   }catch(error){
    setMessage(error instanceof Error?error.message:'No fue posible consultar la referencia RP.')
   }
- }
 
- useEffect(()=>{void refresh()},[inventoryId])
+ },[inventoryId])
+
+ useEffect(()=>{void refresh()},[refresh])
 
  async function handleMaterialize(){
   try{
