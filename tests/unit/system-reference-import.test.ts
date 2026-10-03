@@ -47,11 +47,18 @@ describe('F11 system reference RP parser',()=>{
   expect(preview.fileSha256).toMatch(/^[a-f0-9]{64}$/)
  })
 
- it('preserves positive PARTIDA stock without Partida / Talla as a non-blocking finding',async()=>{
+ it('flags positive PARTIDA stock without Partida / Talla for controlled authorization',async()=>{
   const preview=await parseSystemReferenceXlsx(workbookBytes({missingBatch:true}),'synthetic.xlsx')
   expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
-  expect(preview.issues).toContainEqual(expect.objectContaining({severity:'WARNING',message:'STOCK POSITIVO SIN PARTIDA / TALLA',codigo:'BAT001P'}))
-  expect(preview.items).toContainEqual({codigo:'BAT001P',referenceType:'PARTIDA',referenceValue:null,quantity:5})
+  expect(preview.unidentifiedBatchCodes).toContain('BAT001P')
+  expect(preview.issues).toContainEqual(expect.objectContaining({severity:'WARNING',codigo:'BAT001P',message:expect.stringContaining('REQUIERE AUTORIZACIÓN CONTROLADA')}))
+  expect(preview.items.some(item=>item.codigo==='BAT001P'&&item.referenceValue===null)).toBe(false)
+ })
+
+ it('materializes an authorized technical reference instead of a null or invented batch',async()=>{
+  const preview=await parseSystemReferenceXlsx(workbookBytes({missingBatch:true}),'synthetic.xlsx',new Set(['BAT001P']))
+  expect(preview.items).toContainEqual({codigo:'BAT001P',referenceType:'PARTIDA',referenceValue:'EXC-SIN-PARTIDA:BAT001P',quantity:5})
+  expect(preview.issues).toContainEqual(expect.objectContaining({severity:'WARNING',referenceValue:'EXC-SIN-PARTIDA:BAT001P'}))
  })
 
  it('blocks duplicate system serials',async()=>{
