@@ -55,7 +55,7 @@ export function ReconciliationScreen(){
   </div>
 
   {message&&<p className="form-warning" role="status">{message}</p>}
-  {inventoryId&&selectedInventory&&<SystemReferencePanel inventoryId={inventoryId} inventoryStatus={selectedInventory.status} role={profile?.role??null} onMaterialized={refresh}/>}
+  {inventoryId&&selectedInventory&&<SystemReferencePanel inventoryId={inventoryId} inventoryStatus={selectedInventory.status} summary={summary} onMaterialized={refresh}/>}
   {inventoryId&&<LiveReconciliationWorkspace inventoryId={inventoryId}/>}
 
   <section className="reconciliation-cases">
