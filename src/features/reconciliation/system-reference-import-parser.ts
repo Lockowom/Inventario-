@@ -65,7 +65,12 @@ function sameSet(left:Set<string>,right:Set<string>){
  return left.size===right.size&&[...left].every(value=>right.has(value))
 }
 
-export async function parseSystemReferenceXlsx(contents:ArrayBuffer,fileName='RP.xlsx'):Promise<SystemReferencePreview>{
+export async function parseSystemReferenceXlsx(
+ contents:ArrayBuffer,
+ fileName='RP.xlsx',
+ authorizedCodes:ReadonlySet<string>=new Set(),
+ masterCodes?:ReadonlySet<string>,
+):Promise<SystemReferencePreview>{
  const XLSX=await import('@e965/xlsx')
  const workbook=XLSX.read(contents,{type:'array',cellText:true,cellNF:true})
  const sheetMap=new Map(workbook.SheetNames.map(name=>[name.trim().toUpperCase(),name]))
@@ -137,6 +142,18 @@ export async function parseSystemReferenceXlsx(contents:ArrayBuffer,fileName='RP
  const items:SystemReferenceItem[]=[]
  const naturalKeys=new Set<string>()
  const globalSeries=new Set<string>()
+ const unknownMasterCodes=new Set<string>()
+ const unidentifiedBatchCodes=new Set<string>()
+ const unidentifiedBatchTotals=new Map<string,{quantity:number;availableQuantity:number;unitCode:string}>()
+
+ const belongsToMaster=(codigo:string,sheet:string,rowNumber:number)=>{
+  if(!masterCodes||masterCodes.has(codigo)) return true
+  if(!unknownMasterCodes.has(codigo)){
+   unknownMasterCodes.add(codigo)
+   addIssue(issues,sheet,rowNumber,codigo,null,'WARNING','SKU NO ESTÁ EN EL MAESTRO: se conserva como observación, pero no queda habilitado para conteo.')
+  }
+  return false
+ }
 
  const pushItem=(item:SystemReferenceItem,sheet:string,rowNumber:number)=>{
   const key=`${item.codigo}\u001f${item.referenceType}\u001f${item.referenceValue??''}`
@@ -150,9 +167,10 @@ export async function parseSystemReferenceXlsx(contents:ArrayBuffer,fileName='RP
   if(codeIndex!==undefined&&stockIndex!==undefined&&availableIndex!==undefined&&unitIndex!==undefined){
    for(let index=1;index<total.display.length;index+=1){
     const codigo=code(total.display[index]?.[codeIndex])
-    if(!codigo||deriveMasterControlType(codigo)!=='LEGACY') continue
+    if(!codigo||!belongsToMaster(codigo,'STOCK TOTAL',index+1)||deriveMasterControlType(codigo)!=='LEGACY') continue
     const quantity=parseInteger(total.raw[index]?.[stockIndex])
-    const availableQuantity=parseInteger(total.raw[index]?.[availableIndex]),unitCode=ref(total.display[index]?.[unitIndex])
+    const availableQuantity=parseInteger(total.raw[index]?.[availableIndex])
+    const unitCode=ref(total.display[index]?.[unitIndex])
     if(quantity===null||availableQuantity===null||!unitCode) continue
     if(quantity!==0||availableQuantity!==0) pushItem({codigo,referenceType:'LEGACY',referenceValue:null,quantity,availableQuantity,unitCode,expirationDate:null},'STOCK TOTAL',index+1)
    }
@@ -165,18 +183,38 @@ export async function parseSystemReferenceXlsx(contents:ArrayBuffer,fileName='RP
   if(codeIndex!==undefined&&refIndex!==undefined&&stockIndex!==undefined&&availableIndex!==undefined&&unitIndex!==undefined&&expirationIndex!==undefined){
    for(let index=1;index<batches.display.length;index+=1){
     const codigo=code(batches.display[index]?.[codeIndex])
-    if(!codigo||deriveMasterControlType(codigo)!=='PARTIDA') continue
+    if(!codigo||!belongsToMaster(codigo,'STOCK CON P',index+1)||deriveMasterControlType(codigo)!=='PARTIDA') continue
     const quantity=parseInteger(batches.raw[index]?.[stockIndex])
     const availableQuantity=parseInteger(batches.raw[index]?.[availableIndex])
     const referenceValue=ref(batches.display[index]?.[refIndex])
     const unitCode=ref(batches.display[index]?.[unitIndex])
-    const rawExpiration=ref(batches.display[index]?.[expirationIndex]); const parsedExpiration=expirationDate(rawExpiration)
+    const rawExpiration=ref(batches.display[index]?.[expirationIndex])
+    const parsedExpiration=expirationDate(rawExpiration)
     if(rawExpiration&&!parsedExpiration) addIssue(issues,'STOCK CON P',index+1,codigo,referenceValue,'ERROR','FECHA VENC INVÁLIDA')
     if(quantity===null||availableQuantity===null||!unitCode||rawExpiration&&!parsedExpiration) continue
-    if(quantity>0&&!referenceValue){addIssue(issues,'STOCK CON P',index+1,codigo,null,'ERROR','STOCK POSITIVO SIN PARTIDA / TALLA');continue}
+    if(quantity>0&&!referenceValue){
+     unidentifiedBatchCodes.add(codigo)
+     if(!authorizedCodes.has(codigo)){
+      addIssue(issues,'STOCK CON P',index+1,codigo,null,'WARNING','STOCK POSITIVO SIN PARTIDA / TALLA · REQUIERE AUTORIZACIÓN CONTROLADA')
+      continue
+     }
+     const current=unidentifiedBatchTotals.get(codigo)
+     unidentifiedBatchTotals.set(codigo,{
+      quantity:(current?.quantity??0)+quantity,
+      availableQuantity:(current?.availableQuantity??0)+availableQuantity,
+      unitCode:current?.unitCode??unitCode,
+     })
+     continue
+    }
     if(referenceValue&&(quantity!==0||availableQuantity!==0)) pushItem({codigo,referenceType:'PARTIDA',referenceValue,quantity,availableQuantity,unitCode,expirationDate:parsedExpiration},'STOCK CON P',index+1)
    }
   }
+ }
+
+ for(const [codigo,total] of unidentifiedBatchTotals){
+  const placeholder=unidentifiedBatchReference(codigo)
+  pushItem({codigo,referenceType:'PARTIDA',referenceValue:placeholder,quantity:total.quantity,availableQuantity:total.availableQuantity,unitCode:total.unitCode,expirationDate:null},'EXCEPCIÓN CONTROLADA',0)
+  addIssue(issues,'EXCEPCIÓN CONTROLADA',0,codigo,placeholder,'WARNING','PARTIDA AUSENTE EN SOFTLAND: referencia técnica autorizada; no es una partida real ni autoriza ajustes.')
  }
 
  const serials=matrices.get('STOCK CON S')
@@ -189,7 +227,7 @@ export async function parseSystemReferenceXlsx(contents:ArrayBuffer,fileName='RP
     const quantity=parseInteger(serials.raw[index]?.[stockIndex])
     const availableQuantity=parseInteger(serials.raw[index]?.[availableIndex])
     const unitCode=ref(serials.display[index]?.[unitIndex])
-    if(!codigo) continue
+    if(!codigo||!belongsToMaster(codigo,'STOCK CON S',index+1)) continue
     if(referenceValue&&deriveMasterControlType(codigo)!=='SERIAL'){addIssue(issues,'STOCK CON S',index+1,codigo,referenceValue,'ERROR','SERIE ASOCIADA A SKU NO SERIAL');continue}
     if(deriveMasterControlType(codigo)!=='SERIAL'||quantity===null||availableQuantity===null||!unitCode) continue
     if(quantity>0&&!referenceValue){addIssue(issues,'STOCK CON S',index+1,codigo,null,'ERROR','STOCK SERIAL POSITIVO SIN SERIE');continue}
@@ -206,11 +244,17 @@ export async function parseSystemReferenceXlsx(contents:ArrayBuffer,fileName='RP
 
  const fileSha256=await sha256(contents)
  return systemReferencePreviewSchema.parse({
-  fileName,fileSha256,sourceFiles:[{role:'CONSOLIDADO',fileName,sha256:fileSha256}],totalSourceRows,itemCount:items.length,
+  fileName,
+  fileSha256,
+  sourceFiles:[{role:'CONSOLIDADO',fileName,sha256:fileSha256}],
+  totalSourceRows,
+  itemCount:items.length,
   serialItems:items.filter(item=>item.referenceType==='SERIAL').length,
   batchItems:items.filter(item=>item.referenceType==='PARTIDA').length,
   legacyItems:items.filter(item=>item.referenceType==='LEGACY').length,
-  issues,items,
+  unidentifiedBatchCodes:[...unidentifiedBatchCodes].sort(),
+  issues,
+  items,
  })
 }
 
@@ -347,8 +391,8 @@ export async function parseSystemReferenceFiles(batchFile:File,serialFile:File,a
  return systemReferencePreviewSchema.parse({fileName,fileSha256,sourceFiles,totalSourceRows:batchSummary.totalRows+serialSummary.totalRows,itemCount:items.length,serialItems:items.filter(item=>item.referenceType==='SERIAL').length,batchItems:items.filter(item=>item.referenceType==='PARTIDA').length,legacyItems:items.filter(item=>item.referenceType==='LEGACY').length,unidentifiedBatchCodes:[...unidentifiedBatchCodes].sort(),issues,items})
 }
 
-export async function parseSystemReferenceFile(file:File){
+export async function parseSystemReferenceFile(file:File,authorizedCodes:ReadonlySet<string>=new Set(),masterCodes?:ReadonlySet<string>){
  const extension=file.name.split('.').pop()?.toLowerCase()
  if(extension!=='xlsx') throw new Error('La referencia de sistema requiere el libro RP completo en formato XLSX.')
- return parseSystemReferenceXlsx(await file.arrayBuffer(),file.name)
+ return parseSystemReferenceXlsx(await file.arrayBuffer(),file.name,authorizedCodes,masterCodes)
 }
