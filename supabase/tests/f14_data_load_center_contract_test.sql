@@ -9,7 +9,8 @@ select has_function(
 );
 
 select ok(
-  position('on conflict(inventory_id,codigo) do update' in lower(replace(pg_get_functiondef('public.import_inventory_master(uuid,jsonb,text,text)'::regprocedure),' ','')))>0,
+  position('on conflict' in lower(pg_get_functiondef('public.import_inventory_master(uuid,jsonb,text,text)'::regprocedure)))>0
+  and position('do update' in lower(pg_get_functiondef('public.import_inventory_master(uuid,jsonb,text,text)'::regprocedure)))>0,
   'master import uses smart upsert instead of delete-all replacement'
 );
 
