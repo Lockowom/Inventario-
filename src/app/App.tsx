@@ -136,7 +136,7 @@ function AuthenticatedRuntime() {
     : visibleView === 'counting'
       ? <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} captureGate={captureGate} />
       : visibleView === 'recounts'
-        ? <RecountQueueScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} />
+        ? <RecountQueueScreen />
       : visibleView === 'supervision'
         ? <SupervisionScreen />
         : visibleView === 'data-load'
