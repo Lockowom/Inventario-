@@ -750,10 +750,7 @@ begin
     raise exception 'Not authorized to manage inventory' using errcode='42501';
   end if;
 
-  select * into inv
-  from public.inventories
-  where id=target_inventory_id
-  for update;
+  inv:=app_private.lock_inventory(target_inventory_id);
 
   if inv.id is null then
     raise exception 'Inventory not found' using errcode='P0002';
