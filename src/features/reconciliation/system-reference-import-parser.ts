@@ -51,7 +51,9 @@ function sameSet(left:Set<string>,right:Set<string>){
  return left.size===right.size&&[...left].every(value=>right.has(value))
 }
 
-export async function parseSystemReferenceXlsx(contents:ArrayBuffer,fileName='RP.xlsx'):Promise<SystemReferencePreview>{
+export const unidentifiedBatchReference=(codigo:string)=>`EXC-SIN-PARTIDA:${normalizeMasterCode(codigo)}`
+
+export async function parseSystemReferenceXlsx(contents:ArrayBuffer,fileName='RP.xlsx',authorizedCodes:ReadonlySet<string>=new Set()):Promise<SystemReferencePreview>{
  const XLSX=await import('@e965/xlsx')
  const workbook=XLSX.read(contents,{type:'array',cellText:true,cellNF:true})
  const sheetMap=new Map(workbook.SheetNames.map(name=>[name.trim().toUpperCase(),name]))
@@ -123,6 +125,8 @@ export async function parseSystemReferenceXlsx(contents:ArrayBuffer,fileName='RP
  const items:SystemReferenceItem[]=[]
  const naturalKeys=new Set<string>()
  const globalSeries=new Set<string>()
+ const unidentifiedBatchCodes=new Set<string>()
+ const unidentifiedBatchTotals=new Map<string,number>()
 
  const pushItem=(item:SystemReferenceItem,sheet:string,rowNumber:number)=>{
   const key=`${item.codigo}\u001f${item.referenceType}\u001f${item.referenceValue??''}`
@@ -155,13 +159,24 @@ export async function parseSystemReferenceXlsx(contents:ArrayBuffer,fileName='RP
     const referenceValue=ref(batches.display[index]?.[refIndex])
     if(quantity===null||quantity<0) continue
     if(quantity>0&&!referenceValue){
-     addIssue(issues,'STOCK CON P',index+1,codigo,null,'WARNING','STOCK POSITIVO SIN PARTIDA / TALLA')
-     pushItem({codigo,referenceType:'PARTIDA',referenceValue:null,quantity},'STOCK CON P',index+1)
+     unidentifiedBatchCodes.add(codigo)
+     if(!authorizedCodes.has(codigo)){
+      addIssue(issues,'STOCK CON P',index+1,codigo,null,'WARNING','STOCK POSITIVO SIN PARTIDA / TALLA · REQUIERE AUTORIZACIÓN CONTROLADA')
+      continue
+     }
+     unidentifiedBatchTotals.set(codigo,(unidentifiedBatchTotals.get(codigo)??0)+quantity)
      continue
     }
     if(quantity>0&&referenceValue) pushItem({codigo,referenceType:'PARTIDA',referenceValue,quantity},'STOCK CON P',index+1)
    }
   }
+ }
+
+
+ for(const [codigo,quantity] of unidentifiedBatchTotals){
+  const placeholder=unidentifiedBatchReference(codigo)
+  pushItem({codigo,referenceType:'PARTIDA',referenceValue:placeholder,quantity},'EXCEPCIÓN CONTROLADA',0)
+  addIssue(issues,'EXCEPCIÓN CONTROLADA',0,codigo,placeholder,'WARNING','PARTIDA AUSENTE EN SOFTLAND: referencia de excepción autorizada; no es una partida real.')
  }
 
  const serials=matrices.get('STOCK CON S')
@@ -192,12 +207,13 @@ export async function parseSystemReferenceXlsx(contents:ArrayBuffer,fileName='RP
   serialItems:items.filter(item=>item.referenceType==='SERIAL').length,
   batchItems:items.filter(item=>item.referenceType==='PARTIDA').length,
   legacyItems:items.filter(item=>item.referenceType==='LEGACY').length,
+  unidentifiedBatchCodes:[...unidentifiedBatchCodes].sort(),
   issues,items,
  })
 }
 
-export async function parseSystemReferenceFile(file:File){
+export async function parseSystemReferenceFile(file:File,authorizedCodes:ReadonlySet<string>=new Set()){
  const extension=file.name.split('.').pop()?.toLowerCase()
  if(extension!=='xlsx') throw new Error('La referencia de sistema requiere el libro RP completo en formato XLSX.')
- return parseSystemReferenceXlsx(await file.arrayBuffer(),file.name)
+ return parseSystemReferenceXlsx(await file.arrayBuffer(),file.name,authorizedCodes)
 }
