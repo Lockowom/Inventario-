@@ -32,9 +32,9 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,onMaterialized
   try{
    setBusy(true)
    const result=await repo.materialize(inventoryId)
-   setMessage('Conciliación actualizada: '+result.created_count+' casos nuevos, '+result.existing_count+' casos abiertos para este snapshot.')
    await refresh()
    await onMaterialized()
+   setMessage('Conciliación actualizada: '+result.created_count+' casos nuevos, '+result.existing_count+' casos abiertos para este snapshot.')
   }catch(error){
    setMessage(error instanceof Error?error.message:'No fue posible materializar la conciliación.')
   }finally{setBusy(false)}
