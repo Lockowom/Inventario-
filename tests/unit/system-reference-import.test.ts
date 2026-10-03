@@ -47,10 +47,11 @@ describe('F11 system reference RP parser',()=>{
   expect(preview.fileSha256).toMatch(/^[a-f0-9]{64}$/)
  })
 
- it('blocks a positive PARTIDA row without Partida / Talla',async()=>{
+ it('preserves positive PARTIDA stock without Partida / Talla as a non-blocking finding',async()=>{
   const preview=await parseSystemReferenceXlsx(workbookBytes({missingBatch:true}),'synthetic.xlsx')
-  expect(hasBlockingSystemReferenceIssues(preview)).toBe(true)
-  expect(preview.issues.some(issue=>issue.message==='STOCK POSITIVO SIN PARTIDA / TALLA')).toBe(true)
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.issues).toContainEqual(expect.objectContaining({severity:'WARNING',message:'STOCK POSITIVO SIN PARTIDA / TALLA',codigo:'BAT001P'}))
+  expect(preview.items).toContainEqual({codigo:'BAT001P',referenceType:'PARTIDA',referenceValue:null,quantity:5})
  })
 
  it('blocks duplicate system serials',async()=>{
