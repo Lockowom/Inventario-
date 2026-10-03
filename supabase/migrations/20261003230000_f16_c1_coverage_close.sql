@@ -792,6 +792,56 @@ begin
 end
 $function$;
 
+create or replace function app_private.enforce_c1_physical_freeze()
+returns trigger
+language plpgsql
+security definer
+set search_path=public,app_private,pg_temp
+as $function$
+declare
+  completed_at timestamptz;
+begin
+  if row(
+    new.ubicacion,new.codigo,new.serie,new.partida,new.pieza_producto,new.fecha_vencimiento,
+    new.talla,new.color,new.cantidad_contada,new.descripcion
+  ) is not distinct from row(
+    old.ubicacion,old.codigo,old.serie,old.partida,old.pieza_producto,old.fecha_vencimiento,
+    old.talla,old.color,old.cantidad_contada,old.descripcion
+  ) then
+    return new;
+  end if;
+
+  select c1_completed_at into completed_at
+  from public.inventories
+  where id=old.inventory_id;
+
+  if completed_at is null then
+    return new;
+  end if;
+
+  if exists(
+    select 1
+    from public.recount_mission_observations o
+    join public.recount_missions m on m.id=o.mission_id
+    where o.count_record_id=old.id
+      and m.status='ACTIVE'
+      and m.assigned_user_id=auth.uid()
+  ) then
+    return new;
+  end if;
+
+  raise exception 'C1 physical snapshot is finalized; normal count corrections are no longer allowed'
+    using errcode='23514';
+end
+$function$;
+
+revoke all on function app_private.enforce_c1_physical_freeze() from public,anon,authenticated;
+
+drop trigger if exists count_records_c1_physical_freeze on public.count_records;
+create trigger count_records_c1_physical_freeze
+before update on public.count_records
+for each row execute function app_private.enforce_c1_physical_freeze();
+
 revoke all on function public.get_inventory_lifecycle(uuid),
   public.finalize_c1_coverage(uuid,boolean),
   public.complete_my_recount_mission_zero(uuid)
