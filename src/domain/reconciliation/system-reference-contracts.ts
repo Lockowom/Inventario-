@@ -26,6 +26,7 @@ export const systemReferencePreviewSchema=z.object({
  serialItems:z.number().int().nonnegative(),
  batchItems:z.number().int().nonnegative(),
  legacyItems:z.number().int().nonnegative(),
+ unidentifiedBatchCodes:z.array(z.string()).default([]),
  issues:z.array(systemReferenceIssueSchema),
  items:z.array(systemReferenceItemSchema),
 })
