@@ -37,13 +37,14 @@ select is(
 );
 
 select is(
-  has_function_privilege('anon','public.add_my_recount_observation(uuid,uuid)','EXECUTE'),
-  false,
-  'anon cannot attach recount observations'
+  to_regprocedure('public.add_my_recount_observation(uuid,uuid)') is null,
+  true,
+  'separate recount observation RPC is removed'
 );
 
 select is(
-  has_function_privilege('anon','public.complete_my_recount_mission(uuid)','EXECUTE'),
+  has_function_privilege('anon','public.complete_my_recount_mission(uuid)','EXECUTE')
+  or has_function_privilege('anon','public.complete_my_recount_mission_zero(uuid)','EXECUTE'),
   false,
   'anon cannot complete recount missions'
 );

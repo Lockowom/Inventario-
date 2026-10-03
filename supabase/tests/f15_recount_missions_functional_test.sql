@@ -62,6 +62,16 @@ select id,inventory_id,2,'f1500000-0000-0000-0000-000000000002',
 from public.reconciliation_cases
 where inventory_id='f1510000-0000-0000-0000-000000000001';
 
+update public.inventories
+set c1_completed_at='2026-10-03T10:05:00Z'::timestamptz,
+    c1_completed_by='f1500000-0000-0000-0000-000000000002',
+    c1_count_records=3,
+    c1_counted_units=19,
+    c1_master_fingerprint=repeat('a',64),
+    c1_reference_fingerprint='F15-TEST-FP'
+where id='f1510000-0000-0000-0000-000000000001';
+
+
 select is((select count(*) from public.recount_missions where inventory_id='f1510000-0000-0000-0000-000000000001' and round=2 and status='QUEUED'),2::bigint,'two C2 missions are queued');
 
 select set_config('request.jwt.claim.sub','f1500000-0000-0000-0000-000000000003',true);
@@ -83,13 +93,21 @@ select * from public.sync_counts(
  ]'
 );
 
-select lives_ok($$select public.add_my_recount_observation(
- ((public.get_my_recount_queue('f1510000-0000-0000-0000-000000000001')->'active'->>'id')::uuid),
- 'f1540000-0000-0000-0000-000000000001'::uuid)$$,'first C2 location is attached');
+select is(
+ jsonb_array_length(public.get_my_recount_queue('f1510000-0000-0000-0000-000000000001')->'active'->'observations'),
+ 2,
+ 'both C2 locations are attached automatically during sync'
+);
 
-select lives_ok($$select public.add_my_recount_observation(
- ((public.get_my_recount_queue('f1510000-0000-0000-0000-000000000001')->'active'->>'id')::uuid),
- 'f1540000-0000-0000-0000-000000000002'::uuid)$$,'second C2 location is attached');
+select is(
+ (
+   select count(*)::integer
+   from jsonb_array_elements(public.get_my_recount_queue('f1510000-0000-0000-0000-000000000001')->'active'->'observations') item
+   where item->>'client_count_id'='f1540000-0000-0000-0000-000000000002'
+ ),
+ 1,
+ 'the second C2 client count is visible through the queue RPC'
+);
 
 select lives_ok($$select public.complete_my_recount_mission(
  ((public.get_my_recount_queue('f1510000-0000-0000-0000-000000000001')->'active'->>'id')::uuid))$$,'matching multi-location C2 completes');
@@ -110,8 +128,6 @@ select * from public.sync_counts(
    {"client_count_id":"f1540000-0000-0000-0000-000000000004","ubicacion":"B-02-01","codigo":"F15A002P","partida":"LOT-B","cantidad_contada":5,"captured_at":"2026-10-03T11:03:00Z"}
  ]'
 );
-select public.add_my_recount_observation(((public.get_my_recount_queue('f1510000-0000-0000-0000-000000000001')->'active'->>'id')::uuid),'f1540000-0000-0000-0000-000000000003');
-select public.add_my_recount_observation(((public.get_my_recount_queue('f1510000-0000-0000-0000-000000000001')->'active'->>'id')::uuid),'f1540000-0000-0000-0000-000000000004');
 select lives_ok($$select public.complete_my_recount_mission(
  ((public.get_my_recount_queue('f1510000-0000-0000-0000-000000000001')->'active'->>'id')::uuid))$$,'mismatching C2 completes and escalates');
 reset role;
@@ -131,8 +147,6 @@ select * from public.sync_counts(
    {"client_count_id":"f1550000-0000-0000-0000-000000000002","ubicacion":"C-02-01","codigo":"F15A002P","partida":"LOT-B","cantidad_contada":4,"captured_at":"2026-10-03T12:01:00Z"}
  ]'
 );
-select public.add_my_recount_observation(((public.get_my_recount_queue('f1510000-0000-0000-0000-000000000001')->'active'->>'id')::uuid),'f1550000-0000-0000-0000-000000000001');
-select public.add_my_recount_observation(((public.get_my_recount_queue('f1510000-0000-0000-0000-000000000001')->'active'->>'id')::uuid),'f1550000-0000-0000-0000-000000000002');
 select lives_ok($$select public.complete_my_recount_mission(
  ((public.get_my_recount_queue('f1510000-0000-0000-0000-000000000001')->'active'->>'id')::uuid))$$,'multi-location C3 completes');
 reset role;

@@ -56,11 +56,13 @@ export function RecountQueueScreen(){
    setMission(nextQueue.active)
    if(announce)setMessage(nextQueue.active
     ? 'Misión C'+nextQueue.active.round+' activa.'
-    : nextQueue.queued_count>0
-      ? nextQueue.queued_count+' misiones C'+nextQueue.round+' disponibles para tu rol.'
-      : nextQueue.round===3
-        ? 'Tu rol ejecuta C3. Los C2 pendientes se atienden desde cuentas CONTADOR.'
-        : 'No hay misiones C2 disponibles para este contador en el inventario.')
+    : !nextQueue.c1_completed
+      ? 'C1 todavía está EN CURSO. Los reconteos se habilitan cuando ANALISTA/ADMIN finalice C1 desde Supervisión.'
+      : nextQueue.queued_count>0
+        ? nextQueue.queued_count+' misiones C'+nextQueue.round+' disponibles para tu rol.'
+        : nextQueue.round===3
+          ? 'Tu rol ejecuta C3. Los C2 pendientes se atienden desde cuentas CONTADOR.'
+          : 'No hay misiones C2 disponibles para este contador en el inventario.')
   }catch(error){
    setContext(null);setQueue(null);setMission(null)
    setMessage(error instanceof Error?error.message:'No fue posible cargar la cola de reconteos.')
@@ -94,10 +96,15 @@ export function RecountQueueScreen(){
     serie:mission.reference_type==='SERIAL'?(mission.reference_value??''):'',
     partida:mission.reference_type==='PARTIDA'?(mission.reference_value??''):'',
     cantidadContada:mission.reference_type==='SERIAL'?'1':cantidad}
+   const previousObservations=mission.observations.length
    const saved=await savePhysicalCount(context,draft,runtime)
    await syncCoordinator.runInventorySync(context.inventoryId,{forceRetry:true})
-   const updated=await reconciliation.addMissionObservation(mission.id,saved.record.clientCountId)
-   setMission(updated);setQueue(current=>current?{...current,active:updated}:current)
+   const nextQueue=await reconciliation.recountQueue(context.inventoryId)
+   const updated=nextQueue.active
+   if(!updated||updated.id!==mission.id||updated.observations.length<=previousObservations){
+    throw new Error('El conteo quedó guardado localmente, pero el servidor aún no lo vinculó a la misión. Reintenta la sincronización antes de continuar.')
+   }
+   setMission(updated);setQueue(nextQueue)
    setUbicacion('');setCantidad('')
    setMessage('Ubicación '+saved.record.ubicacion+' agregada. Continúa buscando la misma referencia o finaliza la misión.')
   }catch(error){setMessage(error instanceof Error?error.message:'No fue posible registrar la observación.')}
@@ -115,6 +122,21 @@ export function RecountQueueScreen(){
     ? 'C2 cerrado. C1 y C2 no coinciden: C3 fue creado automáticamente.'
     : 'C'+result.round+' cerrado. Físico confirmado: '+(result.confirmed_physical_quantity??result.total_quantity)+'.')
   }catch(error){setMessage(error instanceof Error?error.message:'No fue posible finalizar la misión.')}
+  finally{setBusy(false)}
+ }
+
+ async function finishZero(){
+  if(!mission||mission.observations.length>0)return
+  if(!window.confirm('Confirma que buscaste esta referencia y no encontraste ninguna unidad física. El resultado de esta ronda será 0.'))return
+  try{
+   setBusy(true)
+   const result=await reconciliation.completeMissionZero(mission.id)
+   setMission(null);setUbicacion('');setCantidad('')
+   await refresh(false)
+   setMessage(result.next_round===3
+    ? 'Ronda confirmada en 0. Como no coincide con la ronda anterior, se creó C3.'
+    : 'C'+result.round+' confirmado en 0 unidades físicas.')
+  }catch(error){setMessage(error instanceof Error?error.message:'No fue posible confirmar la referencia como no encontrada.')}
   finally{setBusy(false)}
  }
 
@@ -150,6 +172,7 @@ export function RecountQueueScreen(){
    <h3>Observaciones C{mission.round}</h3>
    {mission.observations.length?<ul>{mission.observations.map(item=><li key={item.id}><strong>{item.ubicacion}</strong><span>{item.cantidad} un.</span></li>)}</ul>:<p>Aún no hay observaciones registradas en esta ronda.</p>}
 
+   {mission.observations.length===0&&<button className="button-secondary" disabled={busy} onClick={()=>void finishZero()}>CONFIRMAR 0 · NO ENCONTRADO</button>}
    <button className="button-primary" disabled={busy||mission.observations.length===0} onClick={()=>void finish()}>FINALIZAR C{mission.round}</button>
   </article>}
 

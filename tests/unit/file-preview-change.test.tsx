@@ -25,7 +25,6 @@ vi.mock('../../src/services/supabase-reconciliation-repository',()=>({
    anomalies:{},
    last_materialized_at:null,
   })}
-  materialize(){return Promise.reject(new Error('not used'))}
  }
 }))
 
@@ -41,7 +40,7 @@ describe('F14 single upload ownership',()=>{
  })
 
  it('Conciliación no longer exposes RP upload controls',async()=>{
-  render(<SystemReferencePanel inventoryId="inv-1" inventoryStatus="PREPARADO" summary={null} onMaterialized={()=>undefined}/>)
+  render(<SystemReferencePanel inventoryStatus="PREPARADO" summary={null}/>)
   await waitFor(()=>expect(screen.getByText(/No existe una referencia RP confirmada/)).toBeInTheDocument())
   expect(screen.queryByLabelText(/Libro RP/i)).toBeNull()
   expect(screen.queryByLabelText(/Archivo de partidas/i)).toBeNull()
