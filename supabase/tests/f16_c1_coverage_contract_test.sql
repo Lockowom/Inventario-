@@ -1,5 +1,5 @@
 begin;
-select plan(12);
+select plan(13);
 
 select has_column('public','inventories','c1_completed_at','inventory stores C1 completion timestamp');
 select has_column('public','inventories','c1_completed_by','inventory stores C1 completion actor');
@@ -32,6 +32,17 @@ select ok(
  position('c1_completed_at' in lower(pg_get_functiondef('public.close_inventory(uuid)'::regprocedure)))>0
  and position('reconciliation_cases' in lower(pg_get_functiondef('public.close_inventory(uuid)'::regprocedure)))>0,
  'final inventory close requires completed C1 and resolved reconciliation'
+);
+
+select ok(
+ exists(
+   select 1
+   from pg_trigger
+   where tgrelid='public.count_records'::regclass
+     and tgname='count_records_c1_physical_freeze'
+     and not tgisinternal
+ ),
+ 'count records have a physical freeze trigger after C1 completion'
 );
 
 select is(
