@@ -35,7 +35,7 @@ describe('F15 reconciliation mission UX',()=>{
   expect(await screen.findByText('SKU001')).toBeTruthy()
   expect(screen.queryByLabelText('Contador para 2.º conteo')).toBeNull()
   expect(screen.queryByRole('button',{name:'ASIGNAR 2.º CONTEO'})).toBeNull()
-  expect(screen.getByText(/misión C2 automáticamente/i)).toBeTruthy()
+  expect(screen.getByText(/Al finalizar C1, cada discrepancia final genera una misión C2/i)).toBeTruthy()
 
   fireEvent.click(screen.getByRole('button',{name:/SKU001/i}))
   expect(await screen.findByText('C1 físico total')).toBeTruthy()
