@@ -31,7 +31,7 @@ button { min-height: var(--touch-target); }
 @media (min-width: 600px) { .status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.device-health-actions { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 .supervision-screen, .reconciliation-screen { width: min(100%, 70rem); margin: var(--space-6) auto 0; padding: var(--space-5); background: var(--color-surface); border-radius: var(--radius-md); box-shadow: var(--shadow-card); }
 .supervision-screen h1, .supervision-screen h2, .reconciliation-screen h1, .reconciliation-screen h2 { margin: 0; }
-.supervision-screen > header > p:last-child, .reconciliation-screen > header > p:last-child, .supervision-note, .reconciliation-note { color: var(--color-muted); }
+.supervision-screen > header > p:last-child, .reconciliation-screen > header > p:last-child, .supervision-note, .reconciliation-note, .reconciliation-message { color: var(--color-muted); }
 .supervision-actions, .reconciliation-actions { display: grid; gap: var(--space-3); align-items: end; margin-top: var(--space-4); }
 .supervision-actions .field, .reconciliation-actions .field { min-width: 0; }
 .supervision-actions select, .reconciliation-actions select { width: 100%; min-width: 0; max-width: 100%; min-height: var(--control-height); border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--color-canvas); color: var(--color-text); padding: var(--space-2); }
