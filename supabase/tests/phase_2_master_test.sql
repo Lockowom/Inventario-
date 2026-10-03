@@ -1,5 +1,5 @@
 begin;
-select plan(28);
+select plan(30);
 
 insert into auth.users (id, aud, role, email, encrypted_password, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
 values
@@ -64,6 +64,8 @@ select ok(position('app_private.lock_inventory' in pg_get_functiondef('public.ad
 select ok(position('app_private.lock_inventory' in pg_get_functiondef('public.prepare_inventory(uuid)'::regprocedure)) > 0, 'prepare serializes on the inventory row');
 select ok(position('app_private.lock_inventory' in pg_get_functiondef('public.open_inventory(uuid)'::regprocedure)) > 0, 'open serializes on the inventory row');
 select ok(position('app_private.lock_inventory' in pg_get_functiondef('public.close_inventory(uuid)'::regprocedure)) > 0, 'close serializes on the inventory row');
+select ok(position('on conflict (inventory_id, codigo) do update' in lower(pg_get_functiondef('public.import_inventory_master(uuid,jsonb,text,text)'::regprocedure))) > 0, 'import preserves stable master ids through upsert');
+select ok(position('retired_exceptions' in pg_get_functiondef('public.import_inventory_master(uuid,jsonb,text,text)'::regprocedure)) > 0, 'import audits retired exception authorizations');
 
 select * from finish();
 rollback;
