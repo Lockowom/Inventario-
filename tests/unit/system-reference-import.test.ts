@@ -126,4 +126,40 @@ describe('F11 system reference RP parser',()=>{
   })])
   expect(authorized.issues).toEqual(expect.arrayContaining([expect.objectContaining({severity:'WARNING',message:'PARTIDA AUSENTE EN SOFTLAND: referencia de excepción; no es una partida real ni autoriza ajustes.'})]))
  })
+
+ it('preserves a negative batch value as source evidence without blocking the upload',async()=>{
+  const batches=fileFromWorkbook([
+   ['Cod. Producto','Producto','Cod. U. Medida','Partida / Talla','Fecha Venc','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+   ['BAT001P','Batch','UNI','LOT-CORR','',0,0,0,-1,-1],
+  ],'partidas-negativas.xlsx')
+  const serials=fileFromWorkbook([
+   ['Cod. Producto','Producto','Cod. U. Medida','Serie','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+   ['BAT001P','Batch','UNI','',0,0,0,-1,-1],
+  ],'series-negativas.xlsx')
+
+  const preview=await parseSystemReferenceFiles(batches,serials)
+
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.items).toEqual([expect.objectContaining({codigo:'BAT001P',referenceValue:'LOT-CORR',quantity:-1,availableQuantity:0})])
+  expect(preview.issues).toEqual(expect.arrayContaining([expect.objectContaining({severity:'WARNING',message:expect.stringContaining('STOCK TOTAL NEGATIVO')}),expect.objectContaining({severity:'WARNING',message:'EXISTE UN ESTADO DE STOCK NEGATIVO'})]))
+ })
+
+ it('uses the explicit master SKU universe without rejecting source-only codes',async()=>{
+  const batches=fileFromWorkbook([
+   ['Cod. Producto','Producto','Cod. U. Medida','Partida / Talla','Fecha Venc','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+   ['BAT001P','Known batch','UNI','LOT-01','',1,0,0,0,1],
+   ['NO-MASTERP','Source only','UNI','LOT-02','',1,0,0,0,1],
+  ],'partidas-maestro.xlsx')
+  const serials=fileFromWorkbook([
+   ['Cod. Producto','Producto','Cod. U. Medida','Serie','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+   ['BAT001P','Known batch','UNI','',1,0,0,0,1],
+   ['NO-MASTERP','Source only','UNI','',1,0,0,0,1],
+  ],'series-maestro.xlsx')
+
+  const preview=await parseSystemReferenceFiles(batches,serials,new Set(),new Set(['BAT001P']))
+
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.items).toEqual([expect.objectContaining({codigo:'BAT001P',referenceValue:'LOT-01'})])
+  expect(preview.issues).toEqual(expect.arrayContaining([expect.objectContaining({codigo:'NO-MASTERP',severity:'WARNING',message:expect.stringContaining('NO ESTÁ EN EL MAESTRO')})]))
+ })
 })

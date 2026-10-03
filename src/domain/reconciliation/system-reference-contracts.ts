@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 export const systemReferenceSourceFileSchema=z.object({
- role:z.enum(['PARTIDAS','SERIES','CONSOLIDADO']),
+ role:z.enum(['MAESTRO','PARTIDAS','SERIES','CONSOLIDADO']),
  fileName:z.string().trim().min(1),
  sha256:z.string().regex(/^[a-f0-9]{64}$/i),
 })
@@ -11,10 +11,10 @@ export const systemReferenceItemSchema=z.object({
  codigo:z.string().trim().min(1),
  referenceType:z.enum(['SERIAL','PARTIDA','LEGACY']),
  referenceValue:z.string().trim().min(1).nullable(),
- // `quantity` preserves the value reported as Stock Total by the source workbook.
- // Reconciliation itself always uses `availableQuantity` as the physical baseline.
- quantity:z.number().int().nonnegative(),
- availableQuantity:z.number().int().nonnegative(),
+ // These preserve the signed values reported by Softland. A negative source value
+ // is evidence of an ERP discrepancy; it is never a negative physical count.
+ quantity:z.number().int(),
+ availableQuantity:z.number().int(),
  unitCode:z.string().trim().min(1),
  expirationDate:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),
 })

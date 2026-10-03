@@ -18,12 +18,13 @@ Una diferencia es un hallazgo a investigar:
 
 ## 2. Fuente de sistema
 
-La referencia de sistema se importa desde **dos archivos XLSX independientes** entregados por RP/Softland:
+El flujo usa **tres archivos independientes**. El primero es el Maestro de SKU y los otros dos son la referencia de sistema entregada por RP/Softland:
 
-1. archivo de partidas: hoja `STOCK CON P` —o una única hoja con ese encabezado—;
-2. archivo de series: hoja `STOCK CON S` —o una única hoja con ese encabezado—.
+1. Maestro SKU (`.csv` o `.xlsx`): catálogo completo de códigos existentes, con `Código`/`Cod. Producto` y `Descripción`/`Producto`. Es la única autoridad que habilita un SKU para conteo, tenga o no stock actual;
+2. archivo de partidas: hoja `STOCK CON P` —o una única hoja con ese encabezado—;
+3. archivo de series: hoja `STOCK CON S` —o una única hoja con ese encabezado—.
 
-INVEN3 combina ambos archivos en un único snapshot antes de importarlo; el operador no debe consolidarlos manualmente. La metadata y la auditoría conservan ambos nombres y hashes, además de una huella combinada e inmutable.
+INVEN3 confirma el Maestro antes de importar el snapshot combinado de Partidas y Series; el operador no debe consolidar archivos manualmente. Un código presente en la referencia pero ausente del Maestro se muestra como advertencia y no queda habilitado para conteo.
 
 Uso:
 
@@ -37,8 +38,8 @@ Cuando un SKU exista en ambos archivos, INVEN3 compara su `Stock Total` consolid
 
 Para conciliación física, la única cantidad de sistema que puede compararse contra el conteo es la columna **`Disponible`** de Softland/RP.
 
-- `Reserva`, `Transitoria` y `Consignación` se validan como evidencia de la ecuación fuente, pero no se suman al conteo físico.
-- `Stock Total` se conserva como trazabilidad de importación y para validar que el libro RP sea consistente; nunca es baseline conciliable.
+- `Reserva`, `Transitoria` y `Consignación` se conservan como evidencia de la ecuación fuente, pero no se suman al conteo físico.
+- `Stock Total` y `Disponible` originales se conservan como trazabilidad de importación; nunca se convierten en una cantidad física negativa.
 - Un lote/serie que exista solo en un estado distinto de `Disponible` no se convierte en stock conciliable ni se envía como ajuste a Softland.
 - Una diferencia o un lote/serie detectado por INVEN3 es un hallazgo de investigación, no una instrucción de alta ni un ajuste automático de ERP.
 
@@ -50,16 +51,13 @@ También conserva `Cod. U. Medida` y, para partidas, `Fecha Venc` normalizada pa
 Bloqueos de importación incluyen, entre otros:
 
 - archivo, hoja o columna requerida ausente;
-- stock consolidado distinto para un SKU compartido entre ambos archivos;
-- ecuación de stock inconsistente;
-- stock total negativo;
 - PARTIDA con stock positivo sin `Partida / Talla`, salvo una excepción controlada autorizada;
 - serie en SKU no SERIAL;
 - serie sin cantidad exacta 1;
 - serie duplicada;
 - referencia natural duplicada.
 
-Los estados de stock negativos se reportan como warning cuando la ecuación del total sigue cuadrando.
+Los estados negativos, un total negativo o una ecuación de estados inconsistente se importan como **advertencias trazables**. INVEN3 preserva sus valores de origen, pero usa `0` como mínimo para la base conciliable: jamás pide ni registra un conteo físico negativo.
 
 ### Excepción controlada: SKU PARTIDA sin partida en Softland
 
