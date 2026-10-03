@@ -41,14 +41,14 @@ vi.mock('../../src/services/supabase-reconciliation-repository',()=>({
 vi.mock('../../src/features/counting/counting-runtime',()=>({getMasterSkuRepository:()=>({})}))
 
 describe('F14 Data Load Center',()=>{
- it('centralizes Maestro and RP upload in one module',async()=>{
+ it('centralizes the three operational files in one module',async()=>{
   render(<DataLoadScreen role="ADMIN"/>)
-  await waitFor(()=>expect(screen.getByText(/Libro RP completo/)).toBeInTheDocument())
+  await waitFor(()=>expect(screen.getByText(/Archivo Partidas \/ Lotes/)).toBeInTheDocument())
   expect(getMetadata).toHaveBeenCalled()
   expect(screen.getByRole('heading',{name:'CENTRO DE CARGA'})).toBeInTheDocument()
   expect(screen.getByText(/Archivo Maestro/)).toBeInTheDocument()
-  expect(screen.queryByText(/Archivo de partidas/)).not.toBeInTheDocument()
-  expect(screen.queryByText(/Archivo de series/)).not.toBeInTheDocument()
+  expect(screen.getByText(/Archivo Series/)).toBeInTheDocument()
+  expect(screen.queryByText(/Libro RP completo/)).not.toBeInTheDocument()
   expect(screen.getAllByText(/7124 SKU/).length).toBeGreaterThan(0)
  })
 
