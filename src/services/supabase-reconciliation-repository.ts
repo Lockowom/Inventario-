@@ -16,7 +16,7 @@ export type RecountMission={
  codigo:string;descripcion:string;reference_type:'SERIAL'|'PARTIDA'|'LEGACY';reference_value:string|null;
  known_locations:string[];observations:RecountMissionObservation[];
 }
-export type RecountQueue={inventory_id:string;round:2|3|null;queued_count:number;active:RecountMission|null}
+export type RecountQueue={inventory_id:string;round:2|3|null;c1_completed:boolean;queued_count:number;active:RecountMission|null}
 export type RecountMissionCompletion={mission_id:string;round:2|3;total_quantity:number;observation_count:number;case_id:string;case_status:string;confirmed_physical_quantity:number|null;next_round:3|null}
 export type SystemReferenceImportResult={reference_version:number;row_count:number;fingerprint:string}
 export type MissingBatchException={codigo:string;reason:string;created_at:string}
