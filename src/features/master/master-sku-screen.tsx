@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { createMasterFingerprint, validMasterItems, type MasterImportPreview, type MasterMetadata } from '../../domain/master/contracts'
 import { parseMasterFile } from './master-import-parser'
 import { SupabaseMasterSkuRepository } from '../../services/supabase-master-sku-repository'
@@ -12,6 +12,7 @@ export function MasterSkuScreen() {
   const [exceptionReason, setExceptionReason] = useState('')
   const [exceptionBusy, setExceptionBusy] = useState(false)
   const [message, setMessage] = useState('Selecciona un archivo CSV o XLSX para validar el maestro antes de importarlo.')
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const validItems = useMemo(() => preview ? validMasterItems(preview) : [], [preview])
 
   async function handleFile(file: File | undefined) {
@@ -21,6 +22,13 @@ export function MasterSkuScreen() {
       setPreview(nextPreview)
       setMessage(nextPreview.rejectedRows ? 'Revisa las filas rechazadas: no se habilitará una importación parcial.' : 'Preview válido. Puedes confirmar la importación atómica.')
     } catch (error: unknown) { setMessage(error instanceof Error ? error.message : 'No fue posible leer el archivo.') }
+  }
+
+  function changeFile() {
+    setPreview(null)
+    setMessage('Archivo descartado. Selecciona el nuevo archivo maestro para generar otro preview.')
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    fileInputRef.current?.click()
   }
 
   async function handleImport() {
@@ -57,12 +65,12 @@ export function MasterSkuScreen() {
   }
 
   return <section className="master-screen" aria-labelledby="master-title">
-    <header><p className="eyebrow">Fase 2 · preparación offline</p><h1 id="master-title">Maestro SKU</h1><p className="master-screen__description">Carga y valida el snapshot antes de confirmarlo. La autorización final se aplica en PostgreSQL.</p></header>
+    <header><p className="eyebrow">Fase 2 · preparación offline</p><h1 id="master-title">Maestro SKU</h1><p className="master-screen__description">Carga y valida el snapshot antes de confirmarlo. Filas repetidas por partida o serie se consolidan en un único SKU; la referencia RP conserva el detalle. La autorización final se aplica en PostgreSQL.</p></header>
     <label className="field"><span>Inventario</span><input value={inventoryId} onChange={(event) => setInventoryId(event.target.value)} placeholder="UUID del inventario" inputMode="text" /></label>
-    <label className="file-drop"><span>Archivo maestro (.csv o .xlsx)</span><input type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => void handleFile(event.target.files?.[0])} /></label>
+    <label className="file-drop"><span>Archivo maestro (.csv o .xlsx)</span><input ref={fileInputRef} type="file" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" onChange={(event) => void handleFile(event.target.files?.[0])} /></label>
     <p className="master-message" role="status">{message}</p>
-    {preview && <><div className="master-summary" aria-label="Resumen de preview">
-      <Summary label="Total filas" value={preview.totalRows} /><Summary label="Válidas" value={preview.validRows} tone="success" /><Summary label="Rechazadas" value={preview.rejectedRows} tone={preview.rejectedRows ? 'error' : undefined} /><Summary label="Duplicadas" value={preview.duplicateRows} /><Summary label="Vacías" value={preview.emptyRows} />
+    {preview && <><button className="button-secondary" type="button" onClick={changeFile}>Cambiar archivo</button><div className="master-summary" aria-label="Resumen de preview">
+      <Summary label="Total filas" value={preview.totalRows} /><Summary label="SKU únicos" value={preview.validRows} tone="success" /><Summary label="Rechazadas" value={preview.rejectedRows} tone={preview.rejectedRows ? 'error' : undefined} /><Summary label="Filas consolidadas" value={preview.duplicateRows} /><Summary label="Vacías" value={preview.emptyRows} />
     </div>
     {preview.rejectedRows > 0 && <div className="master-errors"><h2>Filas rechazadas</h2><ul>{preview.rows.filter((row) => row.errors.length > 0).map((row) => <li key={row.rowNumber}><strong>Fila {row.rowNumber}</strong> · {row.codigo || '—'} · {row.descripcion || '—'}<br /><span>{row.errors.join(' · ')}</span></li>)}</ul></div>}
     <button className="button-primary" type="button" disabled={preview.rejectedRows > 0 || validItems.length === 0} onClick={() => void handleImport()}>Confirmar importación atómica</button></>}

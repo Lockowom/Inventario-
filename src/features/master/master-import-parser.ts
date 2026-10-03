@@ -42,6 +42,10 @@ function cellText(value: unknown): string {
   return String(value)
 }
 
+function descriptionKey(value: string): string {
+  return normalizeMasterDescription(value).replace(/\s+/g, ' ').toUpperCase()
+}
+
 function buildPreview(rows: CellRow[]): MasterImportPreview {
   const [header = [], ...dataRows] = rows
   const headerMap = new Map(header.map((value, index) => [cellText(value).trim().toUpperCase(), index]))
@@ -52,8 +56,6 @@ function buildPreview(rows: CellRow[]): MasterImportPreview {
     const invalidRows = dataRows.map((row, index) => ({ rowNumber: index + 2, codigo: cellText(row[0]), descripcion: cellText(row[1]), normalizedCodigo: '', normalizedDescripcion: '', errors: ['FORMATO NO SOPORTADO'] }))
     return masterImportPreviewSchema.parse({ totalRows: dataRows.length, validRows: 0, rejectedRows: invalidRows.length, duplicateRows: 0, emptyRows: 0, rows: invalidRows })
   }
-  const seenCodes = new Set<string>()
-  let duplicates = 0
   let emptyRows = 0
   const parsedRows: MasterImportRow[] = dataRows.map((row, index) => {
     const codigo = cellText(row[codigoColumn])
@@ -64,13 +66,27 @@ function buildPreview(rows: CellRow[]): MasterImportPreview {
     if (!normalizedCodigo) errors.push('CODIGO VACIO')
     if (!normalizedDescripcion) errors.push('DESCRIPCION VACIA')
     if (!normalizedCodigo || !normalizedDescripcion) emptyRows += 1
-    if (normalizedCodigo) {
-      if (seenCodes.has(normalizedCodigo)) { errors.push('CODIGO DUPLICADO'); duplicates += 1 } else seenCodes.add(normalizedCodigo)
-    }
     return { rowNumber: index + 2, codigo, descripcion, normalizedCodigo, normalizedDescripcion, controlType: normalizedCodigo ? deriveMasterControlType(normalizedCodigo) : undefined, errors }
   })
+  const validRowsByCode = new Map<string, MasterImportRow[]>()
+  for (const row of parsedRows) {
+    if (row.errors.length > 0) continue
+    const rows = validRowsByCode.get(row.normalizedCodigo) ?? []
+    rows.push(row)
+    validRowsByCode.set(row.normalizedCodigo, rows)
+  }
+  let consolidatedRows = 0
+  for (const rows of validRowsByCode.values()) {
+    if (rows.length < 2) continue
+    if (new Set(rows.map((row) => descriptionKey(row.normalizedDescripcion))).size === 1) {
+      consolidatedRows += rows.length - 1
+      continue
+    }
+    rows.forEach((row) => row.errors.push('CODIGO CON DESCRIPCIONES EN CONFLICTO'))
+  }
   const rejectedRows = parsedRows.filter((row) => row.errors.length > 0).length
-  return masterImportPreviewSchema.parse({ totalRows: dataRows.length, validRows: dataRows.length - rejectedRows, rejectedRows, duplicateRows: duplicates, emptyRows, rows: parsedRows })
+  const validRows = new Set(parsedRows.filter((row) => row.errors.length === 0).map((row) => row.normalizedCodigo)).size
+  return masterImportPreviewSchema.parse({ totalRows: dataRows.length, validRows, rejectedRows, duplicateRows: consolidatedRows, emptyRows, rows: parsedRows })
 }
 
 export function parseMasterCsv(contents: string): MasterImportPreview {
