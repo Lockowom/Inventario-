@@ -114,7 +114,7 @@ export async function parseSystemReferenceXlsx(
    codes.add(codigo)
    const values=stockValues(rawRow,matrix.headers)
    if(values.some(value=>value===null)){
-    addIssue(issues,logicalName,index+1,codigo,null,'ERROR','STOCK NO ENTERO O NO NUMÉRICO')
+    addIssue(issues,logicalName,index+1,codigo,null,'WARNING','STOCK NO ENTERO O NO NUMÉRICO')
     continue
    }
    const [disponible,reserva,transitoria,consignacion,total]=values as [number,number,number,number,number]
@@ -131,11 +131,11 @@ export async function parseSystemReferenceXlsx(
  const baseAggregate=aggregates.get('STOCK TOTAL')
  for(const logicalName of ['STOCK CON P','STOCK CON S'] as const){
   const universe=universes.get(logicalName)
-  if(baseUniverse&&universe&&!sameSet(baseUniverse,universe)) addIssue(issues,logicalName,0,'',null,'ERROR','EL UNIVERSO SKU NO COINCIDE CON STOCK TOTAL')
+  if(baseUniverse&&universe&&!sameSet(baseUniverse,universe)) addIssue(issues,logicalName,0,'',null,'WARNING','EL UNIVERSO SKU NO COINCIDE CON STOCK TOTAL')
   const aggregate=aggregates.get(logicalName)
   if(baseAggregate&&aggregate){
    const mismatches=[...baseAggregate.entries()].filter(([codigo,qty])=>aggregate.get(codigo)!==qty)
-   if(mismatches.length) addIssue(issues,logicalName,0,'',null,'ERROR',`STOCK CONSOLIDADO NO CUADRA CON STOCK TOTAL EN ${mismatches.length} SKU`)
+   if(mismatches.length) addIssue(issues,logicalName,0,'',null,'WARNING',`STOCK CONSOLIDADO NO CUADRA CON STOCK TOTAL EN ${mismatches.length} SKU`)
   }
  }
 
@@ -157,7 +157,7 @@ export async function parseSystemReferenceXlsx(
 
  const pushItem=(item:SystemReferenceItem,sheet:string,rowNumber:number)=>{
   const key=`${item.codigo}\u001f${item.referenceType}\u001f${item.referenceValue??''}`
-  if(naturalKeys.has(key)){addIssue(issues,sheet,rowNumber,item.codigo,item.referenceValue,'ERROR','REFERENCIA DUPLICADA');return}
+  if(naturalKeys.has(key)){addIssue(issues,sheet,rowNumber,item.codigo,item.referenceValue,'WARNING','REFERENCIA DUPLICADA');return}
   naturalKeys.add(key);items.push(item)
  }
 
@@ -190,8 +190,8 @@ export async function parseSystemReferenceXlsx(
     const unitCode=ref(batches.display[index]?.[unitIndex])
     const rawExpiration=ref(batches.display[index]?.[expirationIndex])
     const parsedExpiration=expirationDate(rawExpiration)
-    if(rawExpiration&&!parsedExpiration) addIssue(issues,'STOCK CON P',index+1,codigo,referenceValue,'ERROR','FECHA VENC INVÁLIDA')
-    if(quantity===null||availableQuantity===null||!unitCode||rawExpiration&&!parsedExpiration) continue
+    if(rawExpiration&&!parsedExpiration) addIssue(issues,'STOCK CON P',index+1,codigo,referenceValue,'WARNING','FECHA VENC INVÁLIDA')
+    if(quantity===null||availableQuantity===null||!unitCode) continue
     if(quantity>0&&!referenceValue){
      unidentifiedBatchCodes.add(codigo)
      if(!authorizedCodes.has(codigo)){
@@ -228,13 +228,13 @@ export async function parseSystemReferenceXlsx(
     const availableQuantity=parseInteger(serials.raw[index]?.[availableIndex])
     const unitCode=ref(serials.display[index]?.[unitIndex])
     if(!codigo||!belongsToMaster(codigo,'STOCK CON S',index+1)) continue
-    if(referenceValue&&deriveMasterControlType(codigo)!=='SERIAL'){addIssue(issues,'STOCK CON S',index+1,codigo,referenceValue,'ERROR','SERIE ASOCIADA A SKU NO SERIAL');continue}
+    if(referenceValue&&deriveMasterControlType(codigo)!=='SERIAL'){addIssue(issues,'STOCK CON S',index+1,codigo,referenceValue,'WARNING','SERIE ASOCIADA A SKU NO SERIAL');continue}
     if(deriveMasterControlType(codigo)!=='SERIAL'||quantity===null||availableQuantity===null||!unitCode) continue
-    if(quantity>0&&!referenceValue){addIssue(issues,'STOCK CON S',index+1,codigo,null,'ERROR','STOCK SERIAL POSITIVO SIN SERIE');continue}
+    if(quantity>0&&!referenceValue){addIssue(issues,'STOCK CON S',index+1,codigo,null,'WARNING','STOCK SERIAL POSITIVO SIN SERIE');continue}
     if(referenceValue&&(quantity<0||availableQuantity<0)) addIssue(issues,'STOCK CON S',index+1,codigo,referenceValue,'WARNING','SERIE CON STOCK NEGATIVO: se conserva como evidencia; no genera conteo físico negativo')
-    else if(referenceValue&&quantity!==1){addIssue(issues,'STOCK CON S',index+1,codigo,referenceValue,'ERROR','CADA SERIE DEBE TENER CANTIDAD 1');continue}
+    else if(referenceValue&&quantity!==1){addIssue(issues,'STOCK CON S',index+1,codigo,referenceValue,'WARNING','CADA SERIE DEBE TENER CANTIDAD 1: se conserva la presencia de la serie como 1 unidad')}
     if(referenceValue){
-     if(globalSeries.has(referenceValue)){addIssue(issues,'STOCK CON S',index+1,codigo,referenceValue,'ERROR','SERIE DUPLICADA EN FUENTE DE SISTEMA');continue}
+     if(globalSeries.has(referenceValue)){addIssue(issues,'STOCK CON S',index+1,codigo,referenceValue,'WARNING','SERIE DUPLICADA EN FUENTE DE SISTEMA');continue}
      globalSeries.add(referenceValue)
      pushItem({codigo,referenceType:'SERIAL',referenceValue,quantity:1,availableQuantity,unitCode,expirationDate:null},'STOCK CON S',index+1)
     }
@@ -288,7 +288,7 @@ function validateSplitSheet(matrix:SplitSheet,issues:SystemReferenceIssue[]){
   if(!codigo) continue
   codes.add(codigo)
   const values=stockValues(rawRow,matrix.headers)
-  if(values.some(value=>value===null)){addIssue(issues,matrix.label,index+1,codigo,null,'ERROR','STOCK NO ENTERO O NO NUMÉRICO');continue}
+  if(values.some(value=>value===null)){addIssue(issues,matrix.label,index+1,codigo,null,'WARNING','STOCK NO ENTERO O NO NUMÉRICO');continue}
   const [disponible,reserva,transitoria,consignacion,total]=values as [number,number,number,number,number]
   if(disponible+reserva+transitoria+consignacion!==total) addIssue(issues,matrix.label,index+1,codigo,null,'WARNING','STOCK TOTAL NO CUADRA CON SUS ESTADOS')
   if([disponible,reserva,transitoria,consignacion].some(value=>value<0)) addIssue(issues,matrix.label,index+1,codigo,null,'WARNING','EXISTE UN ESTADO DE STOCK NEGATIVO')
@@ -325,7 +325,7 @@ export async function parseSystemReferenceFiles(batchFile:File,serialFile:File,a
  const unidentifiedBatchTotals=new Map<string,{quantity:number;availableQuantity:number;unitCode:string}>()
  const pushItem=(item:SystemReferenceItem,sheet:string,rowNumber:number)=>{
   const key=`${item.codigo}\u001f${item.referenceType}\u001f${item.referenceValue??''}`
-  if(naturalKeys.has(key)){addIssue(issues,sheet,rowNumber,item.codigo,item.referenceValue,'ERROR','REFERENCIA DUPLICADA');return}
+  if(naturalKeys.has(key)){addIssue(issues,sheet,rowNumber,item.codigo,item.referenceValue,'WARNING','REFERENCIA DUPLICADA');return}
   naturalKeys.add(key);items.push(item)
  }
  const belongsToMaster=(codigo:string,sheet:string,rowNumber:number)=>{
@@ -357,11 +357,11 @@ export async function parseSystemReferenceFiles(batchFile:File,serialFile:File,a
   if(!codigo||!belongsToMaster(codigo,batches.label,index+1)||deriveMasterControlType(codigo)!=='PARTIDA')continue
   const quantity=parseInteger(batches.raw[index]?.[batchStockIndex]),availableQuantity=parseInteger(batches.raw[index]?.[batchAvailableIndex]),referenceValue=ref(batches.display[index]?.[batchRefIndex]),unitCode=ref(batches.display[index]?.[batchUnitIndex])
   const rawExpiration=ref(batches.display[index]?.[batchExpirationIndex]),parsedExpiration=expirationDate(rawExpiration)
-  if(rawExpiration&&!parsedExpiration)addIssue(issues,batches.label,index+1,codigo,referenceValue,'ERROR','FECHA VENC INVÁLIDA')
-  if(quantity===null||availableQuantity===null||!unitCode||rawExpiration&&!parsedExpiration)continue
+  if(rawExpiration&&!parsedExpiration)addIssue(issues,batches.label,index+1,codigo,referenceValue,'WARNING','FECHA VENC INVÁLIDA')
+  if(quantity===null||availableQuantity===null||!unitCode)continue
   if(quantity>0&&!referenceValue){
    unidentifiedBatchCodes.add(codigo)
-   if(!authorizedCodes.has(codigo)){addIssue(issues,batches.label,index+1,codigo,null,'ERROR','STOCK POSITIVO SIN PARTIDA / TALLA');continue}
+   if(!authorizedCodes.has(codigo)){addIssue(issues,batches.label,index+1,codigo,null,'WARNING','STOCK POSITIVO SIN PARTIDA / TALLA');continue}
    const current=unidentifiedBatchTotals.get(codigo)
    unidentifiedBatchTotals.set(codigo,{quantity:(current?.quantity??0)+quantity,availableQuantity:(current?.availableQuantity??0)+availableQuantity,unitCode})
    continue
@@ -377,12 +377,12 @@ export async function parseSystemReferenceFiles(batchFile:File,serialFile:File,a
  if(serialCodeIndex!==undefined&&serialRefIndex!==undefined&&serialStockIndex!==undefined&&serialAvailableIndex!==undefined&&serialUnitIndex!==undefined) for(let index=1;index<serials.display.length;index+=1){
   const codigo=code(serials.display[index]?.[serialCodeIndex]),referenceValue=ref(serials.display[index]?.[serialRefIndex]),quantity=parseInteger(serials.raw[index]?.[serialStockIndex]),availableQuantity=parseInteger(serials.raw[index]?.[serialAvailableIndex]),unitCode=ref(serials.display[index]?.[serialUnitIndex])
   if(!codigo||!belongsToMaster(codigo,serials.label,index+1))continue
-  if(referenceValue&&deriveMasterControlType(codigo)!=='SERIAL'){addIssue(issues,serials.label,index+1,codigo,referenceValue,'ERROR','SERIE ASOCIADA A SKU NO SERIAL');continue}
+  if(referenceValue&&deriveMasterControlType(codigo)!=='SERIAL'){addIssue(issues,serials.label,index+1,codigo,referenceValue,'WARNING','SERIE ASOCIADA A SKU NO SERIAL');continue}
   if(deriveMasterControlType(codigo)!=='SERIAL'||quantity===null||availableQuantity===null||!unitCode)continue
-  if(quantity>0&&!referenceValue){addIssue(issues,serials.label,index+1,codigo,null,'ERROR','STOCK SERIAL POSITIVO SIN SERIE');continue}
+  if(quantity>0&&!referenceValue){addIssue(issues,serials.label,index+1,codigo,null,'WARNING','STOCK SERIAL POSITIVO SIN SERIE');continue}
   if(referenceValue&&(quantity<0||availableQuantity<0))addIssue(issues,serials.label,index+1,codigo,referenceValue,'WARNING','SERIE CON STOCK NEGATIVO: se conserva como evidencia; no genera conteo físico negativo')
-  else if(referenceValue&&quantity!==1){addIssue(issues,serials.label,index+1,codigo,referenceValue,'ERROR','CADA SERIE DEBE TENER CANTIDAD 1');continue}
-  if(referenceValue){if(globalSeries.has(referenceValue)){addIssue(issues,serials.label,index+1,codigo,referenceValue,'ERROR','SERIE DUPLICADA EN FUENTE DE SISTEMA');continue};globalSeries.add(referenceValue);pushItem({codigo,referenceType:'SERIAL',referenceValue,quantity:1,availableQuantity,unitCode,expirationDate:null},serials.label,index+1)}
+  else if(referenceValue&&quantity!==1){addIssue(issues,serials.label,index+1,codigo,referenceValue,'WARNING','CADA SERIE DEBE TENER CANTIDAD 1: se conserva la presencia de la serie como 1 unidad')}
+  if(referenceValue){if(globalSeries.has(referenceValue)){addIssue(issues,serials.label,index+1,codigo,referenceValue,'WARNING','SERIE DUPLICADA EN FUENTE DE SISTEMA');continue};globalSeries.add(referenceValue);pushItem({codigo,referenceType:'SERIAL',referenceValue,quantity:1,availableQuantity,unitCode,expirationDate:null},serials.label,index+1)}
  }
 
  const sourceFiles=[{role:'PARTIDAS' as const,fileName:batches.fileName,sha256:batches.sha256},{role:'SERIES' as const,fileName:serials.fileName,sha256:serials.sha256}]
