@@ -1,33 +1,12 @@
-import { useState } from 'react'
-import { SupabaseReconciliationRepository, type ReconciliationSummary } from '../../services/supabase-reconciliation-repository'
-
-const repo=new SupabaseReconciliationRepository()
+import type { ReconciliationSummary } from '../../services/supabase-reconciliation-repository'
 
 export function SystemReferencePanel({
- inventoryId,
  inventoryStatus,
  summary,
- onMaterialized,
 }:{
- inventoryId:string
  inventoryStatus:string
  summary:ReconciliationSummary|null
- onMaterialized:()=>Promise<void>|void
 }){
- const [message,setMessage]=useState('')
- const [busy,setBusy]=useState(false)
-
- async function handleMaterialize(){
-  try{
-   setBusy(true)
-   const result=await repo.materialize(inventoryId)
-   await onMaterialized()
-   setMessage('Conciliación actualizada: '+result.created_count+' casos nuevos, '+result.existing_count+' casos abiertos para este snapshot.')
-  }catch(error){
-   setMessage(error instanceof Error?error.message:'No fue posible materializar la conciliación.')
-  }finally{setBusy(false)}
- }
-
  const source=summary?.source_reference??null
  return <section className="master-status" aria-labelledby="system-reference-title">
   <h2 id="system-reference-title">Referencia RP activa</h2>
@@ -41,7 +20,7 @@ export function SystemReferencePanel({
   </dl>:<p className="form-warning">No existe una referencia RP confirmada para este inventario.</p>}
 
   {(inventoryStatus==='BORRADOR'||inventoryStatus==='PREPARADO')&&<p className="reconciliation-note">Completa Maestro + RP desde el módulo Carga de datos antes de abrir el inventario.</p>}
-  {inventoryStatus==='ABIERTO'&&<button className="button-primary" type="button" disabled={busy||!source} onClick={()=>void handleMaterialize()}>{busy?'PROCESANDO…':'GENERAR / ACTUALIZAR HALLAZGOS'}</button>}
-  {message&&<p className="reconciliation-message" role="status">{message}</p>}
+  {inventoryStatus==='ABIERTO'&&<p className="reconciliation-note">Los casos C2/C3 definitivos se generan al finalizar C1 desde Supervisión. Mientras C1 esté abierto, esta referencia se usa sólo para comparación en vivo.</p>}
+  {inventoryStatus==='CERRADO'&&<p className="reconciliation-note">Inventario cerrado: esta referencia queda vinculada al snapshot final conciliado.</p>}
  </section>
 }
