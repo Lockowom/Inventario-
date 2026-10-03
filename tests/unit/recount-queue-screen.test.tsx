@@ -43,6 +43,7 @@ describe('F15 recount queue',()=>{
   expect(screen.getByText(/CONTEO CIEGO/)).toBeTruthy()
   expect(screen.queryByText(/Softland: 5/)).toBeNull()
   expect(screen.queryByText(/C1: 4/)).toBeNull()
+  expect(screen.getByRole('button',{name:'CONFIRMAR 0 · NO ENCONTRADO'})).toBeEnabled()
   expect(screen.getByRole('button',{name:'FINALIZAR C2'})).toBeDisabled()
  })
 })
