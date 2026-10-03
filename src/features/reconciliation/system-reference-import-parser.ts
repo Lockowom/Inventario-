@@ -154,7 +154,11 @@ export async function parseSystemReferenceXlsx(contents:ArrayBuffer,fileName='RP
     const quantity=parseInteger(batches.raw[index]?.[stockIndex])
     const referenceValue=ref(batches.display[index]?.[refIndex])
     if(quantity===null||quantity<0) continue
-    if(quantity>0&&!referenceValue){addIssue(issues,'STOCK CON P',index+1,codigo,null,'ERROR','STOCK POSITIVO SIN PARTIDA / TALLA');continue}
+    if(quantity>0&&!referenceValue){
+     addIssue(issues,'STOCK CON P',index+1,codigo,null,'WARNING','STOCK POSITIVO SIN PARTIDA / TALLA')
+     pushItem({codigo,referenceType:'PARTIDA',referenceValue:null,quantity},'STOCK CON P',index+1)
+     continue
+    }
     if(quantity>0&&referenceValue) pushItem({codigo,referenceType:'PARTIDA',referenceValue,quantity},'STOCK CON P',index+1)
    }
   }
