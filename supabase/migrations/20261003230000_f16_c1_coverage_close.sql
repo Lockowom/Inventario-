@@ -585,6 +585,16 @@ begin
     raise exception 'Confirm that every counting device has synchronized before finalizing C1' using errcode='23514';
   end if;
 
+  if exists(
+    select 1
+    from public.inventory_freeze_guards g
+    where g.inventory_id=p_inventory_id
+      and g.resolved_at is null
+      and g.pending_count>0
+  ) then
+    raise exception 'Inventory has known pending synchronization records' using errcode='23514';
+  end if;
+
   select * into inv
   from public.inventories
   where id=p_inventory_id
