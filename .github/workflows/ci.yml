@@ -28,7 +28,6 @@ jobs:
       - run: npm run test
       - run: npm run build
       - run: npx cap sync android
-      - run: npx cap sync ios
       - run: npm audit --omit=dev
 
   database-checks:

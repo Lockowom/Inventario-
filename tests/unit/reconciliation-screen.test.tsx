@@ -17,7 +17,7 @@ describe('ReconciliationScreen authorization surface',()=>{
 })
 
 
-describe('F11 reconciliation decision vocabulary',()=>{
+describe('F15 reconciliation decision vocabulary',()=>{
  it('keeps the counter surface blind to analyst resolution controls',async()=>{
   const {container}=render(<ReconciliationScreen/>); await waitFor(()=>expect(myProfile).toHaveBeenCalledTimes(2)); await waitFor(()=>expect(inventories).toHaveBeenCalledTimes(2));
   expect(container.textContent).not.toContain('REGISTRAR DICTAMEN Y CERRAR')

@@ -15,7 +15,7 @@ select lives_ok($$select * from public.import_inventory_system_reference('f13d00
 select is((select source_total_quantity from public.inventory_system_reference_items where inventory_id='f13d0000-0000-0000-0000-000000000010'),-1,'signed Stock Total is retained');
 select is((select source_available_quantity from public.inventory_system_reference_items where inventory_id='f13d0000-0000-0000-0000-000000000010'),-1,'signed Disponible is retained');
 select is((select quantity from public.inventory_system_reference_items where inventory_id='f13d0000-0000-0000-0000-000000000010'),0,'physical baseline is clamped to zero');
-select is((select payload->>'baseline' from public.audit_events where inventory_id='f13d0000-0000-0000-0000-000000000010' order by created_at desc limit 1),'DISPONIBLE_NO_NEGATIVO','audit describes the non-negative physical baseline');
+select is((select payload->>'baseline' from public.audit_events where inventory_id='f13d0000-0000-0000-0000-000000000010' order by created_at desc limit 1),'DISPONIBLE_NO_NEGATIVO_SERIAL_PRESENCE','audit describes the non-negative serial-presence baseline');
 reset role;
 
 select * from finish();

@@ -41,8 +41,8 @@ describe('F14 single upload ownership',()=>{
  })
 
  it('Conciliación no longer exposes RP upload controls',async()=>{
-  render(<SystemReferencePanel inventoryId="inv-1" inventoryStatus="PREPARADO" role="ADMIN" onMaterialized={()=>undefined}/>)
-  await waitFor(()=>expect(screen.getByText(/Sin referencia RP confirmada/)).toBeInTheDocument())
+  render(<SystemReferencePanel inventoryId="inv-1" inventoryStatus="PREPARADO" summary={null} onMaterialized={()=>undefined}/>)
+  await waitFor(()=>expect(screen.getByText(/No existe una referencia RP confirmada/)).toBeInTheDocument())
   expect(screen.queryByLabelText(/Libro RP/i)).toBeNull()
   expect(screen.queryByLabelText(/Archivo de partidas/i)).toBeNull()
   expect(screen.queryByLabelText(/Archivo de series/i)).toBeNull()

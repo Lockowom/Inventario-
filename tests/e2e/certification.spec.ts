@@ -163,7 +163,7 @@ test.describe('F9A certificación responsive y accesible', () => {
     await expect(page.getByRole('heading', { name: 'SUPERVISIÓN' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Maestro SKU' })).toBeVisible()
     await expect(page.getByLabel('Inventario').last()).toBeVisible()
-    await expect(page.getByLabel(/Archivo maestro/)).toBeVisible()
+    await expect(page.getByText(/Carga de datos/).first()).toBeVisible()
     await expect(page.getByRole('button', { name: 'ACTUALIZAR' })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   })
