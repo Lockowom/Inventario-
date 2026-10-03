@@ -50,13 +50,22 @@ select set_config('request.jwt.claim.sub', '71000000-0000-0000-0000-000000000003
 select throws_ok($$select public.register_sync_device('73000000-0000-0000-0000-000000000001', 'IOS', '0.1.0', 'INVEN3 IOS')$$, '42501', 'Device registration belongs to another user', 'another user cannot reuse an existing device registration');
 reset role;
 
+update public.inventories i
+set c1_completed_at=now(),
+    c1_completed_by='71000000-0000-0000-0000-000000000001',
+    c1_count_records=(select count(*)::integer from public.count_records c where c.inventory_id=i.id),
+    c1_counted_units=(select coalesce(sum(c.cantidad_contada),0)::bigint from public.count_records c where c.inventory_id=i.id),
+    c1_master_fingerprint=repeat('a',64),
+    c1_reference_fingerprint=repeat('b',64)
+where i.id='72000000-0000-0000-0000-000000000001';
+
 select set_config('request.jwt.claim.sub', '71000000-0000-0000-0000-000000000001', true); set local role authenticated;
-select lives_ok($$select public.close_inventory('72000000-0000-0000-0000-000000000001')$$, 'admin closes after active capture');
+select lives_ok($select public.close_inventory('72000000-0000-0000-0000-000000000001')$, 'admin closes after F16 C1 completion');
 reset role;
 select set_config('request.jwt.claim.sub', '71000000-0000-0000-0000-000000000002', true); set local role authenticated;
-select is((select result_status from public.sync_counts('72000000-0000-0000-0000-000000000001', '73000000-0000-0000-0000-000000000001', 'ANDROID', '0.1.0', 'INVEN3 ANDROID', '[{"client_count_id":"74000000-0000-0000-0000-000000000003","ubicacion":"F-32-04","codigo":"00001","cantidad_contada":1,"captured_at":"2000-01-01T00:00:00Z"}]'::jsonb)), 'ACCEPTED', 'CERRADO accepts a previously captured offline record');
-select is((select inventory_status_at_receive from public.count_records where client_count_id = '74000000-0000-0000-0000-000000000003'), 'CERRADO'::public.inventory_status, 'CERRADO reception is auditable');
-select is((select captured_after_closed_at from public.count_records where client_count_id = '74000000-0000-0000-0000-000000000003'), false, 'CERRADO capture timing is stored explicitly');
+select is((select result_status from public.sync_counts('72000000-0000-0000-0000-000000000001', '73000000-0000-0000-0000-000000000001', 'ANDROID', '0.1.0', 'INVEN3 ANDROID', '[{"client_count_id":"74000000-0000-0000-0000-000000000003","ubicacion":"F-32-04","codigo":"00001","cantidad_contada":1,"captured_at":"2000-01-01T00:00:00Z"}]'::jsonb)), 'REJECTED', 'F16 rejects late normal C1 sync after C1 closure');
+select is((select reason from public.sync_counts('72000000-0000-0000-0000-000000000001', '73000000-0000-0000-0000-000000000001', 'ANDROID', '0.1.0', 'INVEN3 ANDROID', '[{"client_count_id":"74000000-0000-0000-0000-000000000003","ubicacion":"F-32-04","codigo":"00001","cantidad_contada":1,"captured_at":"2000-01-01T00:00:00Z"}]'::jsonb)), 'C1_COMPLETED', 'late C1 rejection is explicit');
+select is((select count(*) from public.count_records where client_count_id = '74000000-0000-0000-0000-000000000003'), 0::bigint, 'late C1 record is never inserted after coverage close');
 reset role;
 
 select set_config('request.jwt.claim.sub', '71000000-0000-0000-0000-000000000001', true); set local role authenticated;
