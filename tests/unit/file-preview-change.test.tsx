@@ -1,79 +1,50 @@
+import { render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
-
-const parsers = vi.hoisted(() => ({
-  parseMasterFile: vi.fn(),
-  parseSystemReferenceFiles: vi.fn(),
-}))
-
-vi.mock('../../src/features/master/master-import-parser', () => ({
-  parseMasterFile: parsers.parseMasterFile,
-}))
-
-vi.mock('../../src/features/reconciliation/system-reference-import-parser', () => ({
-  parseSystemReferenceFiles: parsers.parseSystemReferenceFiles,
-}))
-
-vi.mock('../../src/services/supabase-reconciliation-repository', () => ({
-  SupabaseReconciliationRepository: class {
-    missingBatchExceptions(){ return Promise.resolve([]) }
-  },
-}))
-
 import { MasterSkuScreen } from '../../src/features/master/master-sku-screen'
 import { SystemReferencePanel } from '../../src/features/reconciliation/system-reference-panel'
 
-describe('preview file replacement', () => {
-  it('discards the Master SKU preview before selecting another file', async () => {
-    parsers.parseMasterFile.mockResolvedValue({
-      totalRows: 1,
-      validRows: 1,
-      rejectedRows: 0,
-      duplicateRows: 0,
-      emptyRows: 0,
-      rows: [{ rowNumber: 2, codigo: 'SKU-01', descripcion: 'Producto de prueba', normalizedCodigo: 'SKU-01', normalizedDescripcion: 'PRODUCTO DE PRUEBA', controlType: 'LEGACY', errors: [] }],
-    })
-    render(<MasterSkuScreen />)
+vi.mock('../../src/services/supabase-supervision-repository',()=>({
+ SupabaseSupervisionRepository:class{
+  inventories(){return Promise.resolve([{id:'inv-1',name:'QA',status:'PREPARADO'}])}
+ }
+}))
 
-    fireEvent.change(screen.getByLabelText('Archivo maestro (.csv o .xlsx)'), {
-      target: { files: [new File(['codigo,descripcion\nSKU-01,Producto de prueba'], 'primero.csv', { type: 'text/csv' })] },
-    })
+vi.mock('../../src/services/supabase-master-sku-repository',()=>({
+ SupabaseMasterSkuRepository:class{
+  getMetadata(){return Promise.resolve({inventoryId:'inv-1',masterVersion:1,rowCount:10,fingerprint:'a'.repeat(64),cachedAt:'2026-10-03T00:00:00.000Z'})}
+  addException(){return Promise.reject(new Error('not used'))}
+ }
+}))
 
-    await screen.findByRole('button', { name: 'Cambiar archivo' })
-    fireEvent.click(screen.getByRole('button', { name: 'Cambiar archivo' }))
+vi.mock('../../src/services/supabase-reconciliation-repository',()=>({
+ SupabaseReconciliationRepository:class{
+  summary(){return Promise.resolve({
+   inventory_id:'inv-1',
+   source_reference:null,
+   summary:{total:0,open:0,pending_analysis:0,second_recount:0,third_recount:0,physical_confirmed:0,resolved:0},
+   anomalies:{},
+   last_materialized_at:null,
+  })}
+  materialize(){return Promise.reject(new Error('not used'))}
+ }
+}))
 
-    expect(screen.queryByLabelText('Resumen de preview')).toBeNull()
-    expect(screen.getByRole('status')).toHaveTextContent('Archivo descartado')
-    expect(parsers.parseMasterFile).toHaveBeenCalledTimes(1)
-  })
+vi.mock('../../src/features/counting/counting-runtime',()=>({getMasterSkuRepository:()=>({})}))
 
-  it('discards the RP preview before selecting another file', async () => {
-    parsers.parseSystemReferenceFiles.mockResolvedValue({
-      fileName: 'primero.xlsx',
-      fileSha256: 'a'.repeat(64),
-      totalSourceRows: 1,
-      itemCount: 1,
-      serialItems: 0,
-      batchItems: 0,
-      legacyItems: 1,
-      unidentifiedBatchCodes: [],
-      issues: [],
-      items: [{ codigo: 'SKU-01', referenceType: 'LEGACY', referenceValue: null, quantity: 5, availableQuantity: 5, unitCode: 'UNI', expirationDate: null }],
-    })
-    render(<SystemReferencePanel inventoryId="inventory-1" inventoryStatus="PREPARADO" role="ADMIN" onMaterialized={() => undefined} />)
+describe('F14 single upload ownership',()=>{
+ it('Maestro SKU no longer exposes file or clipboard upload controls',async()=>{
+  render(<MasterSkuScreen/>)
+  await waitFor(()=>expect(screen.getByText(/Maestro activo v1/)).toBeInTheDocument())
+  expect(screen.getByText(/exclusivamente en/i)).toHaveTextContent('Carga de datos')
+  expect(screen.queryByLabelText(/Archivo maestro/i)).toBeNull()
+  expect(screen.queryByText(/pegar desde Excel/i)).toBeNull()
+ })
 
-    fireEvent.change(screen.getByLabelText('Archivo de partidas (.xlsx)'), {
-      target: { files: [new File(['archivo de partidas'], 'partidas.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })] },
-    })
-    fireEvent.change(screen.getByLabelText('Archivo de series (.xlsx)'), {
-      target: { files: [new File(['archivo de series'], 'series.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })] },
-    })
-
-    await screen.findByRole('button', { name: 'Cambiar archivos' })
-    fireEvent.click(screen.getByRole('button', { name: 'Cambiar archivos' }))
-
-    await waitFor(() => expect(screen.queryByLabelText('Resumen referencia sistema')).toBeNull())
-    expect(screen.getByRole('status')).toHaveTextContent('Archivos descartados')
-    expect(parsers.parseSystemReferenceFiles).toHaveBeenCalledTimes(1)
-  })
+ it('Conciliación no longer exposes RP upload controls',async()=>{
+  render(<SystemReferencePanel inventoryId="inv-1" inventoryStatus="PREPARADO" role="ADMIN" onMaterialized={()=>undefined}/>)
+  await waitFor(()=>expect(screen.getByText(/Sin referencia RP confirmada/)).toBeInTheDocument())
+  expect(screen.queryByLabelText(/Libro RP/i)).toBeNull()
+  expect(screen.queryByLabelText(/Archivo de partidas/i)).toBeNull()
+  expect(screen.queryByLabelText(/Archivo de series/i)).toBeNull()
+ })
 })
