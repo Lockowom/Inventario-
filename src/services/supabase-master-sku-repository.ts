@@ -12,9 +12,24 @@ export class SupabaseMasterSkuRepository implements MasterSkuRepository {
 
   public async listByInventory(inventoryId: string): Promise<MasterSku[]> {
     const client = requireClient()
-    const { data, error } = await client.from('inventory_master_items').select('inventory_id, codigo, descripcion, control_type, created_at').eq('inventory_id', inventoryId).order('codigo')
-    if (error) throw error
-    return (data ?? []).map(parseMasterSku)
+    const pageSize = 1000
+    const rows: Array<{ inventory_id: string; codigo: string; descripcion: string; control_type: string; created_at: string }> = []
+
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await client
+        .from('inventory_master_items')
+        .select('inventory_id, codigo, descripcion, control_type, created_at')
+        .eq('inventory_id', inventoryId)
+        .order('codigo')
+        .range(from, from + pageSize - 1)
+
+      if (error) throw error
+      const page = data ?? []
+      rows.push(...page)
+      if (page.length < pageSize) break
+    }
+
+    return rows.map(parseMasterSku)
   }
 
   public async getMetadata(inventoryId: string): Promise<MasterMetadata | null> {
