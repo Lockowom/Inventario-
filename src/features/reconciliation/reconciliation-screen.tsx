@@ -45,7 +45,7 @@ export function ReconciliationScreen(){
   <header>
    <p className="eyebrow">F15 · conciliación por misiones</p>
    <h1 id="reconciliation-title">CENTRO DE CONCILIACIÓN</h1>
-   <p>La conciliación trabaja por SKU + lote/serie. Las ubicaciones se acumulan dentro de cada ronda física. C2 y C3 se ejecutan como misiones ciegas desde el módulo Reconteos.</p>
+   <p>La conciliación trabaja por SKU + lote/serie. Las ubicaciones se acumulan dentro de cada ronda física. Los casos definitivos nacen al finalizar C1; C2 y C3 se ejecutan como misiones ciegas desde Reconteos.</p>
   </header>
 
   <div className="reconciliation-actions">
@@ -59,7 +59,7 @@ export function ReconciliationScreen(){
   {inventoryId&&<LiveReconciliationWorkspace inventoryId={inventoryId}/>}
 
   <section className="reconciliation-cases">
-   <div className="reconciliation-cases__header"><div><h2>CASOS DE INVESTIGACIÓN</h2><p>Los casos observados generan una misión C2 automáticamente. Sólo escalan a C3 cuando C1 y C2 no coinciden.</p></div><strong>{visible.length}</strong></div>
+   <div className="reconciliation-cases__header"><div><h2>CASOS DE INVESTIGACIÓN</h2><p>Al finalizar C1, cada discrepancia final genera una misión C2. Sólo escala a C3 cuando C1 y C2 no coinciden.</p></div><strong>{visible.length}</strong></div>
 
    {summary&&<section className="reconciliation-summary" aria-label="Resumen conciliación">
     <SummaryMetric label="Abiertos" value={summary.summary.open}/>
