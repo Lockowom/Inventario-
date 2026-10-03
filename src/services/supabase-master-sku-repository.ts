@@ -35,9 +35,9 @@ export class SupabaseMasterSkuRepository implements MasterSkuRepository {
     if (error) throw error
   }
 
-  public async importPreview(inventoryId: string, items: ReadonlyArray<Pick<MasterSku, 'codigo' | 'descripcion'>>, importIdentifier: string): Promise<MasterMetadata> {
+  public async importPreview(inventoryId: string, items: ReadonlyArray<Pick<MasterSku, 'codigo' | 'descripcion'>>, importIdentifier: string, importSource: 'FILE' | 'PASTE' = 'FILE'): Promise<MasterMetadata> {
     const client = requireClient()
-    const { data, error } = await client.rpc('import_inventory_master', { target_inventory_id: inventoryId, import_items: items, import_source: 'FILE', import_identifier: importIdentifier })
+    const { data, error } = await client.rpc('import_inventory_master', { target_inventory_id: inventoryId, import_items: items, import_source: importSource, import_identifier: importIdentifier })
     if (error) throw error
     const result = Array.isArray(data) ? data[0] : data
     if (!result) throw new Error('La importación no devolvió metadata.')
