@@ -5,6 +5,7 @@ export type InventoryAnomalyType =
   | 'SERIE_SISTEMA_NO_CONTADA'
   | 'PARTIDA_FISICA_NO_EN_SISTEMA'
   | 'PARTIDA_SISTEMA_NO_CONTADA'
+  | 'PARTIDA_SISTEMA_SIN_REFERENCIA'
   | 'DIFERENCIA_CANTIDAD_PARTIDA'
   | 'DIFERENCIA_CANTIDAD_SKU'
   | 'DUPLICADO_SERIE'
@@ -55,7 +56,8 @@ export function detectInventoryAnomalies(reference: ReferenceStockLine[], physic
     }
 
     if (controlType === 'PARTIDA') {
-      if (systemQuantity === 0 && physicalQuantity > 0) anomalies.push({ type: 'PARTIDA_FISICA_NO_EN_SISTEMA', codigo, reference: ref, systemQuantity, physicalQuantity, difference })
+      if (systemQuantity > 0 && !ref) anomalies.push({ type: 'PARTIDA_SISTEMA_SIN_REFERENCIA', codigo, reference: null, systemQuantity, physicalQuantity, difference })
+      else if (systemQuantity === 0 && physicalQuantity > 0) anomalies.push({ type: 'PARTIDA_FISICA_NO_EN_SISTEMA', codigo, reference: ref, systemQuantity, physicalQuantity, difference })
       else if (systemQuantity > 0 && physicalQuantity === 0) anomalies.push({ type: 'PARTIDA_SISTEMA_NO_CONTADA', codigo, reference: ref, systemQuantity, physicalQuantity, difference })
       else if (difference !== 0) anomalies.push({ type: 'DIFERENCIA_CANTIDAD_PARTIDA', codigo, reference: ref, systemQuantity, physicalQuantity, difference })
       continue
