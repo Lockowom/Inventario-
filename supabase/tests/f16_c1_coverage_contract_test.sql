@@ -1,5 +1,5 @@
 begin;
-select plan(13);
+select plan(14);
 
 select has_column('public','inventories','c1_completed_at','inventory stores C1 completion timestamp');
 select has_column('public','inventories','c1_completed_by','inventory stores C1 completion actor');
@@ -26,6 +26,11 @@ select ok(
  position('C1_COMPLETED' in pg_get_functiondef('public.sync_counts(uuid,uuid,device_platform,text,text,jsonb)'::regprocedure))>0
  and position('recount_mission_observations' in pg_get_functiondef('public.sync_counts(uuid,uuid,device_platform,text,text,jsonb)'::regprocedure))>0,
  'sync blocks new C1 after coverage close and auto-attaches active recounts'
+);
+
+select ok(
+ position('inventory_freeze_guards' in lower(pg_get_functiondef('public.finalize_c1_coverage(uuid,boolean)'::regprocedure)))>0,
+ 'C1 finalization refuses known pending device synchronization'
 );
 
 select ok(
