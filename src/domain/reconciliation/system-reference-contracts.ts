@@ -1,5 +1,12 @@
 import { z } from 'zod'
 
+export const systemReferenceSourceFileSchema=z.object({
+ role:z.enum(['PARTIDAS','SERIES','CONSOLIDADO']),
+ fileName:z.string().trim().min(1),
+ sha256:z.string().regex(/^[a-f0-9]{64}$/i),
+})
+export type SystemReferenceSourceFile=z.infer<typeof systemReferenceSourceFileSchema>
+
 export const systemReferenceItemSchema=z.object({
  codigo:z.string().trim().min(1),
  referenceType:z.enum(['SERIAL','PARTIDA','LEGACY']),
@@ -26,6 +33,7 @@ export type SystemReferenceIssue=z.infer<typeof systemReferenceIssueSchema>
 export const systemReferencePreviewSchema=z.object({
  fileName:z.string().min(1),
  fileSha256:z.string().regex(/^[a-f0-9]{64}$/i),
+ sourceFiles:z.array(systemReferenceSourceFileSchema).min(1).optional(),
  totalSourceRows:z.number().int().nonnegative(),
  itemCount:z.number().int().nonnegative(),
  serialItems:z.number().int().nonnegative(),

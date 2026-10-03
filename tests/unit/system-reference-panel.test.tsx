@@ -14,7 +14,8 @@ vi.mock('../../src/services/supabase-reconciliation-repository',()=>({
 describe('F11 system reference panel lifecycle',()=>{
  it('shows import controls only before inventory opening',()=>{
   render(<SystemReferencePanel inventoryId="inv-1" inventoryStatus="PREPARADO" onMaterialized={()=>undefined}/>)
-  expect(screen.getByText('Libro RP (.xlsx)')).toBeTruthy()
+  expect(screen.getByText('Archivo de partidas (.xlsx)')).toBeTruthy()
+  expect(screen.getByText('Archivo de series (.xlsx)')).toBeTruthy()
   expect(screen.queryByRole('button',{name:'GENERAR / ACTUALIZAR HALLAZGOS'})).toBeNull()
  })
 

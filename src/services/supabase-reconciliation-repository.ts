@@ -1,4 +1,4 @@
-import type { SystemReferenceItem } from '../domain/reconciliation/system-reference-contracts'
+import type { SystemReferenceItem, SystemReferenceSourceFile } from '../domain/reconciliation/system-reference-contracts'
 import { getSupabaseClient } from './supabase'
 
 export type ReconciliationRow = {
@@ -26,8 +26,11 @@ export class SupabaseReconciliationRepository {
  summary(inventoryId:string){return rpc<ReconciliationSummary>('get_reconciliation_summary',{p_inventory_id:inventoryId})}
  events(caseId:string){return rpc<ReconciliationEvent[]>('list_reconciliation_events',{p_case_id:caseId})}
  candidates(caseId:string,round:2|3){return rpc<RecountCandidate[]>('list_recount_candidates',{p_case_id:caseId,p_round:round})}
- async importSystemReference(inventoryId:string,items:SystemReferenceItem[],fileName:string,fileSha256:string){
-  const rows=await rpc<SystemReferenceImportResult[]>('import_inventory_system_reference',{p_inventory_id:inventoryId,p_items:items.map(item=>({codigo:item.codigo,reference_value:item.referenceValue,quantity:item.quantity,available_quantity:item.availableQuantity,unit_code:item.unitCode,expiration_date:item.expirationDate})),p_source:`RP_XLSX:${fileName}`,p_import_identifier:fileSha256})
+ async importSystemReference(inventoryId:string,items:SystemReferenceItem[],fileName:string,fileSha256:string,sourceFiles:ReadonlyArray<SystemReferenceSourceFile>=[]){
+  const source=sourceFiles.length===2
+   ? `RP_XLSX:PARTIDAS=${sourceFiles.find(file=>file.role==='PARTIDAS')?.fileName??fileName}@${sourceFiles.find(file=>file.role==='PARTIDAS')?.sha256??''};SERIES=${sourceFiles.find(file=>file.role==='SERIES')?.fileName??fileName}@${sourceFiles.find(file=>file.role==='SERIES')?.sha256??''}`
+   : `RP_XLSX:${fileName}`
+  const rows=await rpc<SystemReferenceImportResult[]>('import_inventory_system_reference',{p_inventory_id:inventoryId,p_items:items.map(item=>({codigo:item.codigo,reference_value:item.referenceValue,quantity:item.quantity,available_quantity:item.availableQuantity,unit_code:item.unitCode,expiration_date:item.expirationDate})),p_source:source,p_import_identifier:fileSha256})
   const result=rows[0];if(!result)throw new Error('La referencia de sistema no devolvió metadata.');return result
  }
  async materialize(inventoryId:string){

@@ -18,19 +18,20 @@ Una diferencia es un hallazgo a investigar:
 
 ## 2. Fuente de sistema
 
-La referencia de sistema se importa desde el libro RP completo en formato XLSX.
+La referencia de sistema se importa desde **dos archivos XLSX independientes** entregados por RP/Softland:
 
-Hojas obligatorias:
+1. archivo de partidas: hoja `STOCK CON P` —o una única hoja con ese encabezado—;
+2. archivo de series: hoja `STOCK CON S` —o una única hoja con ese encabezado—.
 
-1. `STOCK TOTAL`
-2. `STOCK CON P`
-3. `STOCK CON S`
+INVEN3 combina ambos archivos en un único snapshot antes de importarlo; el operador no debe consolidarlos manualmente. La metadata y la auditoría conservan ambos nombres y hashes, además de una huella combinada e inmutable.
 
 Uso:
 
-- LEGACY: referencia desde `STOCK TOTAL`;
-- PARTIDA: lote/talla desde `STOCK CON P`;
-- SERIAL: serie desde `STOCK CON S`.
+- LEGACY: se toma del archivo de partidas; si esa fuente no lo incluye, se toma como respaldo del archivo de series;
+- PARTIDA: lote/talla desde el archivo `STOCK CON P`;
+- SERIAL: serie desde el archivo `STOCK CON S`.
+
+Cuando un SKU exista en ambos archivos, INVEN3 compara su `Stock Total` consolidado. No obliga a que ambos archivos tengan el mismo universo: Softland puede separar los productos según su tipo de control.
 
 ### Regla de base conciliable: `Disponible`
 
@@ -48,8 +49,8 @@ También conserva `Cod. U. Medida` y, para partidas, `Fecha Venc` normalizada pa
 
 Bloqueos de importación incluyen, entre otros:
 
-- hoja o columna requerida ausente;
-- universo SKU no conciliado entre hojas;
+- archivo, hoja o columna requerida ausente;
+- stock consolidado distinto para un SKU compartido entre ambos archivos;
 - ecuación de stock inconsistente;
 - stock total negativo;
 - PARTIDA con stock positivo sin `Partida / Talla`;

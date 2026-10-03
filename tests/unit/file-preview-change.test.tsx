@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 
 const parsers = vi.hoisted(() => ({
   parseMasterFile: vi.fn(),
-  parseSystemReferenceFile: vi.fn(),
+  parseSystemReferenceFiles: vi.fn(),
 }))
 
 vi.mock('../../src/features/master/master-import-parser', () => ({
@@ -11,7 +11,7 @@ vi.mock('../../src/features/master/master-import-parser', () => ({
 }))
 
 vi.mock('../../src/features/reconciliation/system-reference-import-parser', () => ({
-  parseSystemReferenceFile: parsers.parseSystemReferenceFile,
+  parseSystemReferenceFiles: parsers.parseSystemReferenceFiles,
 }))
 
 vi.mock('../../src/services/supabase-reconciliation-repository', () => ({
@@ -46,7 +46,7 @@ describe('preview file replacement', () => {
   })
 
   it('discards the RP preview before selecting another file', async () => {
-    parsers.parseSystemReferenceFile.mockResolvedValue({
+    parsers.parseSystemReferenceFiles.mockResolvedValue({
       fileName: 'primero.xlsx',
       fileSha256: 'a'.repeat(64),
       totalSourceRows: 1,
@@ -59,15 +59,18 @@ describe('preview file replacement', () => {
     })
     render(<SystemReferencePanel inventoryId="inventory-1" inventoryStatus="PREPARADO" onMaterialized={() => undefined} />)
 
-    fireEvent.change(screen.getByLabelText('Libro RP (.xlsx)'), {
-      target: { files: [new File(['archivo de prueba'], 'primero.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })] },
+    fireEvent.change(screen.getByLabelText('Archivo de partidas (.xlsx)'), {
+      target: { files: [new File(['archivo de partidas'], 'partidas.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })] },
+    })
+    fireEvent.change(screen.getByLabelText('Archivo de series (.xlsx)'), {
+      target: { files: [new File(['archivo de series'], 'series.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })] },
     })
 
-    await screen.findByRole('button', { name: 'Cambiar archivo' })
-    fireEvent.click(screen.getByRole('button', { name: 'Cambiar archivo' }))
+    await screen.findByRole('button', { name: 'Cambiar archivos' })
+    fireEvent.click(screen.getByRole('button', { name: 'Cambiar archivos' }))
 
     await waitFor(() => expect(screen.queryByLabelText('Resumen referencia sistema')).toBeNull())
-    expect(screen.getByRole('status')).toHaveTextContent('Archivo descartado')
-    expect(parsers.parseSystemReferenceFile).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('status')).toHaveTextContent('Archivos descartados')
+    expect(parsers.parseSystemReferenceFiles).toHaveBeenCalledTimes(1)
   })
 })
