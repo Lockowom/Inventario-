@@ -25,6 +25,7 @@ export function RecountQueueScreen({runtime,syncCoordinator}:{runtime:CountingRu
  useEffect(()=>{void refresh().catch(()=>setMessage('No fue posible cargar la cola de reconteos.'))},[refresh])
 
  if(!runtime)return <section><h1>RECONTEOS</h1><p>Necesitas un inventario ABIERTO para trabajar misiones de reconteo.</p></section>
+ const activeRuntime=runtime
 
  async function claim(){
   try{
@@ -44,7 +45,7 @@ export function RecountQueueScreen({runtime,syncCoordinator}:{runtime:CountingRu
     serie:mission.reference_type==='SERIAL'?(mission.reference_value??''):'',
     partida:mission.reference_type==='PARTIDA'?(mission.reference_value??''):'',
     cantidadContada:mission.reference_type==='SERIAL'?'1':cantidad}
-   const saved=await savePhysicalCount(runtime.context,draft,runtime)
+   const saved=await savePhysicalCount(activeRuntime.context,draft,activeRuntime)
    if(!syncCoordinator)throw new Error('Sincronización no disponible.')
    await syncCoordinator.runInventorySync(inventoryId,{forceRetry:true})
    const updated=await repo.addMissionObservation(mission.id,saved.record.clientCountId)
