@@ -6,6 +6,8 @@ INVEN3 tendrá una sola superficie para ingreso de datos de preparación:
 
 **Navegación → Carga de datos**
 
+Dentro de ese único módulo se cargan tres archivos independientes: Maestro SKU, Partidas/Lotes y Series.
+
 Se eliminan las cargas de archivos desde Maestro SKU y Conciliación.
 
 Esos módulos quedan orientados a operación posterior:
@@ -19,10 +21,12 @@ Esos módulos quedan orientados a operación posterior:
 2. Validar Maestro SKU.
 3. Confirmar Maestro.
 4. Refrescar cache offline SQLite/IndexedDB.
-5. Validar libro RP consolidado.
-6. Resolver excepciones controladas de Partida/Talla ausente.
-7. Confirmar referencia RP.
-8. Continuar con preparación/apertura del inventario.
+5. Cargar y validar archivo Partidas/Lotes.
+6. Cargar y validar archivo Series.
+7. Cruzar ambos archivos contra el Maestro confirmado.
+8. Resolver excepciones controladas de Partida/Talla ausente.
+9. Confirmar referencia RP.
+10. Continuar con preparación/apertura del inventario.
 
 ## Maestro SKU
 
@@ -45,13 +49,14 @@ SKU repetidos con la misma descripción se consolidan. El mismo código con desc
 
 ## Referencia RP
 
-El flujo principal usa un único libro XLSX con:
+El flujo operativo real usa dos exportaciones XLSX separadas, dentro del mismo Centro de Carga:
 
-- STOCK TOTAL.
-- STOCK CON P.
-- STOCK CON S.
+- **Partidas/Lotes**: columnas `Cod. Producto`, `Producto`, `Cod. U. Medida`, `Partida / Talla`, `Pieza / Color`, `Fecha Venc`, estados de stock y `Stock Total`.
+- **Series**: columnas `Cod. Producto`, `Producto`, `Cod. U. Medida`, `Serie`, estados de stock y `Stock Total`.
 
-El preview valida estructura, universo SKU, sumas, series duplicadas, partida/talla, vencimiento, valores negativos como evidencia y pertenencia al Maestro.
+El archivo Maestro es una tercera fuente independiente y contiene el universo completo de SKU.
+
+El preview cruza Partidas/Lotes y Series contra el Maestro, valida estructura, cantidades, series duplicadas, partida/talla, vencimiento, valores negativos como evidencia y pertenencia al Maestro.
 
 ### Partida ausente
 
