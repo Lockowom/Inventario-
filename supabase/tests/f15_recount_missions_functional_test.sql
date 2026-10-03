@@ -62,6 +62,16 @@ select id,inventory_id,2,'f1500000-0000-0000-0000-000000000002',
 from public.reconciliation_cases
 where inventory_id='f1510000-0000-0000-0000-000000000001';
 
+update public.inventories
+set c1_completed_at='2026-10-03T10:05:00Z'::timestamptz,
+    c1_completed_by='f1500000-0000-0000-0000-000000000002',
+    c1_count_records=3,
+    c1_counted_units=19,
+    c1_master_fingerprint=repeat('a',64),
+    c1_reference_fingerprint='F15-TEST-FP'
+where id='f1510000-0000-0000-0000-000000000001';
+
+
 select is((select count(*) from public.recount_missions where inventory_id='f1510000-0000-0000-0000-000000000001' and round=2 and status='QUEUED'),2::bigint,'two C2 missions are queued');
 
 select set_config('request.jwt.claim.sub','f1500000-0000-0000-0000-000000000003',true);
