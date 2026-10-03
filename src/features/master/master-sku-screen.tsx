@@ -13,6 +13,7 @@ export function MasterSkuScreen() {
   const [metadata, setMetadata] = useState<MasterMetadata | null>(null)
   const [pasteText, setPasteText] = useState('')
   const [importBusy, setImportBusy] = useState(false)
+  const [importSource, setImportSource] = useState<'FILE' | 'PASTE'>('FILE')
   const [exceptionCode, setExceptionCode] = useState('')
   const [exceptionDescription, setExceptionDescription] = useState('')
   const [exceptionReason, setExceptionReason] = useState('')
@@ -31,6 +32,7 @@ export function MasterSkuScreen() {
 
   function handleClipboardText(text: string) {
     setPasteText(text)
+    setImportSource('PASTE')
     if (!text.trim()) {
       setPreview(null)
       setMessage('Pega al menos las columnas Código y Descripción.')
@@ -48,6 +50,7 @@ export function MasterSkuScreen() {
     if (!file) return
     try {
       const nextPreview = await parseMasterFile(file)
+      setImportSource('FILE')
       applyPreview(nextPreview, file.name)
     } catch (error: unknown) {
       setPreview(null)
@@ -66,7 +69,7 @@ export function MasterSkuScreen() {
     setImportBusy(true)
     try {
       const fingerprint = await createMasterFingerprint(validItems)
-      const nextMetadata = await remoteMasterRepository.importPreview(targetInventoryId, validItems, fingerprint)
+      const nextMetadata = await remoteMasterRepository.importPreview(targetInventoryId, validItems, fingerprint, importSource)
       setMetadata(nextMetadata)
 
       try {
