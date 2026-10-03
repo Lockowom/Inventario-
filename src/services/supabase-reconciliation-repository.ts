@@ -11,6 +11,14 @@ async function rpc<T>(name:string,args:Record<string,unknown>):Promise<T>{
  const client=getSupabaseClient(); if(!client) throw new Error('Conciliación no configurada.'); const {data,error}=await client.rpc(name,args); if(error) throw new Error(error.message); return data as T
 }
 export type RecountAssignment={id:string;inventory_id:string;codigo:string;reference_type:'SERIAL'|'PARTIDA'|'LEGACY';reference_value:string|null;round:2|3}
+export type RecountMissionObservation={id:string;client_count_id:string;ubicacion:string;cantidad:number;captured_at:string}
+export type RecountMission={
+ id:string;case_id:string;inventory_id:string;round:2|3;status:'QUEUED'|'ACTIVE'|'COMPLETED'|'CANCELLED';
+ codigo:string;descripcion:string;reference_type:'SERIAL'|'PARTIDA'|'LEGACY';reference_value:string|null;
+ known_locations:string[];observations:RecountMissionObservation[];
+}
+export type RecountQueue={inventory_id:string;round:2|3|null;queued_count:number;active:RecountMission|null}
+export type RecountMissionCompletion={mission_id:string;round:2|3;total_quantity:number;observation_count:number;case_id:string;case_status:string;confirmed_physical_quantity:number|null;next_round:3|null}
 export type RecountCandidate={user_id:string;display_name:string;role:'CONTADOR'|'ANALISTA'}
 export type SystemReferenceImportResult={reference_version:number;row_count:number;fingerprint:string}
 export type MissingBatchException={codigo:string;reason:string;created_at:string}
@@ -22,6 +30,10 @@ export type LiveReconciliationRow={codigo:string;descripcion:string;unit_code:st
 export type LiveReconciliationWorkspace={inventory_id:string;refreshed_at:string;metrics:{total_skus:number;counted_skus:number;matched_items:number;difference_items:number;new_references:number;non_available_items:number;available_units:number;counted_units:number;difference_units:number};rows:LiveReconciliationRow[]}
 export class SupabaseReconciliationRepository {
  myAssignments(inventoryId:string){return rpc<RecountAssignment[]>('get_my_recount_assignments',{p_inventory_id:inventoryId})}
+ recountQueue(inventoryId:string){return rpc<RecountQueue>('get_my_recount_queue',{p_inventory_id:inventoryId})}
+ claimNextMission(inventoryId:string){return rpc<RecountMission|null>('claim_next_recount_mission',{p_inventory_id:inventoryId})}
+ addMissionObservation(missionId:string,clientCountId:string){return rpc<RecountMission>('add_my_recount_observation',{p_mission_id:missionId,p_client_count_id:clientCountId})}
+ completeMission(missionId:string){return rpc<RecountMissionCompletion>('complete_my_recount_mission',{p_mission_id:missionId})}
  recordMyRecount(caseId:string,clientCountId:string){return rpc<ReconciliationRow>('record_my_recount',{p_case_id:caseId,p_client_count_id:clientCountId})}
  list(inventoryId:string){return rpc<ReconciliationRow[]>('list_reconciliation_cases',{p_inventory_id:inventoryId})}
  summary(inventoryId:string){return rpc<ReconciliationSummary>('get_reconciliation_summary',{p_inventory_id:inventoryId})}
