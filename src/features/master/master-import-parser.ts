@@ -62,7 +62,7 @@ function invalidPreview(rows: CellRow[], rowOffset = 1): MasterImportPreview {
     duplicateRows: 0,
     emptyRows: 0,
     rows: invalidRows.length ? invalidRows : [{
-      rowNumber: 0,
+      rowNumber: 1,
       codigo: '',
       descripcion: '',
       normalizedCodigo: '',
