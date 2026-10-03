@@ -1,5 +1,5 @@
 begin;
-select plan(17);
+select plan(18);
 
 insert into auth.users(id,aud,role,email,encrypted_password,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
 ('f1500000-0000-0000-0000-000000000001','authenticated','authenticated','f15-admin@example.invalid','','{}','{}',now(),now()),
@@ -56,8 +56,9 @@ insert into public.reconciliation_cases(
 select 'f1510000-0000-0000-0000-000000000001','F15A002P','PARTIDA','LOT-B','DIFERENCIA_CANTIDAD_PARTIDA',12,10,'REQUIERE_2DO_CONTEO',id,'f1500000-0000-0000-0000-000000000002','F15-TEST-FP'
 from public.count_records where client_count_id='f1530000-0000-0000-0000-000000000003';
 
-insert into public.recount_missions(case_id,inventory_id,round,created_by)
-select id,inventory_id,2,'f1500000-0000-0000-0000-000000000002'
+insert into public.recount_missions(case_id,inventory_id,round,created_by,created_at)
+select id,inventory_id,2,'f1500000-0000-0000-0000-000000000002',
+       case when codigo='F15A001P' then '2026-10-03T10:10:00Z'::timestamptz else '2026-10-03T10:11:00Z'::timestamptz end
 from public.reconciliation_cases
 where inventory_id='f1510000-0000-0000-0000-000000000001';
 
