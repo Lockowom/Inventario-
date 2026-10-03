@@ -60,7 +60,7 @@ set c1_completed_at=now(),
 where i.id='72000000-0000-0000-0000-000000000001';
 
 select set_config('request.jwt.claim.sub', '71000000-0000-0000-0000-000000000001', true); set local role authenticated;
-select lives_ok($select public.close_inventory('72000000-0000-0000-0000-000000000001')$, 'admin closes after F16 C1 completion');
+select lives_ok($q$select public.close_inventory('72000000-0000-0000-0000-000000000001')$q$, 'admin closes after F16 C1 completion');
 reset role;
 select set_config('request.jwt.claim.sub', '71000000-0000-0000-0000-000000000002', true); set local role authenticated;
 select is((select result_status from public.sync_counts('72000000-0000-0000-0000-000000000001', '73000000-0000-0000-0000-000000000001', 'ANDROID', '0.1.0', 'INVEN3 ANDROID', '[{"client_count_id":"74000000-0000-0000-0000-000000000003","ubicacion":"F-32-04","codigo":"00001","cantidad_contada":1,"captured_at":"2000-01-01T00:00:00Z"}]'::jsonb)), 'REJECTED', 'F16 rejects late normal C1 sync after C1 closure');
