@@ -113,3 +113,30 @@ button { min-height: var(--touch-target); }
   .data-load-progress { grid-template-columns: repeat(3,minmax(0,1fr)); }
   .data-load-source-grid { grid-template-columns: minmax(0,1fr) minmax(0,1fr); align-items: start; }
 }
+
+
+/* F15 · directed recount missions */
+.recount-queue{display:grid;gap:1rem}
+.recount-queue__empty,.recount-mission{display:grid;gap:1rem;padding:1rem;border:1px solid var(--border);border-radius:16px;background:var(--surface)}
+.recount-queue__empty{grid-template-columns:minmax(0,1fr) auto;align-items:center}
+.recount-mission h2,.recount-mission h3{margin:0}
+.recount-mission ul{display:grid;gap:.5rem;margin:0;padding:0;list-style:none}
+.recount-mission li{display:flex;justify-content:space-between;gap:1rem;padding:.75rem;border:1px solid var(--border);border-radius:12px}
+.reconciliation-cases__header{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem}
+.reconciliation-cases__header>strong{font-size:2rem}
+.reconciliation-compact-list{display:grid;gap:.75rem}
+.reconciliation-compact-card{border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--surface)}
+.reconciliation-compact-card__summary{width:100%;display:grid;grid-template-columns:minmax(160px,1.5fr) minmax(180px,1.5fr) minmax(160px,1fr) auto;gap:.75rem;align-items:center;text-align:left;border:0;background:transparent;padding:1rem;color:inherit}
+.reconciliation-compact-card__summary span:first-child{display:grid}
+.reconciliation-compact-card__summary small{opacity:.72}
+.reconciliation-compact-card__status{font-weight:700}
+.reconciliation-compact-card__detail{display:grid;gap:1rem;padding:0 1rem 1rem;border-top:1px solid var(--border)}
+.reconciliation-compact-card__detail dl{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:.75rem}
+.reconciliation-compact-card__detail dl div{padding:.75rem;border:1px solid var(--border);border-radius:12px}
+.reconciliation-compact-card__detail dt{font-size:.8rem;opacity:.7}
+.reconciliation-compact-card__detail dd{margin:.25rem 0 0;font-weight:800;font-size:1.15rem}
+@media(max-width:760px){
+ .recount-queue__empty{grid-template-columns:1fr}
+ .reconciliation-compact-card__summary{grid-template-columns:1fr;gap:.35rem}
+ .reconciliation-compact-card__detail dl{grid-template-columns:repeat(2,minmax(0,1fr))}
+}

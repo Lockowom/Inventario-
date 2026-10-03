@@ -21,6 +21,7 @@ import { CertificationFixture } from './certification-fixture'
 import { isCertificationFixtureEnabled } from './certification-fixture-mode'
 import { releaseMetadata } from '../config/release-metadata'
 import { ReconciliationScreen } from '../features/reconciliation/reconciliation-screen'
+import { RecountQueueScreen } from '../features/reconciliation/recount-queue-screen'
 import { UserManagementScreen } from '../features/user-management/user-management-screen'
 import type { AppRole } from '../domain/auth/contracts'
 import { AppNavigation } from './app-navigation'
@@ -134,6 +135,8 @@ function AuthenticatedRuntime() {
     ? <><InfrastructureDiagnostic supabaseState="CONFIGURED" /><DeviceHealthScreen report={healthReport} loading={healthLoading} error={healthError} onRefresh={() => void runHealth('LIGHT')} onFullCheck={() => void runHealth('FULL')} /></>
     : visibleView === 'counting'
       ? <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} captureGate={captureGate} />
+      : visibleView === 'recounts'
+        ? <RecountQueueScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} />
       : visibleView === 'supervision'
         ? <SupervisionScreen />
         : visibleView === 'data-load'

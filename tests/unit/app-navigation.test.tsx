@@ -30,12 +30,13 @@ describe('AppNavigation', () => {
     expect(screen.getByRole('button', { name: /Usuarios/, hidden: true })).toBeInTheDocument()
   })
 
-  it('limita CONTADOR a Inicio y Conteo', () => {
+  it('limita CONTADOR a Inicio, Conteo y Reconteos', () => {
     render(<AppNavigation role="CONTADOR" activeView="home" onSelect={vi.fn()} onSignOut={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
 
     expect(screen.getByRole('button', { name: /Conteo/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Reconteos/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Supervisión/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Carga de datos/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Conciliación/ })).not.toBeInTheDocument()
@@ -47,6 +48,7 @@ describe('AppNavigation', () => {
   it('deniega vistas de gestión a CONTADOR aunque un caller intente seleccionarlas', () => {
     expect(isAppViewAllowed('CONTADOR', 'home')).toBe(true)
     expect(isAppViewAllowed('CONTADOR', 'counting')).toBe(true)
+    expect(isAppViewAllowed('CONTADOR', 'recounts')).toBe(true)
     expect(isAppViewAllowed('CONTADOR', 'supervision')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'data-load')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'reconciliation')).toBe(false)
