@@ -84,15 +84,19 @@ select * from public.sync_counts(
 );
 
 select is(
- (select count(*) from public.recount_mission_observations o join public.count_records c on c.id=o.count_record_id where c.client_count_id='f1540000-0000-0000-0000-000000000001'::uuid),
- 1::bigint,
- 'first C2 location is attached automatically during sync'
+ jsonb_array_length(public.get_my_recount_queue('f1510000-0000-0000-0000-000000000001')->'active'->'observations'),
+ 2,
+ 'both C2 locations are attached automatically during sync'
 );
 
 select is(
- (select count(*) from public.recount_mission_observations o join public.count_records c on c.id=o.count_record_id where c.client_count_id='f1540000-0000-0000-0000-000000000002'::uuid),
- 1::bigint,
- 'second C2 location is attached automatically during sync'
+ (
+   select count(*)::integer
+   from jsonb_array_elements(public.get_my_recount_queue('f1510000-0000-0000-0000-000000000001')->'active'->'observations') item
+   where item->>'client_count_id'='f1540000-0000-0000-0000-000000000002'
+ ),
+ 1,
+ 'the second C2 client count is visible through the queue RPC'
 );
 
 select lives_ok($$select public.complete_my_recount_mission(
