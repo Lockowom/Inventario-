@@ -76,19 +76,20 @@ La relación histórica con `inventory_master_items` pasa a `ON DELETE SET NULL`
 
 La unicidad cambia a una restricción parcial: sólo puede existir una autorización activa por `inventory_id + codigo`. Esto permite conservar múltiples autorizaciones históricas y exigir una nueva aprobación si el SKU vuelve a faltar en un baseline posterior.
 
-### 4. Validación RP tolerante a stock sin Partida/Talla
+### 4. Validación RP con excepción controlada para Partida/Talla ausente
 
-Softland puede entregar filas de `STOCK CON P` con `Stock Total > 0` y la columna `Partida / Talla` vacía. F14 no inventa un lote y tampoco descarta esa cantidad.
+Softland puede entregar filas de `STOCK CON P` con `Stock Total > 0` y la columna `Partida / Talla` vacía. F14 no inventa un lote y tampoco envía una referencia nula al backend.
 
-La nueva regla es:
+La regla compatible con F13/QA es:
 
-- `STOCK POSITIVO SIN PARTIDA / TALLA` pasa de ERROR bloqueante a WARNING;
-- la cantidad se conserva con `referenceValue = null`;
-- PostgreSQL acepta esa evidencia sólo para `PARTIDA`;
-- al materializar conciliación se genera `PARTIDA_SISTEMA_SIN_REFERENCIA`;
-- la UI lo presenta como `STOCK RP SIN PARTIDA / TALLA`.
+- el parser identifica los SKU afectados y los muestra como WARNING;
+- la referencia no se importa mientras el SKU no tenga autorización controlada;
+- ADMIN autoriza el caso con motivo auditable;
+- el sistema usa exclusivamente la referencia técnica `EXC-SIN-PARTIDA:<SKU>`;
+- PostgreSQL verifica que esa referencia corresponda a una autorización activa;
+- la referencia técnica no representa una partida real ni autoriza ajustes de stock.
 
-Los estados de stock negativos continúan como WARNING. Siguen siendo visibles para revisión, pero no bloquean por sí solos el snapshot si el `Stock Total` y las demás invariantes estructurales son válidas.
+Los estados de stock negativos continúan como WARNING y se conservan como evidencia de origen.
 
 ### 4. Cache offline inmediata
 
