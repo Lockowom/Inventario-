@@ -8,7 +8,7 @@ import { SupabaseReconciliationRepository, type ReconciliationSummary } from '..
 import { SupabaseSupervisionRepository } from '../../services/supabase-supervision-repository'
 import { getMasterSkuRepository } from '../counting/counting-runtime'
 import { parseMasterClipboard, parseMasterFile } from '../master/master-import-parser'
-import { parseSystemReferenceFile } from '../reconciliation/system-reference-import-parser'
+import { parseSystemReferenceFiles } from '../reconciliation/system-reference-import-parser'
 
 type Inventory = { id: string; name: string; status: string }
 type BusyState = 'BOOT' | 'MASTER_PARSE' | 'MASTER_IMPORT' | 'RP_PARSE' | 'RP_IMPORT' | 'AUTH_EXCEPTION' | null
@@ -30,12 +30,14 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
   const [masterSource, setMasterSource] = useState<'FILE' | 'PASTE'>('FILE')
   const masterFileRef = useRef<HTMLInputElement>(null)
 
-  const [rpFile, setRpFile] = useState<File | null>(null)
+  const [batchFile, setBatchFile] = useState<File | null>(null)
+  const [serialFile, setSerialFile] = useState<File | null>(null)
   const [rpPreview, setRpPreview] = useState<SystemReferencePreview | null>(null)
   const [referenceSummary, setReferenceSummary] = useState<ReconciliationSummary['source_reference']>(null)
   const [authorizedBatchCodes, setAuthorizedBatchCodes] = useState<Set<string>>(new Set())
   const [exceptionReason, setExceptionReason] = useState('')
-  const rpFileRef = useRef<HTMLInputElement>(null)
+  const batchFileRef = useRef<HTMLInputElement>(null)
+  const serialFileRef = useRef<HTMLInputElement>(null)
 
   const selectedInventory = useMemo(() => inventories.find((item) => item.id === inventoryId) ?? null, [inventories, inventoryId])
   const preparationOpen = selectedInventory?.status === 'BORRADOR' || selectedInventory?.status === 'PREPARADO'
@@ -74,11 +76,13 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
     setMasterPreview(null)
     setMasterPaste('')
     setMasterSource('FILE')
-    setRpFile(null)
+    setBatchFile(null)
+    setSerialFile(null)
     setRpPreview(null)
     setExceptionReason('')
     if (masterFileRef.current) masterFileRef.current.value = ''
-    if (rpFileRef.current) rpFileRef.current.value = ''
+    if (batchFileRef.current) batchFileRef.current.value = ''
+    if (serialFileRef.current) serialFileRef.current.value = ''
     setBusy('BOOT')
 
     void Promise.all([
@@ -106,8 +110,10 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
     setMasterPreview(next)
     setMasterSource(source)
     setRpPreview(null)
-    setRpFile(null)
-    if (rpFileRef.current) rpFileRef.current.value = ''
+    setBatchFile(null)
+    setSerialFile(null)
+    if (batchFileRef.current) batchFileRef.current.value = ''
+    if (serialFileRef.current) serialFileRef.current.value = ''
     setMessage(next.rejectedRows
       ? `Maestro leído con ${next.rejectedRows} filas rechazadas. Corrige antes de confirmar.`
       : `Maestro validado: ${next.validRows} SKU únicos listos para confirmar.`)
@@ -152,48 +158,66 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
       setMasterCodes(new Set(items.map((item) => item.codigo)))
       setReferenceSummary(null)
       setRpPreview(null)
-      setRpFile(null)
-      if (rpFileRef.current) rpFileRef.current.value = ''
-      setMessage(`Maestro confirmado: v${metadata.masterVersion}, ${metadata.rowCount} SKU. Copia offline actualizada. La referencia RP anterior fue invalidada; continúa con el libro RP.`)
+      setBatchFile(null)
+      setSerialFile(null)
+      if (batchFileRef.current) batchFileRef.current.value = ''
+      if (serialFileRef.current) serialFileRef.current.value = ''
+      setMessage(`Maestro confirmado: v${metadata.masterVersion}, ${metadata.rowCount} SKU. Copia offline actualizada. Continúa con Partidas/Lotes y Series.`)
     } catch (error: unknown) {
       setMessage(describeError(error, 'El Maestro fue rechazado.'))
     } finally { setBusy(null) }
   }
 
-  async function parseRp(file: File, authorizations = authorizedBatchCodes) {
-    const next = await parseSystemReferenceFile(file, authorizations, masterCodes)
+  async function parseRp(files: { batch: File; serial: File }, authorizations = authorizedBatchCodes) {
+    const next = await parseSystemReferenceFiles(files.batch, files.serial, authorizations, masterCodes)
     setRpPreview(next)
     const pending = next.unidentifiedBatchCodes.filter((codigo) => !authorizations.has(codigo))
-    if (hasBlockingSystemReferenceIssues(next)) {
-      setMessage(`RP bloqueado: ${next.issues.filter((issue) => issue.severity === 'ERROR').length} errores deben corregirse.`)
+    const blockingErrors = next.issues.filter((issue) => issue.severity === 'ERROR' && !pending.includes(issue.codigo))
+    if (blockingErrors.length > 0) {
+      setMessage(`Referencia RP bloqueada: ${blockingErrors.length} errores estructurales deben corregirse.`)
     } else if (pending.length) {
-      setMessage(`RP validado con ${next.issues.filter((issue) => issue.severity === 'WARNING').length} warnings. ${pending.length} SKU sin Partida/Talla requieren autorización controlada.`)
+      setMessage(`Archivos leídos correctamente. ${pending.length} SKU con stock positivo sin Partida/Talla requieren autorización controlada.`)
     } else {
-      setMessage(`RP validado: ${next.itemCount} referencias, 0 errores. Puedes confirmar la referencia de sistema.`)
+      setMessage(`Partidas + Series validadas: ${next.itemCount} referencias, 0 errores bloqueantes. Puedes confirmar la referencia RP.`)
     }
   }
 
-  async function handleRpFile(file: File | undefined) {
-    if (!file || !masterReady) return
+  async function tryParseRp(nextBatchFile: File | null, nextSerialFile: File | null) {
+    setRpPreview(null)
+    if (!masterReady || !nextBatchFile || !nextSerialFile) {
+      if (nextBatchFile || nextSerialFile) setMessage('Carga los dos archivos RP: Partidas/Lotes y Series.')
+      return
+    }
     try {
       setBusy('RP_PARSE')
-      setRpFile(file)
-      await parseRp(file)
+      await parseRp({ batch: nextBatchFile, serial: nextSerialFile })
     } catch (error: unknown) {
       setRpPreview(null)
-      setMessage(describeError(error, 'No fue posible leer el libro RP.'))
+      setMessage(describeError(error, 'No fue posible leer los archivos de Partidas/Lotes y Series.'))
     } finally { setBusy(null) }
   }
 
+  async function handleBatchFile(file: File | undefined) {
+    const next = file ?? null
+    setBatchFile(next)
+    await tryParseRp(next, serialFile)
+  }
+
+  async function handleSerialFile(file: File | undefined) {
+    const next = file ?? null
+    setSerialFile(next)
+    await tryParseRp(batchFile, next)
+  }
+
   async function authorizePendingBatches() {
-    if (!rpFile || role !== 'ADMIN' || pendingBatchCodes.length === 0 || exceptionReason.trim().length < 10) return
+    if (!batchFile || !serialFile || role !== 'ADMIN' || pendingBatchCodes.length === 0 || exceptionReason.trim().length < 10) return
     try {
       setBusy('AUTH_EXCEPTION')
       await reconciliation.authorizeMissingBatchExceptions(inventoryId, pendingBatchCodes, exceptionReason.trim())
       const nextAuthorized = new Set([...authorizedBatchCodes, ...pendingBatchCodes])
       setAuthorizedBatchCodes(nextAuthorized)
       setExceptionReason('')
-      await parseRp(rpFile, nextAuthorized)
+      await parseRp({ batch: batchFile, serial: serialFile }, nextAuthorized)
       setMessage(`Autorización registrada para ${pendingBatchCodes.length} SKU sin Partida/Talla. La referencia técnica queda auditada.`)
     } catch (error: unknown) {
       setMessage(describeError(error, 'No fue posible autorizar las excepciones de partida.'))
@@ -217,7 +241,7 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
     <header>
       <p className="eyebrow">Preparación centralizada</p>
       <h1 id="data-load-title">CENTRO DE CARGA</h1>
-      <p>Un único módulo para cargar Maestro SKU y referencia RP. Conciliación y Maestro ya no reciben archivos.</p>
+      <p>Un único módulo para cargar los tres archivos operativos: Maestro SKU, Partidas/Lotes y Series. Conciliación y Maestro ya no reciben archivos.</p>
     </header>
 
     <label className="field data-load-inventory">
@@ -259,13 +283,16 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
     </section>
 
     <section className={`data-load-card ${masterReady ? '' : 'data-load-card--locked'}`} aria-labelledby="load-rp-title">
-      <header><span className="data-load-card__number">2</span><div><h2 id="load-rp-title">Referencia RP / Softland</h2><p>Un solo libro .xlsx con las hojas STOCK TOTAL, STOCK CON P y STOCK CON S. El sistema cruza estructura, cantidades, lotes y series antes de guardar.</p></div></header>
+      <header><span className="data-load-card__number">2</span><div><h2 id="load-rp-title">Partidas/Lotes + Series</h2><p>Estos son dos archivos distintos de Softland. Partidas/Lotes contiene la columna Partida / Talla y Series contiene la columna Serie. Se cruzan contra el Maestro confirmado.</p></div></header>
 
       {referenceSummary && <div className="data-load-current"><strong>Actual</strong><span>v{referenceSummary.reference_version} · {referenceSummary.row_count} referencias · {referenceSummary.fingerprint.slice(0, 12)}…</span></div>}
 
-      {!masterReady && <p className="data-load-lock-note">Primero confirma el Maestro SKU.</p>}
+      {!masterReady && <p className="data-load-lock-note">Primero confirma el archivo Maestro SKU con todos los códigos.</p>}
       {preparationOpen && masterReady && <>
-        <label className="file-drop"><span>Libro RP completo (.xlsx)</span><input ref={rpFileRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={busy !== null} onChange={(event) => void handleRpFile(event.target.files?.[0])}/>{rpFile && <small>{rpFile.name}</small>}</label>
+        <div className="data-load-source-grid">
+          <label className="file-drop"><span>Archivo Partidas / Lotes (.xlsx)</span><input ref={batchFileRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={busy !== null} onChange={(event) => void handleBatchFile(event.target.files?.[0])}/>{batchFile && <small>{batchFile.name}</small>}</label>
+          <label className="file-drop"><span>Archivo Series (.xlsx)</span><input ref={serialFileRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={busy !== null} onChange={(event) => void handleSerialFile(event.target.files?.[0])}/>{serialFile && <small>{serialFile.name}</small>}</label>
+        </div>
 
         {rpPreview && <>
           <div className="master-summary" aria-label="Resumen referencia RP">
@@ -297,7 +324,7 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
       <header><span className="data-load-card__number">3</span><div><h2>Preparación</h2><p>Cuando ambos snapshots están confirmados, el inventario queda listo para continuar su flujo operativo.</p></div></header>
       <div className="data-load-readiness">
         <span>{masterReady ? '✓' : '—'} Maestro {masterReady ? 'confirmado' : 'pendiente'}</span>
-        <span>{rpReady ? '✓' : '—'} Referencia RP {rpReady ? 'confirmada' : 'pendiente'}</span>
+        <span>{rpReady ? '✓' : '—'} Partidas/Lotes + Series {rpReady ? 'confirmadas' : 'pendientes'}</span>
         <strong>{masterReady && rpReady ? 'DATOS PREPARADOS' : 'PREPARACIÓN INCOMPLETA'}</strong>
       </div>
     </section>
