@@ -73,16 +73,16 @@ describe('F11 system reference RP parser',()=>{
   expect(preview.issues).toContainEqual(expect.objectContaining({sheet:'EXCEPCIÓN CONTROLADA',severity:'WARNING'}))
  })
 
- it('blocks duplicate system serials',async()=>{
+ it('keeps duplicate system serials as non-blocking Softland findings',async()=>{
   const preview=await parseSystemReferenceXlsx(workbookBytes({duplicateSerial:true}),'synthetic.xlsx')
-  expect(hasBlockingSystemReferenceIssues(preview)).toBe(true)
-  expect(preview.issues.some(issue=>issue.message==='SERIE DUPLICADA EN FUENTE DE SISTEMA')).toBe(true)
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.issues).toContainEqual(expect.objectContaining({severity:'WARNING',message:'SERIE DUPLICADA EN FUENTE DE SISTEMA'}))
  })
 
- it('blocks workbook sheet universes that do not reconcile',async()=>{
+ it('keeps workbook universe mismatches as non-blocking Softland findings',async()=>{
   const preview=await parseSystemReferenceXlsx(workbookBytes({dropFromSerialUniverse:true}),'synthetic.xlsx')
-  expect(hasBlockingSystemReferenceIssues(preview)).toBe(true)
-  expect(preview.issues.some(issue=>issue.message==='EL UNIVERSO SKU NO COINCIDE CON STOCK TOTAL')).toBe(true)
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.issues).toContainEqual(expect.objectContaining({severity:'WARNING',message:'EL UNIVERSO SKU NO COINCIDE CON STOCK TOTAL'}))
  })
 
  it('combina archivos separados de partidas y series sin requerir un libro consolidado',async()=>{
@@ -125,7 +125,7 @@ describe('F11 system reference RP parser',()=>{
   ],'series-sin-lote.xlsx')
 
   const blocked=await parseSystemReferenceFiles(batches,serials)
-  expect(hasBlockingSystemReferenceIssues(blocked)).toBe(true)
+  expect(hasBlockingSystemReferenceIssues(blocked)).toBe(false)
   expect(blocked.unidentifiedBatchCodes).toEqual(['BAT001P'])
   expect(blocked.items).toEqual([])
 
