@@ -33,6 +33,20 @@ describe('detectInventoryAnomalies', () => {
     )).toEqual([{ type: 'DIFERENCIA_CANTIDAD_PARTIDA', codigo: '0FL35250540P', reference: '01304-501', systemQuantity: 20, physicalQuantity: 21, difference: 1 }])
   })
 
+  it('detecta stock de PARTIDA en sistema sin referencia sin inventar un lote', () => {
+    expect(detectInventoryAnomalies(
+      [{ codigo: 'SKU-P', controlType: 'PARTIDA', reference: null, quantity: 4 }],
+      [],
+    )).toEqual([{
+      type: 'PARTIDA_SISTEMA_SIN_REFERENCIA',
+      codigo: 'SKU-P',
+      reference: null,
+      systemQuantity: 4,
+      physicalQuantity: 0,
+      difference: -4,
+    }])
+  })
+
   it('detecta partida física no registrada y partida de sistema no contada', () => {
     const result = detectInventoryAnomalies(
       [{ codigo: 'SKU-P', controlType: 'PARTIDA', reference: '000045', quantity: 3 }],
