@@ -199,7 +199,7 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
     if (!canImportRp || !rpPreview) return
     try {
       setBusy('RP_IMPORT')
-      const result = await reconciliation.importSystemReference(inventoryId, rpPreview.items, rpPreview.fileName, rpPreview.fileSha256, rpPreview.sourceFiles)
+      const result = await reconciliation.importSystemReference(inventoryId, rpPreview.items, rpPreview.fileName, rpPreview.fileSha256, rpPreview.sourceFiles ?? [])
       const summary = await reconciliation.summary(inventoryId)
       setReferenceSummary(summary.source_reference)
       setMessage(`Referencia RP confirmada: v${result.reference_version}, ${result.row_count} referencias, fingerprint ${result.fingerprint.slice(0, 12)}…`)
