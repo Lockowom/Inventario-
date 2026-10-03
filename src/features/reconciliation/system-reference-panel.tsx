@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { hasBlockingSystemReferenceIssues, type SystemReferencePreview } from '../../domain/reconciliation/system-reference-contracts'
 import { SupabaseReconciliationRepository } from '../../services/supabase-reconciliation-repository'
 import { parseSystemReferenceFile } from './system-reference-import-parser'
@@ -9,6 +9,7 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,onMaterialized
  const [preview,setPreview]=useState<SystemReferencePreview|null>(null)
  const [message,setMessage]=useState('La referencia de sistema proviene del libro RP completo; no modifica stock.')
  const [busy,setBusy]=useState(false)
+ const fileInputRef=useRef<HTMLInputElement>(null)
  useEffect(()=>{setPreview(null);setMessage('La referencia de sistema proviene del libro RP completo; no modifica stock.')},[inventoryId])
  const errors=useMemo(()=>preview?.issues.filter(issue=>issue.severity==='ERROR')??[],[preview])
  const warnings=useMemo(()=>preview?.issues.filter(issue=>issue.severity==='WARNING')??[],[preview])
@@ -25,6 +26,13 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,onMaterialized
    setPreview(null)
    setMessage(error instanceof Error?error.message:'No fue posible leer la referencia de sistema.')
   }finally{setBusy(false)}
+ }
+
+ function changeFile(){
+  setPreview(null)
+  setMessage('Archivo descartado. Selecciona el nuevo libro RP para generar otro preview.')
+  if(fileInputRef.current) fileInputRef.current.value=''
+  fileInputRef.current?.click()
  }
 
  async function handleImport(){
@@ -53,7 +61,8 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,onMaterialized
   <h2 id="system-reference-title">Referencia de sistema RP</h2>
   <p>Snapshot de evidencia para comparar sistema vs. físico. Nunca ejecuta ajustes de inventario.</p>
   {(inventoryStatus==='BORRADOR'||inventoryStatus==='PREPARADO')&&<>
-   <label className="file-drop"><span>Libro RP (.xlsx)</span><input type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={busy} onChange={event=>void handleFile(event.target.files?.[0])}/></label>
+   <label className="file-drop"><span>Libro RP (.xlsx)</span><input ref={fileInputRef} type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={busy} onChange={event=>void handleFile(event.target.files?.[0])}/></label>
+   {preview&&<button className="button-secondary" type="button" disabled={busy} onClick={changeFile}>Cambiar archivo</button>}
    {preview&&<div className="master-summary" aria-label="Resumen referencia sistema">
     <Summary label="Referencias" value={preview.itemCount}/><Summary label="Series" value={preview.serialItems}/><Summary label="Partidas" value={preview.batchItems}/><Summary label="Legacy" value={preview.legacyItems}/><Summary label="Errores" value={errors.length}/><Summary label="Warnings" value={warnings.length}/>
    </div>}
