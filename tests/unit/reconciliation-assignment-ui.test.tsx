@@ -1,9 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { ReconciliationScreen } from '../../src/features/reconciliation/reconciliation-screen'
-
-const assignSecond=vi.fn((caseId:string,userId:string)=>{void caseId;void userId;return Promise.resolve({})})
-const candidates=vi.fn((caseId:string,round:number)=>{void caseId;void round;return Promise.resolve([{user_id:'counter-2',display_name:'Counter Two',role:'CONTADOR' as const}])})
 
 vi.mock('../../src/services/supabase-supervision-repository',()=>({
  SupabaseSupervisionRepository:class{
@@ -16,35 +13,32 @@ vi.mock('../../src/services/supabase-reconciliation-repository',()=>({
  SupabaseReconciliationRepository:class{
   list(){return Promise.resolve([{
    id:'case-1',inventory_id:'inv-1',codigo:'SKU001',reference_type:'LEGACY',reference_value:null,
-   anomaly_type:'DIFERENCIA_CANTIDAD_SKU',system_quantity:5,physical_quantity:4,status:'PENDIENTE_ANALISIS',
+   anomaly_type:'DIFERENCIA_CANTIDAD_SKU',system_quantity:5,physical_quantity:4,status:'REQUIERE_2DO_CONTEO',
    assigned_second_user_id:null,assigned_third_analyst_id:null,confirmed_physical_quantity:null,disposition:null,resolution_reason:null
   }])}
   summary(){return Promise.resolve({
-   inventory_id:'inv-1',
-   source_reference:{reference_version:2,row_count:4,fingerprint:'abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890',source:'RP_XLSX:synthetic.xlsx',import_identifier:'hash',imported_at:'2026-10-01T10:00:00Z'},
-   summary:{total:4,open:3,pending_analysis:1,second_recount:1,third_recount:0,physical_confirmed:1,resolved:1},
-   anomalies:{DIFERENCIA_CANTIDAD_SKU:1},
-   last_materialized_at:'2026-10-01T10:10:00Z'
+   inventory_id:'inv-1',source_reference:null,
+   summary:{total:1,open:1,pending_analysis:0,second_recount:1,third_recount:0,physical_confirmed:0,resolved:0},
+   anomalies:{DIFERENCIA_CANTIDAD_SKU:1},last_materialized_at:null
   })}
-  candidates(caseId:string,round:number){return candidates(caseId,round)}
-  assignSecond(caseId:string,userId:string){return assignSecond(caseId,userId)}
  }
 }))
 
-describe('F11 reconciliation assignment UI',()=>{
- it('uses eligible named candidates instead of raw UUID entry',async()=>{
+vi.mock('../../src/features/reconciliation/system-reference-panel',()=>({SystemReferencePanel:()=>null}))
+vi.mock('../../src/features/reconciliation/live-reconciliation-workspace',()=>({LiveReconciliationWorkspace:()=>null}))
+vi.mock('../../src/features/reconciliation/reconciliation-timeline',()=>({ReconciliationTimeline:()=>null}))
+
+describe('F15 reconciliation mission UX',()=>{
+ it('removes manual C2 assignment and keeps case details collapsed',async()=>{
   render(<ReconciliationScreen/>)
   expect(await screen.findByText('CENTRO DE CONCILIACIÓN')).toBeTruthy()
   expect(await screen.findByText('SKU001')).toBeTruthy()
-  expect(screen.queryByText(/UUID contador/i)).toBeNull()
-  expect(await screen.findByText('Casos abiertos')).toBeTruthy()
-  expect(screen.getByText(/Snapshot RP v2 · 4 referencias · fingerprint abcdef123456/)).toBeTruthy()
-  const select=screen.getByLabelText('Contador para 2.º conteo')
-  fireEvent.focus(select)
-  await waitFor(()=>expect(candidates).toHaveBeenCalledWith('case-1',2))
-  expect(await screen.findByText('Counter Two')).toBeTruthy()
-  fireEvent.change(select,{target:{value:'counter-2'}})
-  fireEvent.click(screen.getByRole('button',{name:'ASIGNAR 2.º CONTEO'}))
-  await waitFor(()=>expect(assignSecond).toHaveBeenCalledWith('case-1','counter-2'))
+  expect(screen.queryByLabelText('Contador para 2.º conteo')).toBeNull()
+  expect(screen.queryByRole('button',{name:'ASIGNAR 2.º CONTEO'})).toBeNull()
+  expect(screen.getByText(/misión C2 automáticamente/i)).toBeTruthy()
+
+  fireEvent.click(screen.getByRole('button',{name:/SKU001/i}))
+  expect(await screen.findByText('C1 físico total')).toBeTruthy()
+  expect(screen.getByText(/Las cantidades por ubicación no se comparan contra Softland/i)).toBeTruthy()
  })
 })
