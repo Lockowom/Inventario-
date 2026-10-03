@@ -1,7 +1,7 @@
 import * as XLSX from '@e965/xlsx'
 import { describe, expect, it } from 'vitest'
 import { createMasterFingerprint, deriveMasterControlType, normalizeMasterCode, validMasterItems } from '../../src/domain/master/contracts'
-import { parseMasterCsv, parseMasterXlsx } from '../../src/features/master/master-import-parser'
+import { parseMasterClipboard, parseMasterCsv, parseMasterXlsx } from '../../src/features/master/master-import-parser'
 
 describe('maestro SKU: normalización e importación', () => {
   it('deriva SERIAL, PARTIDA y LEGACY desde el código normalizado', () => {
@@ -48,6 +48,24 @@ describe('maestro SKU: normalización e importación', () => {
     expect(preview.duplicateRows).toBe(0)
     expect(preview.rows.every((row) => row.errors.includes('CODIGO CON DESCRIPCIONES EN CONFLICTO'))).toBe(true)
     expect(validMasterItems(preview)).toEqual([])
+  })
+
+  it('acepta pegado directo desde Excel con tabulaciones', () => {
+    const preview = parseMasterClipboard('Cod. Producto\tProducto\n00001234\tProducto legacy\nNVI75200055P\tProducto partida')
+    expect(preview.rejectedRows).toBe(0)
+    expect(validMasterItems(preview)).toEqual([
+      { codigo: '00001234', descripcion: 'Producto legacy', controlType: 'LEGACY' },
+      { codigo: 'NVI75200055P', descripcion: 'Producto partida', controlType: 'PARTIDA' },
+    ])
+  })
+
+  it('acepta dos columnas pegadas sin encabezado', () => {
+    const preview = parseMasterClipboard('00000123\tProducto uno\n0WA46651050S\tProducto serial')
+    expect(preview.rejectedRows).toBe(0)
+    expect(validMasterItems(preview)).toEqual([
+      { codigo: '00000123', descripcion: 'Producto uno', controlType: 'LEGACY' },
+      { codigo: '0WA46651050S', descripcion: 'Producto serial', controlType: 'SERIAL' },
+    ])
   })
 
   it('preserva códigos XLSX de texto con ceros iniciales y no inventa ceros para una celda numérica', async () => {
