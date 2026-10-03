@@ -53,13 +53,21 @@ Bloqueos de importación incluyen, entre otros:
 - stock consolidado distinto para un SKU compartido entre ambos archivos;
 - ecuación de stock inconsistente;
 - stock total negativo;
-- PARTIDA con stock positivo sin `Partida / Talla`;
+- PARTIDA con stock positivo sin `Partida / Talla`, salvo una excepción controlada autorizada;
 - serie en SKU no SERIAL;
 - serie sin cantidad exacta 1;
 - serie duplicada;
 - referencia natural duplicada.
 
 Los estados de stock negativos se reportan como warning cuando la ecuación del total sigue cuadrando.
+
+### Excepción controlada: SKU PARTIDA sin partida en Softland
+
+Si Softland reporta `Disponible` positivo para un SKU cuyo control es `PARTIDA`, pero su archivo no contiene `Partida / Talla`, el preview permanece bloqueado por defecto. No se infiere, genera ni corrige una partida desde INVEN3.
+
+Un **ADMIN** asignado puede autorizar la excepción únicamente mientras el inventario está en `BORRADOR` o `PREPARADO`, indicando un motivo de al menos diez caracteres. INVEN3 deja una fila auditada con el actor y el motivo, y representa el dato como `EXC-SIN-PARTIDA:<CODIGO>`.
+
+Esa etiqueta es evidencia técnica explícita: no es una partida real de Softland, no habilita ajustes de inventario y no cambia el ERP. Reintentar una importación con esa etiqueta sin una autorización activa para ese mismo inventario y SKU es rechazado por PostgreSQL.
 
 ## 3. Snapshot versionado
 

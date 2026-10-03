@@ -253,14 +253,16 @@ function validateSplitSheet(matrix:SplitSheet,issues:SystemReferenceIssue[]){
  return {codes,aggregate,totalRows:Math.max(0,rows-1)}
 }
 
-export async function parseSystemReferenceFiles(batchFile:File,serialFile:File):Promise<SystemReferencePreview>{
+export const unidentifiedBatchReference=(codigo:string)=>`EXC-SIN-PARTIDA:${normalizeMasterCode(codigo)}`
+
+export async function parseSystemReferenceFiles(batchFile:File,serialFile:File,authorizedCodes:ReadonlySet<string>=new Set()):Promise<SystemReferencePreview>{
  const issues:SystemReferenceIssue[]=[]
  const batches=await readSplitSheet(batchFile,'STOCK CON P','ARCHIVO PARTIDAS',issues)
  const serials=await readSplitSheet(serialFile,'STOCK CON S','ARCHIVO SERIES',issues)
  if(!batches||!serials){
   const sourceFiles=[...(batches?[{role:'PARTIDAS' as const,fileName:batches.fileName,sha256:batches.sha256}]:[]),...(serials?[{role:'SERIES' as const,fileName:serials.fileName,sha256:serials.sha256}]:[])]
   const fileName=[batchFile.name,serialFile.name].join(' + ')
-  return systemReferencePreviewSchema.parse({fileName,fileSha256:await sha256Text(`${batchFile.name}\u001f${serialFile.name}`),sourceFiles,totalSourceRows:0,itemCount:0,serialItems:0,batchItems:0,legacyItems:0,issues,items:[]})
+  return systemReferencePreviewSchema.parse({fileName,fileSha256:await sha256Text(`${batchFile.name}\u001f${serialFile.name}`),sourceFiles,totalSourceRows:0,itemCount:0,serialItems:0,batchItems:0,legacyItems:0,unidentifiedBatchCodes:[],issues,items:[]})
  }
 
  const batchSummary=validateSplitSheet(batches,issues)
@@ -273,6 +275,8 @@ export async function parseSystemReferenceFiles(batchFile:File,serialFile:File):
  const naturalKeys=new Set<string>()
  const globalSeries=new Set<string>()
  const legacyCodes=new Set<string>()
+ const unidentifiedBatchCodes=new Set<string>()
+ const unidentifiedBatchTotals=new Map<string,{quantity:number;availableQuantity:number;unitCode:string}>()
  const pushItem=(item:SystemReferenceItem,sheet:string,rowNumber:number)=>{
   const key=`${item.codigo}\u001f${item.referenceType}\u001f${item.referenceValue??''}`
   if(naturalKeys.has(key)){addIssue(issues,sheet,rowNumber,item.codigo,item.referenceValue,'ERROR','REFERENCIA DUPLICADA');return}
@@ -301,8 +305,18 @@ export async function parseSystemReferenceFiles(batchFile:File,serialFile:File):
   const rawExpiration=ref(batches.display[index]?.[batchExpirationIndex]),parsedExpiration=expirationDate(rawExpiration)
   if(rawExpiration&&!parsedExpiration)addIssue(issues,batches.label,index+1,codigo,referenceValue,'ERROR','FECHA VENC INVÁLIDA')
   if(quantity===null||quantity<0||availableQuantity===null||availableQuantity<0||!unitCode||rawExpiration&&!parsedExpiration)continue
-  if(quantity>0&&!referenceValue){addIssue(issues,batches.label,index+1,codigo,null,'ERROR','STOCK POSITIVO SIN PARTIDA / TALLA');continue}
+  if(quantity>0&&!referenceValue){
+   unidentifiedBatchCodes.add(codigo)
+   if(!authorizedCodes.has(codigo)){addIssue(issues,batches.label,index+1,codigo,null,'ERROR','STOCK POSITIVO SIN PARTIDA / TALLA');continue}
+   const current=unidentifiedBatchTotals.get(codigo)
+   unidentifiedBatchTotals.set(codigo,{quantity:(current?.quantity??0)+quantity,availableQuantity:(current?.availableQuantity??0)+availableQuantity,unitCode})
+   continue
+  }
   if(quantity>0&&referenceValue)pushItem({codigo,referenceType:'PARTIDA',referenceValue,quantity,availableQuantity,unitCode,expirationDate:parsedExpiration},batches.label,index+1)
+ }
+ for(const [codigo,total] of unidentifiedBatchTotals){
+  pushItem({codigo,referenceType:'PARTIDA',referenceValue:unidentifiedBatchReference(codigo),quantity:total.quantity,availableQuantity:total.availableQuantity,unitCode:total.unitCode,expirationDate:null},batches.label,0)
+  addIssue(issues,'EXCEPCIÓN CONTROLADA',0,codigo,unidentifiedBatchReference(codigo),'WARNING','PARTIDA AUSENTE EN SOFTLAND: referencia de excepción; no es una partida real ni autoriza ajustes.')
  }
 
  const serialCodeIndex=column(serials.headers,'Cod. Producto'),serialRefIndex=column(serials.headers,'Serie'),serialStockIndex=column(serials.headers,'Stock Total'),serialAvailableIndex=column(serials.headers,'Disponible'),serialUnitIndex=column(serials.headers,'Cod. U. Medida')
@@ -319,7 +333,7 @@ export async function parseSystemReferenceFiles(batchFile:File,serialFile:File):
  const sourceFiles=[{role:'PARTIDAS' as const,fileName:batches.fileName,sha256:batches.sha256},{role:'SERIES' as const,fileName:serials.fileName,sha256:serials.sha256}]
  const fileName=`${batches.fileName} + ${serials.fileName}`
  const fileSha256=await sha256Text(`${batches.sha256}\u001f${serials.sha256}`)
- return systemReferencePreviewSchema.parse({fileName,fileSha256,sourceFiles,totalSourceRows:batchSummary.totalRows+serialSummary.totalRows,itemCount:items.length,serialItems:items.filter(item=>item.referenceType==='SERIAL').length,batchItems:items.filter(item=>item.referenceType==='PARTIDA').length,legacyItems:items.filter(item=>item.referenceType==='LEGACY').length,issues,items})
+ return systemReferencePreviewSchema.parse({fileName,fileSha256,sourceFiles,totalSourceRows:batchSummary.totalRows+serialSummary.totalRows,itemCount:items.length,serialItems:items.filter(item=>item.referenceType==='SERIAL').length,batchItems:items.filter(item=>item.referenceType==='PARTIDA').length,legacyItems:items.filter(item=>item.referenceType==='LEGACY').length,unidentifiedBatchCodes:[...unidentifiedBatchCodes].sort(),issues,items})
 }
 
 export async function parseSystemReferenceFile(file:File){

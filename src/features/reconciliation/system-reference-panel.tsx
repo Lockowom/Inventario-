@@ -5,15 +5,17 @@ import { parseSystemReferenceFiles } from './system-reference-import-parser'
 
 const repo=new SupabaseReconciliationRepository()
 
-export function SystemReferencePanel({inventoryId,inventoryStatus,onMaterialized}:{inventoryId:string;inventoryStatus:string;onMaterialized:()=>Promise<void>|void}){
+export function SystemReferencePanel({inventoryId,inventoryStatus,role,onMaterialized}:{inventoryId:string;inventoryStatus:string;role:'CONTADOR'|'ANALISTA'|'ADMIN'|null;onMaterialized:()=>Promise<void>|void}){
  const [preview,setPreview]=useState<SystemReferencePreview|null>(null)
  const [message,setMessage]=useState('Carga el archivo de partidas y el archivo de series de Softland; INVEN3 los combina sin modificar stock.')
  const [busy,setBusy]=useState(false)
  const [batchFile,setBatchFile]=useState<File|null>(null)
  const [serialFile,setSerialFile]=useState<File|null>(null)
+ const [authorizedBatchCodes,setAuthorizedBatchCodes]=useState<Set<string>>(new Set())
+ const [exceptionReason,setExceptionReason]=useState('')
  const batchFileInputRef=useRef<HTMLInputElement>(null)
  const serialFileInputRef=useRef<HTMLInputElement>(null)
- useEffect(()=>{setPreview(null);setBatchFile(null);setSerialFile(null);setMessage('Carga el archivo de partidas y el archivo de series de Softland; INVEN3 los combina sin modificar stock.');if(batchFileInputRef.current)batchFileInputRef.current.value='';if(serialFileInputRef.current)serialFileInputRef.current.value=''},[inventoryId])
+ useEffect(()=>{setPreview(null);setBatchFile(null);setSerialFile(null);setAuthorizedBatchCodes(new Set());setExceptionReason('');setMessage('Carga el archivo de partidas y el archivo de series de Softland; INVEN3 los combina sin modificar stock.');if(batchFileInputRef.current)batchFileInputRef.current.value='';if(serialFileInputRef.current)serialFileInputRef.current.value='';const loadExceptions=repo.missingBatchExceptions;if(loadExceptions)void loadExceptions.call(repo,inventoryId).then(rows=>setAuthorizedBatchCodes(new Set(rows.map(row=>row.codigo)))).catch(()=>undefined)},[inventoryId])
  const errors=useMemo(()=>preview?.issues.filter(issue=>issue.severity==='ERROR')??[],[preview])
  const warnings=useMemo(()=>preview?.issues.filter(issue=>issue.severity==='WARNING')??[],[preview])
  const canImport=(inventoryStatus==='BORRADOR'||inventoryStatus==='PREPARADO')&&!!preview&&preview.itemCount>0&&!hasBlockingSystemReferenceIssues(preview)
@@ -21,7 +23,7 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,onMaterialized
  async function handleFiles(nextBatchFile:File,nextSerialFile:File){
   try{
    setBusy(true)
-   const next=await parseSystemReferenceFiles(nextBatchFile,nextSerialFile)
+   const next=await parseSystemReferenceFiles(nextBatchFile,nextSerialFile,authorizedBatchCodes)
    setPreview(next)
    setMessage(hasBlockingSystemReferenceIssues(next)?'Preview bloqueado: corrige los errores del libro RP antes de importar.':'Preview válido: '+next.itemCount+' referencias listas para importación atómica.')
   }catch(error){
@@ -67,6 +69,23 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,onMaterialized
   }finally{setBusy(false)}
  }
 
+ async function authorizeMissingBatchExceptions(){
+  if(!preview||!batchFile||!serialFile||role!=='ADMIN')return
+  const pending=preview.unidentifiedBatchCodes.filter(codigo=>!authorizedBatchCodes.has(codigo))
+  if(!pending.length||exceptionReason.trim().length<10)return
+  try{
+   setBusy(true)
+   await repo.authorizeMissingBatchExceptions(inventoryId,pending,exceptionReason)
+   const nextAuthorized=new Set([...authorizedBatchCodes,...pending])
+   setAuthorizedBatchCodes(nextAuthorized)
+   const next=await parseSystemReferenceFiles(batchFile,serialFile,nextAuthorized)
+   setPreview(next)
+   setMessage(`Excepción controlada autorizada para ${pending.length} SKU. Se conserva como referencia explícita, no como partida real.`)
+  }catch(error){
+   setMessage(error instanceof Error?error.message:'No fue posible autorizar la excepción controlada.')
+  }finally{setBusy(false)}
+ }
+
  async function handleMaterialize(){
   try{
    setBusy(true)
@@ -89,6 +108,7 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,onMaterialized
     <Summary label="Referencias" value={preview.itemCount}/><Summary label="Series" value={preview.serialItems}/><Summary label="Partidas" value={preview.batchItems}/><Summary label="Legacy" value={preview.legacyItems}/><Summary label="Errores" value={errors.length}/><Summary label="Warnings" value={warnings.length}/>
    </div>}
    {preview&&preview.issues.length>0&&<div className="master-errors"><h3>Validaciones RP</h3><ul>{preview.issues.slice(0,25).map((issue,index)=><li key={issue.sheet+'-'+issue.rowNumber+'-'+index}><strong>{issue.severity} · {issue.sheet}{issue.rowNumber?' · fila '+issue.rowNumber:''}</strong> · {issue.codigo||'—'}{issue.referenceValue?' · '+issue.referenceValue:''}<br/><span>{issue.message}</span></li>)}</ul>{preview.issues.length>25&&<p>Se muestran 25 de {preview.issues.length} observaciones.</p>}</div>}
+   {preview&&(preview.unidentifiedBatchCodes??[]).some(codigo=>!authorizedBatchCodes.has(codigo))&&<div className="master-errors"><h3>Excepción controlada: partida ausente</h3><p>Softland reporta stock disponible positivo para {(preview.unidentifiedBatchCodes??[]).filter(codigo=>!authorizedBatchCodes.has(codigo)).length} SKU de partida sin Partida / Talla. La autorización crea una referencia explícita <code>EXC-SIN-PARTIDA:SKU</code>; no inventa una partida ni habilita ajustes de stock.</p>{role==='ADMIN'?<><label className="field"><span>Motivo de excepción (mínimo 10 caracteres)</span><textarea value={exceptionReason} onChange={event=>setExceptionReason(event.target.value)} disabled={busy}/></label><button className="button-secondary" type="button" disabled={busy||exceptionReason.trim().length<10} onClick={()=>void authorizeMissingBatchExceptions()}>AUTORIZAR EXCEPCIÓN CONTROLADA</button></>:<p>Solo un ADMIN asignado puede autorizar esta excepción con motivo y auditoría.</p>}</div>}
    <button className="button-primary" type="button" disabled={!canImport||busy} onClick={()=>void handleImport()}>{busy?'Procesando…':'CONFIRMAR REFERENCIA DE SISTEMA'}</button>
   </>}
   {inventoryStatus==='ABIERTO'&&<button className="button-primary" type="button" disabled={busy} onClick={()=>void handleMaterialize()}>{busy?'Procesando…':'GENERAR / ACTUALIZAR HALLAZGOS'}</button>}

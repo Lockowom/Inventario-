@@ -15,7 +15,9 @@ vi.mock('../../src/features/reconciliation/system-reference-import-parser', () =
 }))
 
 vi.mock('../../src/services/supabase-reconciliation-repository', () => ({
-  SupabaseReconciliationRepository: class {},
+  SupabaseReconciliationRepository: class {
+    missingBatchExceptions(){ return Promise.resolve([]) }
+  },
 }))
 
 import { MasterSkuScreen } from '../../src/features/master/master-sku-screen'
@@ -54,10 +56,11 @@ describe('preview file replacement', () => {
       serialItems: 0,
       batchItems: 0,
       legacyItems: 1,
+      unidentifiedBatchCodes: [],
       issues: [],
       items: [{ codigo: 'SKU-01', referenceType: 'LEGACY', referenceValue: null, quantity: 5, availableQuantity: 5, unitCode: 'UNI', expirationDate: null }],
     })
-    render(<SystemReferencePanel inventoryId="inventory-1" inventoryStatus="PREPARADO" onMaterialized={() => undefined} />)
+    render(<SystemReferencePanel inventoryId="inventory-1" inventoryStatus="PREPARADO" role="ADMIN" onMaterialized={() => undefined} />)
 
     fireEvent.change(screen.getByLabelText('Archivo de partidas (.xlsx)'), {
       target: { files: [new File(['archivo de partidas'], 'partidas.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })] },

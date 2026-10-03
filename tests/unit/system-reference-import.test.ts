@@ -102,4 +102,28 @@ describe('F11 system reference RP parser',()=>{
    expect.objectContaining({codigo:'SER001S',referenceType:'SERIAL',referenceValue:'SER-A'}),
   ]))
  })
+
+ it('requires an ADMIN-authorized exception before preserving a positive PARTIDA SKU without a lot',async()=>{
+  const batches=fileFromWorkbook([
+   ['Cod. Producto','Producto','Cod. U. Medida','Partida / Talla','Fecha Venc','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+   ['BAT001P','Batch','UNI','', '',5,0,0,0,5],
+  ],'partidas-sin-lote.xlsx')
+  const serials=fileFromWorkbook([
+   ['Cod. Producto','Producto','Cod. U. Medida','Serie','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+   ['BAT001P','Batch','UNI','',5,0,0,0,5],
+  ],'series-sin-lote.xlsx')
+
+  const blocked=await parseSystemReferenceFiles(batches,serials)
+  expect(hasBlockingSystemReferenceIssues(blocked)).toBe(true)
+  expect(blocked.unidentifiedBatchCodes).toEqual(['BAT001P'])
+  expect(blocked.items).toEqual([])
+
+  const authorized=await parseSystemReferenceFiles(batches,serials,new Set(['BAT001P']))
+  expect(hasBlockingSystemReferenceIssues(authorized)).toBe(false)
+  expect(authorized.unidentifiedBatchCodes).toEqual(['BAT001P'])
+  expect(authorized.items).toEqual([expect.objectContaining({
+   codigo:'BAT001P',referenceType:'PARTIDA',referenceValue:'EXC-SIN-PARTIDA:BAT001P',quantity:5,availableQuantity:5,
+  })])
+  expect(authorized.issues).toEqual(expect.arrayContaining([expect.objectContaining({severity:'WARNING',message:'PARTIDA AUSENTE EN SOFTLAND: referencia de excepción; no es una partida real ni autoriza ajustes.'})]))
+ })
 })

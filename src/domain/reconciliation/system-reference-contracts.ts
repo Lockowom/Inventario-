@@ -34,6 +34,7 @@ export const systemReferencePreviewSchema=z.object({
  fileName:z.string().min(1),
  fileSha256:z.string().regex(/^[a-f0-9]{64}$/i),
  sourceFiles:z.array(systemReferenceSourceFileSchema).min(1).optional(),
+ unidentifiedBatchCodes:z.array(z.string().trim().min(1)).default([]),
  totalSourceRows:z.number().int().nonnegative(),
  itemCount:z.number().int().nonnegative(),
  serialItems:z.number().int().nonnegative(),

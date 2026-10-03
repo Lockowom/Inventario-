@@ -13,6 +13,7 @@ async function rpc<T>(name:string,args:Record<string,unknown>):Promise<T>{
 export type RecountAssignment={id:string;inventory_id:string;codigo:string;reference_type:'SERIAL'|'PARTIDA'|'LEGACY';reference_value:string|null;round:2|3}
 export type RecountCandidate={user_id:string;display_name:string;role:'CONTADOR'|'ANALISTA'}
 export type SystemReferenceImportResult={reference_version:number;row_count:number;fingerprint:string}
+export type MissingBatchException={codigo:string;reason:string;created_at:string}
 export type MaterializationResult={created_count:number;existing_count:number;source_fingerprint:string}
 export type ReconciliationEvent={id:string;case_id:string;event_type:string;actor_user_id:string;actor_display_name:string;target_display_name:string|null;payload:Record<string,unknown>;created_at:string}
 export type ReconciliationSummary={inventory_id:string;source_reference:null|{reference_version:number;row_count:number;fingerprint:string;source:string;import_identifier:string|null;imported_at:string};summary:{total:number;open:number;pending_analysis:number;second_recount:number;third_recount:number;physical_confirmed:number;resolved:number};anomalies:Record<string,number>;last_materialized_at:string|null}
@@ -32,6 +33,15 @@ export class SupabaseReconciliationRepository {
    : `RP_XLSX:${fileName}`
   const rows=await rpc<SystemReferenceImportResult[]>('import_inventory_system_reference',{p_inventory_id:inventoryId,p_items:items.map(item=>({codigo:item.codigo,reference_value:item.referenceValue,quantity:item.quantity,available_quantity:item.availableQuantity,unit_code:item.unitCode,expiration_date:item.expirationDate})),p_source:source,p_import_identifier:fileSha256})
   const result=rows[0];if(!result)throw new Error('La referencia de sistema no devolvió metadata.');return result
+ }
+ async missingBatchExceptions(inventoryId:string):Promise<MissingBatchException[]>{
+  const client=getSupabaseClient();if(!client)throw new Error('Conciliación no configurada.')
+  const {data,error}=await client.from('inventory_missing_batch_exceptions').select('codigo,reason,created_at').eq('inventory_id',inventoryId).eq('active',true).order('codigo')
+  if(error)throw new Error(error.message)
+  return (data??[]) as MissingBatchException[]
+ }
+ authorizeMissingBatchExceptions(inventoryId:string,codes:string[],reason:string){
+  return rpc<Array<{codigo:string;reason:string;placeholder:string}>>('authorize_missing_batch_exceptions',{p_inventory_id:inventoryId,p_codes:codes,p_reason:reason})
  }
  async materialize(inventoryId:string){
   const rows=await rpc<MaterializationResult[]>('materialize_reconciliation_cases',{p_inventory_id:inventoryId})

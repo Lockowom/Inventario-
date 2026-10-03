@@ -30,7 +30,7 @@ export function ReconciliationScreen(){
   <header><p className="eyebrow">F11 · control de inventario</p><h1 id="reconciliation-title">CENTRO DE CONCILIACIÓN</h1><p>Una diferencia es un hallazgo a investigar; no se interpreta automáticamente como error del contador ni genera ajuste de stock.</p></header>
   <div className="supervision-actions"><label className="field"><span>Inventario</span><select value={inventoryId} onChange={e=>setInventoryId(e.target.value)}>{inventories.map(i=><option key={i.id} value={i.id}>{i.name} · {i.status}</option>)}</select></label><label className="field"><span>Estado</span><select value={filter} onChange={e=>setFilter(e.target.value)}><option>TODOS</option><option>PENDIENTE_ANALISIS</option><option>2DO_CONTEO_ASIGNADO</option><option>REQUIERE_3ER_CONTEO</option><option>3ER_CONTEO_ASIGNADO</option><option>FISICO_CONFIRMADO</option><option>RESUELTO</option></select></label><button className="button-secondary" onClick={()=>void refresh()}>ACTUALIZAR</button></div>
   {message&&<p className="form-warning" role="status">{message}</p>}
-  {inventoryId&&selectedInventory&&<SystemReferencePanel inventoryId={inventoryId} inventoryStatus={selectedInventory.status} onMaterialized={refresh}/>}
+  {inventoryId&&selectedInventory&&<SystemReferencePanel inventoryId={inventoryId} inventoryStatus={selectedInventory.status} role={profile?.role??null} onMaterialized={refresh}/>}
   {inventoryId&&<LiveReconciliationWorkspace inventoryId={inventoryId}/>}
   <section className="reconciliation-cases"><h2>CASOS DE INVESTIGACIÓN Y RECONTEO</h2><p>Los hallazgos no crean ajustes automáticos. Se investigan y resuelven mediante el flujo controlado.</p>
   {summary&&<section className="supervision-summary" aria-label="Resumen conciliación">
