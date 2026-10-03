@@ -540,29 +540,22 @@ create or replace function public.get_live_reconciliation_workspace(
   p_limit integer default 100
 )
 returns jsonb
-language plpgsql stable security definer
+language plpgsql
+stable security definer
 set search_path=public,app_private,pg_temp
-as $$
+as $function$
 declare
   result jsonb;
   normalized_search text:=nullif(lower(btrim(p_search)), '');
   normalized_status text:=upper(coalesce(nullif(btrim(p_status),''),'TODOS'));
 begin
   perform app_private.require_active_actor();
-  if not app_private.can_manage_inventory(p_inventory_id) then
-    raise exception 'Not authorized for live reconciliation' using errcode='42501';
-  end if;
-  if p_limit<1 or p_limit>200 then
-    raise exception 'Live reconciliation limit must be between 1 and 200' using errcode='22023';
-  end if;
-  if not exists(select 1 from public.inventory_system_reference_metadata where inventory_id=p_inventory_id) then
-    raise exception 'System reference snapshot is required' using errcode='23514';
-  end if;
+  if not app_private.can_manage_inventory(p_inventory_id) then raise exception 'Not authorized for live reconciliation' using errcode='42501'; end if;
+  if p_limit<1 or p_limit>200 then raise exception 'Live reconciliation limit must be between 1 and 200' using errcode='22023'; end if;
+  if not exists(select 1 from public.inventory_system_reference_metadata where inventory_id=p_inventory_id) then raise exception 'System reference snapshot is required' using errcode='23514'; end if;
 
   with physical as (
-    select
-      c.codigo,
-      m.control_type,
+    select c.codigo,m.control_type,
       case when m.control_type='SERIAL' then c.serie when m.control_type='PARTIDA' then c.partida else null end reference_value,
       sum(c.cantidad_contada)::integer quantity,
       max(c.received_at) last_received_at,
@@ -571,13 +564,14 @@ begin
     join public.inventory_master_items m on m.inventory_id=c.inventory_id and m.codigo=c.codigo
     where c.inventory_id=p_inventory_id
       and not exists(
-        select 1 from public.recount_mission_observations o where o.count_record_id=c.id
+        select 1
+        from public.recount_mission_observations o
+        where o.count_record_id=c.id
       )
     group by c.codigo,m.control_type,
       case when m.control_type='SERIAL' then c.serie when m.control_type='PARTIDA' then c.partida else null end
   ), rows as (
-    select
-      coalesce(s.codigo,p.codigo) codigo,
+    select coalesce(s.codigo,p.codigo) codigo,
       coalesce(m.descripcion,'Sin descripción') descripcion,
       coalesce(s.unit_code,'—') unit_code,
       coalesce(s.reference_type,p.control_type) reference_type,
@@ -586,13 +580,11 @@ begin
       coalesce(s.quantity,0) available_quantity,
       coalesce(p.quantity,0) counted_quantity,
       p.last_received_at,
-      case
-        when s.codigo is null and coalesce(p.quantity,0)>0 then 'NUEVO_LOTE_SERIE'
-        when coalesce(s.quantity,0)=0 and s.source_total_quantity>0 and coalesce(p.quantity,0)>0 then 'FUERA_DE_DISPONIBLE'
-        when coalesce(s.expiration_date,p.expiration_date) is distinct from p.expiration_date and p.expiration_date is not null then 'VENCIMIENTO_DISTINTO'
-        when coalesce(s.quantity,0)=coalesce(p.quantity,0) then 'CUADRADO'
-        else 'DIFERENCIA'
-      end status
+      case when s.codigo is null and coalesce(p.quantity,0)>0 then 'NUEVO_LOTE_SERIE'
+           when coalesce(s.quantity,0)=0 and s.source_total_quantity>0 and coalesce(p.quantity,0)>0 then 'FUERA_DE_DISPONIBLE'
+           when coalesce(s.expiration_date,p.expiration_date) is distinct from p.expiration_date and p.expiration_date is not null then 'VENCIMIENTO_DISTINTO'
+           when coalesce(s.quantity,0)=coalesce(p.quantity,0) then 'CUADRADO'
+           else 'DIFERENCIA' end status
     from public.inventory_system_reference_items s
     full join physical p
       on p.codigo=s.codigo
@@ -612,8 +604,7 @@ begin
     )
       and (normalized_status='TODOS' or status=normalized_status)
   ), metrics as (
-    select
-      count(distinct codigo)::integer total_skus,
+    select count(distinct codigo)::integer total_skus,
       count(distinct codigo) filter(where counted_quantity>0)::integer counted_skus,
       count(*) filter(where status='CUADRADO')::integer matched_items,
       count(*) filter(where status='DIFERENCIA')::integer difference_items,
@@ -626,20 +617,17 @@ begin
   select jsonb_build_object(
     'inventory_id',p_inventory_id,
     'refreshed_at',now(),
-    'metrics',(
-      select jsonb_build_object(
-        'total_skus',total_skus,
-        'counted_skus',counted_skus,
-        'matched_items',matched_items,
-        'difference_items',difference_items,
-        'new_references',new_references,
-        'non_available_items',non_available_items,
-        'available_units',available_units,
-        'counted_units',counted_units,
-        'difference_units',counted_units-available_units
-      )
-      from metrics
-    ),
+    'metrics',(select jsonb_build_object(
+      'total_skus',total_skus,
+      'counted_skus',counted_skus,
+      'matched_items',matched_items,
+      'difference_items',difference_items,
+      'new_references',new_references,
+      'non_available_items',non_available_items,
+      'available_units',available_units,
+      'counted_units',counted_units,
+      'difference_units',counted_units-available_units
+    ) from metrics),
     'rows',coalesce((
       select jsonb_agg(
         jsonb_build_object(
@@ -663,11 +651,11 @@ begin
         limit p_limit
       ) page
     ),'[]'::jsonb)
-  into result;
+  ) into result;
 
   return result;
-end;
-$$;
+end
+$function$;
 
 revoke all on function public.get_my_recount_queue(uuid),
   public.claim_next_recount_mission(uuid),
