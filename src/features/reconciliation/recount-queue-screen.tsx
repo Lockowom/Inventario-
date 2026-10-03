@@ -61,8 +61,10 @@ export function RecountQueueScreen(){
    if(announce)setMessage(nextQueue.active
     ? 'Misión C'+nextQueue.active.round+' activa.'
     : nextQueue.queued_count>0
-      ? nextQueue.queued_count+' misiones disponibles para tu rol.'
-      : 'No hay misiones disponibles para tu rol en este inventario.')
+      ? nextQueue.queued_count+' misiones C'+nextQueue.round+' disponibles para tu rol.'
+      : nextQueue.round===3
+        ? 'Tu rol ejecuta C3. Los C2 pendientes se atienden desde cuentas CONTADOR.'
+        : 'No hay misiones C2 disponibles para este contador en el inventario.')
   }catch(error){
    setContext(null);setQueue(null);setMission(null)
    setMessage(error instanceof Error?error.message:'No fue posible cargar la cola de reconteos.')
