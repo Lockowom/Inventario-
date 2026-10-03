@@ -41,14 +41,14 @@ export function ReconciliationScreen(){
 
  if(profile?.role==='CONTADOR')return null
 
- return <section className="supervision-screen" aria-labelledby="reconciliation-title">
+ return <section className="reconciliation-screen" aria-labelledby="reconciliation-title">
   <header>
    <p className="eyebrow">F15 · conciliación por misiones</p>
    <h1 id="reconciliation-title">CENTRO DE CONCILIACIÓN</h1>
    <p>La conciliación trabaja por SKU + lote/serie. Las ubicaciones se acumulan dentro de cada ronda física. C2 y C3 se ejecutan como misiones ciegas desde el módulo Reconteos.</p>
   </header>
 
-  <div className="supervision-actions">
+  <div className="reconciliation-actions">
    <label className="field"><span>Inventario</span><select value={inventoryId} onChange={e=>setInventoryId(e.target.value)}>{inventories.map(i=><option key={i.id} value={i.id}>{i.name} · {i.status}</option>)}</select></label>
    <label className="field"><span>Estado</span><select value={filter} onChange={e=>setFilter(e.target.value)}><option>TODOS</option><option>REQUIERE_2DO_CONTEO</option><option>2DO_CONTEO_ASIGNADO</option><option>REQUIERE_3ER_CONTEO</option><option>3ER_CONTEO_ASIGNADO</option><option>FISICO_CONFIRMADO</option><option>RESUELTO</option></select></label>
    <button className="button-secondary" onClick={()=>void refresh()}>ACTUALIZAR</button>
@@ -61,7 +61,7 @@ export function ReconciliationScreen(){
   <section className="reconciliation-cases">
    <div className="reconciliation-cases__header"><div><h2>CASOS DE INVESTIGACIÓN</h2><p>Los casos observados generan una misión C2 automáticamente. Sólo escalan a C3 cuando C1 y C2 no coinciden.</p></div><strong>{visible.length}</strong></div>
 
-   {summary&&<section className="supervision-summary" aria-label="Resumen conciliación">
+   {summary&&<section className="reconciliation-summary" aria-label="Resumen conciliación">
     <SummaryMetric label="Abiertos" value={summary.summary.open}/>
     <SummaryMetric label="C2" value={summary.summary.second_recount}/>
     <SummaryMetric label="C3" value={summary.summary.third_recount}/>
@@ -85,7 +85,7 @@ export function ReconciliationScreen(){
        <div><dt>Diferencia C1</dt><dd>{item.physical_quantity-item.system_quantity}</dd></div>
        {item.confirmed_physical_quantity!==null&&<div><dt>Físico confirmado</dt><dd>{item.confirmed_physical_quantity}</dd></div>}
       </dl>
-      <p className="supervision-note">Las cantidades por ubicación no se comparan contra Softland individualmente. C1/C2/C3 suman todas las ubicaciones de esta misma referencia.</p>
+      <p className="reconciliation-note">Las cantidades por ubicación no se comparan contra Softland individualmente. C1/C2/C3 suman todas las ubicaciones de esta misma referencia.</p>
 
       {item.status==='FISICO_CONFIRMADO'&&profile?.role==='ANALISTA'&&<>
        <label className="field"><span>Dictamen</span><select value={disposition[item.id]??''} onChange={e=>setDisposition({...disposition,[item.id]:e.target.value as Disposition})}><option value="">Seleccionar dictamen</option>{dispositions.map(value=><option key={value} value={value}>{value.replaceAll('_',' ')}</option>)}</select></label>
