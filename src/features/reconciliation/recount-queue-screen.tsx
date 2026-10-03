@@ -51,10 +51,6 @@ export function RecountQueueScreen(){
   setBusy(true)
   try{
    const nextQueue=await reconciliation.recountQueue(inventoryId)
-   const localMasters=getMasterSkuRepository()
-   if(!await isLocalMasterCurrent(inventoryId,remoteMasters,localMasters)){
-    await refreshMasterSnapshot(inventoryId,remoteMasters,localMasters)
-   }
    setContext({userId:profile.user_id,inventoryId,inventoryStatus:'ABIERTO'})
    setQueue(nextQueue)
    setMission(nextQueue.active)
@@ -90,6 +86,10 @@ export function RecountQueueScreen(){
   if(!mission||!context||!runtime||!syncCoordinator)return
   try{
    setBusy(true)
+   const localMasters=getMasterSkuRepository()
+   if(!await isLocalMasterCurrent(context.inventoryId,remoteMasters,localMasters)){
+    await refreshMasterSnapshot(context.inventoryId,remoteMasters,localMasters)
+   }
    const draft={...emptyPhysicalCountDraft,ubicacion,codigo:mission.codigo,
     serie:mission.reference_type==='SERIAL'?(mission.reference_value??''):'',
     partida:mission.reference_type==='PARTIDA'?(mission.reference_value??''):'',
