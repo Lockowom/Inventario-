@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createMasterFingerprint, validMasterItems, type MasterImportPreview, type MasterMetadata } from '../../domain/master/contracts'
-import { hasBlockingSystemReferenceIssues, type SystemReferencePreview } from '../../domain/reconciliation/system-reference-contracts'
+import { hasBlockingSystemReferenceIssues, isBlockingSystemReferenceIssue, type SystemReferencePreview } from '../../domain/reconciliation/system-reference-contracts'
 import { refreshMasterSnapshot } from '../../domain/master/offline-master'
 import type { AppRole } from '../../domain/auth/contracts'
 import { SupabaseMasterSkuRepository } from '../../services/supabase-master-sku-repository'
@@ -43,8 +43,8 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
   const preparationOpen = selectedInventory?.status === 'BORRADOR' || selectedInventory?.status === 'PREPARADO'
   const validMasterRows = useMemo(() => masterPreview ? validMasterItems(masterPreview) : [], [masterPreview])
   const masterErrors = masterPreview?.rejectedRows ?? 0
-  const rpErrors = useMemo(() => rpPreview?.issues.filter((issue) => issue.severity === 'ERROR') ?? [], [rpPreview])
-  const rpWarnings = useMemo(() => rpPreview?.issues.filter((issue) => issue.severity === 'WARNING') ?? [], [rpPreview])
+  const rpBlockers = useMemo(() => rpPreview?.issues.filter(isBlockingSystemReferenceIssue) ?? [], [rpPreview])
+  const rpFindings = useMemo(() => rpPreview?.issues.filter((issue) => !isBlockingSystemReferenceIssue(issue)) ?? [], [rpPreview])
   const pendingBatchCodes = useMemo(
     () => rpPreview?.unidentifiedBatchCodes.filter((codigo) => !authorizedBatchCodes.has(codigo)) ?? [],
     [rpPreview, authorizedBatchCodes],
@@ -52,7 +52,7 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
   const masterReady = Boolean(masterMetadata && masterCodes.size > 0)
   const rpReady = Boolean(referenceSummary)
   const canImportMaster = role === 'ADMIN' && preparationOpen && !!masterPreview && masterErrors === 0 && validMasterRows.length > 0 && busy === null
-  const canImportRp = preparationOpen && masterReady && !!rpPreview && rpPreview.itemCount > 0 && !hasBlockingSystemReferenceIssues(rpPreview) && pendingBatchCodes.length === 0 && busy === null
+  const canImportRp = preparationOpen && masterReady && !!rpPreview && rpPreview.itemCount > 0 && !hasBlockingSystemReferenceIssues(rpPreview) && (pendingBatchCodes.length === 0 || role === 'ADMIN') && busy === null
 
   useEffect(() => {
     let active = true
@@ -172,13 +172,13 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
     const next = await parseSystemReferenceFiles(files.batch, files.serial, authorizations, masterCodes)
     setRpPreview(next)
     const pending = next.unidentifiedBatchCodes.filter((codigo) => !authorizations.has(codigo))
-    const blockingErrors = next.issues.filter((issue) => issue.severity === 'ERROR' && !pending.includes(issue.codigo))
-    if (blockingErrors.length > 0) {
-      setMessage(`Referencia RP bloqueada: ${blockingErrors.length} errores estructurales deben corregirse.`)
+    const blockers = next.issues.filter(isBlockingSystemReferenceIssue)
+    if (blockers.length > 0) {
+      setMessage(`No se puede leer correctamente la estructura de los archivos: ${blockers.length} bloqueos técnicos.`)
     } else if (pending.length) {
-      setMessage(`Archivos leídos correctamente. ${pending.length} SKU con stock positivo sin Partida/Talla requieren autorización controlada.`)
+      setMessage(`Archivos utilizables. ${pending.length} SKU sin Partida/Talla serán autorizados automáticamente al confirmar; las demás diferencias de Softland se conservarán como hallazgos de origen.`)
     } else {
-      setMessage(`Partidas + Series validadas: ${next.itemCount} referencias, 0 errores bloqueantes. Puedes confirmar la referencia RP.`)
+      setMessage(`Archivos utilizables: ${next.itemCount} referencias. Las diferencias de Softland no bloquean el inventario y quedarán registradas como hallazgos de origen.`)
     }
   }
 
@@ -225,13 +225,34 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
   }
 
   async function confirmRp() {
-    if (!canImportRp || !rpPreview) return
+    if (!canImportRp || !rpPreview || !batchFile || !serialFile) return
     try {
       setBusy('RP_IMPORT')
-      const result = await reconciliation.importSystemReference(inventoryId, rpPreview.items, rpPreview.fileName, rpPreview.fileSha256, rpPreview.sourceFiles ?? [])
+      let effectivePreview = rpPreview
+
+      if (pendingBatchCodes.length > 0) {
+        if (role !== 'ADMIN') throw new Error('Solo ADMIN puede registrar automáticamente excepciones de Partida/Talla ausente.')
+        await reconciliation.authorizeMissingBatchExceptions(
+          inventoryId,
+          pendingBatchCodes,
+          'Softland informa stock positivo sin Partida/Talla. Se conserva como discrepancia de origen para ser resuelta mediante inventario físico.',
+        )
+        const nextAuthorized = new Set([...authorizedBatchCodes, ...pendingBatchCodes])
+        setAuthorizedBatchCodes(nextAuthorized)
+        effectivePreview = await parseSystemReferenceFiles(batchFile, serialFile, nextAuthorized, masterCodes)
+        setRpPreview(effectivePreview)
+      }
+
+      const result = await reconciliation.importSystemReference(
+        inventoryId,
+        effectivePreview.items,
+        effectivePreview.fileName,
+        effectivePreview.fileSha256,
+        effectivePreview.sourceFiles ?? [],
+      )
       const summary = await reconciliation.summary(inventoryId)
       setReferenceSummary(summary.source_reference)
-      setMessage(`Referencia RP confirmada: v${result.reference_version}, ${result.row_count} referencias, fingerprint ${result.fingerprint.slice(0, 12)}…`)
+      setMessage(`Referencia Softland aceptada como evidencia: v${result.reference_version}, ${result.row_count} referencias. Las inconsistencias de origen no bloquearon el inventario.`)
     } catch (error: unknown) {
       setMessage(describeError(error, 'La referencia RP fue rechazada.'))
     } finally { setBusy(null) }
@@ -296,23 +317,19 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
 
         {rpPreview && <>
           <div className="master-summary" aria-label="Resumen referencia RP">
-            <Summary label="Referencias" value={rpPreview.itemCount}/><Summary label="Series" value={rpPreview.serialItems}/><Summary label="Partidas" value={rpPreview.batchItems}/><Summary label="Legacy" value={rpPreview.legacyItems}/><Summary label="Errores" value={rpErrors.length}/><Summary label="Warnings" value={rpWarnings.length}/>
+            <Summary label="Referencias" value={rpPreview.itemCount}/><Summary label="Series" value={rpPreview.serialItems}/><Summary label="Partidas" value={rpPreview.batchItems}/><Summary label="Legacy" value={rpPreview.legacyItems}/><Summary label="Bloqueos técnicos" value={rpBlockers.length}/><Summary label="Hallazgos Softland" value={rpFindings.length}/>
           </div>
 
-          {rpPreview.issues.length > 0 && <IssueList title="Validaciones RP" items={rpPreview.issues.slice(0, 25).map((issue, index) => ({
+          {rpPreview.issues.length > 0 && <IssueList title="Hallazgos de origen Softland" items={rpPreview.issues.slice(0, 25).map((issue, index) => ({
             key:`${issue.sheet}-${issue.rowNumber}-${index}`,
             title:`${issue.severity} · ${issue.sheet}${issue.rowNumber ? ` · fila ${issue.rowNumber}` : ''} · ${issue.codigo || '—'}`,
             detail:`${issue.referenceValue ? `${issue.referenceValue} · ` : ''}${issue.message}`,
           }))}/>}
 
           {pendingBatchCodes.length > 0 && <div className="data-load-exception">
-            <h3>Autorización controlada pendiente</h3>
-            <p>{pendingBatchCodes.length} SKU tienen stock positivo sin Partida/Talla. No se inventa lote: se registra una referencia técnica auditada.</p>
+            <h3>Discrepancias de Partida/Talla detectadas</h3>
+            <p>{pendingBatchCodes.length} SKU vienen desde Softland con stock positivo pero sin Partida/Talla. No bloquean la carga. Al confirmar, ADMIN registrará automáticamente la excepción auditada y el inventario físico determinará la situación real.</p>
             <div className="data-load-code-list">{pendingBatchCodes.map((codigo) => <code key={codigo}>{codigo}</code>)}</div>
-            {role === 'ADMIN' ? <>
-              <label className="field"><span>Motivo de autorización (mínimo 10 caracteres)</span><textarea value={exceptionReason} disabled={busy !== null} onChange={(event) => setExceptionReason(event.target.value)} placeholder="Softland informa stock positivo sin Partida/Talla en el snapshot RP."/></label>
-              <button className="button-secondary" type="button" disabled={busy !== null || exceptionReason.trim().length < 10} onClick={() => void authorizePendingBatches()}>AUTORIZAR Y REVALIDAR RP</button>
-            </> : <p>Solo ADMIN puede autorizar estas excepciones.</p>}
           </div>}
 
           <button className="button-primary" type="button" disabled={!canImportRp} onClick={() => void confirmRp()}>{busy === 'RP_IMPORT' ? 'CONFIRMANDO RP…' : referenceSummary ? 'REEMPLAZAR REFERENCIA RP' : 'CONFIRMAR REFERENCIA RP'}</button>
