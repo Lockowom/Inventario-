@@ -650,16 +650,11 @@ begin
 
   if mission.round=2 then
     if total=r.physical_quantity then
-      result_status:='FISICO_CONFIRMIRMADO';
+      result_status:='FISICO_CONFIRMADO';
     else
       result_status:='REQUIERE_3ER_CONTEO';
     end if;
   else
-    result_status:='FISICO_CONFIRMADO';
-  end if;
-
-  -- Keep this assignment separate to catch the typo above at migration/test time.
-  if result_status::text='FISICO_CONFIRMIRMADO' then
     result_status:='FISICO_CONFIRMADO';
   end if;
 
