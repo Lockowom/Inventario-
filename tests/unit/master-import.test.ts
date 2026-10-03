@@ -1,7 +1,7 @@
 import * as XLSX from '@e965/xlsx'
 import { describe, expect, it } from 'vitest'
 import { createMasterFingerprint, deriveMasterControlType, normalizeMasterCode, validMasterItems } from '../../src/domain/master/contracts'
-import { parseMasterCsv, parseMasterXlsx } from '../../src/features/master/master-import-parser'
+import { parseMasterClipboard, parseMasterCsv, parseMasterXlsx } from '../../src/features/master/master-import-parser'
 
 describe('maestro SKU: normalización e importación', () => {
   it('deriva SERIAL, PARTIDA y LEGACY desde el código normalizado', () => {
@@ -32,6 +32,24 @@ describe('maestro SKU: normalización e importación', () => {
     expect(preview.rows[2]?.errors).toContain('CODIGO DUPLICADO')
   })
 
+  it('acepta pegado directo desde Excel/Sheets como TSV con encabezados', () => {
+    const preview = parseMasterClipboard('Cod. Producto\tProducto\n00001234\tProducto legacy\nNVI75200055P\tProducto partida')
+    expect(preview.rejectedRows).toBe(0)
+    expect(validMasterItems(preview)).toEqual([
+      { codigo: '00001234', descripcion: 'Producto legacy', controlType: 'LEGACY' },
+      { codigo: 'NVI75200055P', descripcion: 'Producto partida', controlType: 'PARTIDA' },
+    ])
+  })
+
+  it('acepta pegado de dos columnas sin encabezados y conserva ceros iniciales', () => {
+    const preview = parseMasterClipboard('00000123\tProducto uno\n0WA46651050S\tProducto serial')
+    expect(preview.rejectedRows).toBe(0)
+    expect(validMasterItems(preview)).toEqual([
+      { codigo: '00000123', descripcion: 'Producto uno', controlType: 'LEGACY' },
+      { codigo: '0WA46651050S', descripcion: 'Producto serial', controlType: 'SERIAL' },
+    ])
+  })
+
   it('preserva códigos XLSX de texto con ceros iniciales y no inventa ceros para una celda numérica', async () => {
     const sheet = XLSX.utils.aoa_to_sheet([['CODIGO', 'DESCRIPCION'], ['00725', 'Uno'], ['00001', 'Dos'], ['001234', 'Tres'], [725, 'Número original']])
     const workbook = XLSX.utils.book_new()
@@ -58,6 +76,20 @@ describe('maestro SKU: normalización e importación', () => {
       { codigo: '001234', descripcion: 'Producto legacy', controlType: 'LEGACY' },
       { codigo: '000725P', descripcion: 'Producto partida', controlType: 'PARTIDA' },
       { codigo: '000123S', descripcion: 'Producto serial', controlType: 'SERIAL' },
+    ])
+  })
+
+  it('prioriza la hoja STOCK TOTAL aunque el libro tenga otra hoja primero', async () => {
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([['OTRO'], ['IGNORAR']]), 'PORTADA')
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+      ['Cod. Producto', 'Producto'],
+      ['001234', 'Producto correcto'],
+    ]), 'STOCK TOTAL')
+    const bytes = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })
+    const preview = await parseMasterXlsx(bytes)
+    expect(validMasterItems(preview)).toEqual([
+      { codigo: '001234', descripcion: 'Producto correcto', controlType: 'LEGACY' },
     ])
   })
 
