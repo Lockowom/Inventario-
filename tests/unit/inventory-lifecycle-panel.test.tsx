@@ -8,9 +8,9 @@ const close=vi.fn()
 
 vi.mock('../../src/services/supabase-inventory-lifecycle-repository',()=>({
  SupabaseInventoryLifecycleRepository:class{
-  get(...args:unknown[]){return get(...args)}
-  finalizeC1(...args:unknown[]){return finalizeC1(...args)}
-  close(...args:unknown[]){return close(...args)}
+  get(inventoryId:string){return get(inventoryId)}
+  finalizeC1(inventoryId:string){return finalizeC1(inventoryId)}
+  close(inventoryId:string){return close(inventoryId)}
  }
 }))
 
