@@ -1,9 +1,6 @@
 name: iOS Certification
 
 on:
-  push:
-    branches: [main, 'release/**']
-  pull_request:
   workflow_dispatch:
 
 concurrency:
