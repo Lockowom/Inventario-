@@ -11,7 +11,7 @@ import { parseMasterClipboard, parseMasterFile } from '../master/master-import-p
 import { parseSystemReferenceFiles } from '../reconciliation/system-reference-import-parser'
 
 type Inventory = { id: string; name: string; status: string }
-type BusyState = 'BOOT' | 'MASTER_PARSE' | 'MASTER_IMPORT' | 'RP_PARSE' | 'RP_IMPORT' | 'AUTH_EXCEPTION' | null
+type BusyState = 'BOOT' | 'MASTER_PARSE' | 'MASTER_IMPORT' | 'RP_PARSE' | 'RP_IMPORT' | null
 
 const supervision = new SupabaseSupervisionRepository()
 const masters = new SupabaseMasterSkuRepository()
@@ -35,7 +35,6 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
   const [rpPreview, setRpPreview] = useState<SystemReferencePreview | null>(null)
   const [referenceSummary, setReferenceSummary] = useState<ReconciliationSummary['source_reference']>(null)
   const [authorizedBatchCodes, setAuthorizedBatchCodes] = useState<Set<string>>(new Set())
-  const [exceptionReason, setExceptionReason] = useState('')
   const batchFileRef = useRef<HTMLInputElement>(null)
   const serialFileRef = useRef<HTMLInputElement>(null)
 
@@ -79,7 +78,6 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
     setBatchFile(null)
     setSerialFile(null)
     setRpPreview(null)
-    setExceptionReason('')
     if (masterFileRef.current) masterFileRef.current.value = ''
     if (batchFileRef.current) batchFileRef.current.value = ''
     if (serialFileRef.current) serialFileRef.current.value = ''
@@ -209,20 +207,6 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
     await tryParseRp(batchFile, next)
   }
 
-  async function authorizePendingBatches() {
-    if (!batchFile || !serialFile || role !== 'ADMIN' || pendingBatchCodes.length === 0 || exceptionReason.trim().length < 10) return
-    try {
-      setBusy('AUTH_EXCEPTION')
-      await reconciliation.authorizeMissingBatchExceptions(inventoryId, pendingBatchCodes, exceptionReason.trim())
-      const nextAuthorized = new Set([...authorizedBatchCodes, ...pendingBatchCodes])
-      setAuthorizedBatchCodes(nextAuthorized)
-      setExceptionReason('')
-      await parseRp({ batch: batchFile, serial: serialFile }, nextAuthorized)
-      setMessage(`Autorización registrada para ${pendingBatchCodes.length} SKU sin Partida/Talla. La referencia técnica queda auditada.`)
-    } catch (error: unknown) {
-      setMessage(describeError(error, 'No fue posible autorizar las excepciones de partida.'))
-    } finally { setBusy(null) }
-  }
 
   async function confirmRp() {
     if (!canImportRp || !rpPreview || !batchFile || !serialFile) return
