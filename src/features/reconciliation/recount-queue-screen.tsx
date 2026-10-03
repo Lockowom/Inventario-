@@ -28,6 +28,8 @@ export function RecountQueueScreen(){
  const [message,setMessage]=useState('Cargando contexto de reconteos…')
 
  const selectedInventory=useMemo(()=>inventories.find(item=>item.id===inventoryId)??null,[inventories,inventoryId])
+ const runtime=useMemo(()=>context?createCountingRuntime(context):null,[context])
+ const syncCoordinator=useMemo(()=>context?createSyncCoordinator(context.userId):null,[context])
 
  useEffect(()=>{
   let active=true
@@ -44,7 +46,7 @@ export function RecountQueueScreen(){
   return()=>{active=false}
  },[])
 
- const refresh=useCallback(async()=>{
+ const refresh=useCallback(async(announce=true)=>{
   if(!inventoryId||!profile)return
   setBusy(true)
   try{
@@ -56,7 +58,7 @@ export function RecountQueueScreen(){
    setContext({userId:profile.user_id,inventoryId,inventoryStatus:'ABIERTO'})
    setQueue(nextQueue)
    setMission(nextQueue.active)
-   setMessage(nextQueue.active
+   if(announce)setMessage(nextQueue.active
     ? 'Misión C'+nextQueue.active.round+' activa.'
     : nextQueue.queued_count>0
       ? nextQueue.queued_count+' misiones disponibles para tu rol.'
@@ -83,17 +85,15 @@ export function RecountQueueScreen(){
  }
 
  async function observe(){
-  if(!mission||!context)return
+  if(!mission||!context||!runtime||!syncCoordinator)return
   try{
    setBusy(true)
-   const runtime=createCountingRuntime(context)
    const draft={...emptyPhysicalCountDraft,ubicacion,codigo:mission.codigo,
     serie:mission.reference_type==='SERIAL'?(mission.reference_value??''):'',
     partida:mission.reference_type==='PARTIDA'?(mission.reference_value??''):'',
     cantidadContada:mission.reference_type==='SERIAL'?'1':cantidad}
    const saved=await savePhysicalCount(context,draft,runtime)
-   const sync=createSyncCoordinator(context.userId)
-   await sync.runInventorySync(context.inventoryId,{forceRetry:true})
+   await syncCoordinator.runInventorySync(context.inventoryId,{forceRetry:true})
    const updated=await reconciliation.addMissionObservation(mission.id,saved.record.clientCountId)
    setMission(updated);setQueue(current=>current?{...current,active:updated}:current)
    setUbicacion('');setCantidad('')
@@ -108,10 +108,10 @@ export function RecountQueueScreen(){
    setBusy(true)
    const result=await reconciliation.completeMission(mission.id)
    setMission(null);setUbicacion('');setCantidad('')
+   await refresh(false)
    setMessage(result.next_round===3
     ? 'C2 cerrado. C1 y C2 no coinciden: C3 fue creado automáticamente.'
     : 'C'+result.round+' cerrado. Físico confirmado: '+(result.confirmed_physical_quantity??result.total_quantity)+'.')
-   await refresh()
   }catch(error){setMessage(error instanceof Error?error.message:'No fue posible finalizar la misión.')}
   finally{setBusy(false)}
  }
