@@ -120,6 +120,7 @@ begin
   return jsonb_build_object(
     'inventory_id',p_inventory_id,
     'round',queue_round,
+    'c1_completed',coalesce(c1_done,false),
     'queued_count',queued,
     'active',case when active_id is null then null else app_private.recount_mission_json(active_id) end
   );
