@@ -15,6 +15,13 @@ describe('AppNavigation', () => {
     expect(screen.getByRole('navigation', { hidden: true })).toHaveAttribute('aria-label', 'Navegación principal')
   })
 
+  it('expone Carga de datos a ANALISTA y ADMIN', () => {
+    const { rerender } = render(<AppNavigation role="ANALISTA" activeView="home" onSelect={vi.fn()} onSignOut={vi.fn()} />)
+    expect(screen.getByRole('button', { name: /Carga de datos/, hidden: true })).toBeInTheDocument()
+    rerender(<AppNavigation role="ADMIN" activeView="home" onSelect={vi.fn()} onSignOut={vi.fn()} />)
+    expect(screen.getByRole('button', { name: /Carga de datos/, hidden: true })).toBeInTheDocument()
+  })
+
   it('muestra Usuarios exclusivamente a ADMIN', () => {
     const { rerender } = render(<AppNavigation role="ANALISTA" activeView="home" onSelect={vi.fn()} onSignOut={vi.fn()} />)
     expect(screen.queryByRole('button', { name: /Usuarios/, hidden: true })).not.toBeInTheDocument()
@@ -30,6 +37,7 @@ describe('AppNavigation', () => {
 
     expect(screen.getByRole('button', { name: /Conteo/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Supervisión/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Carga de datos/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Conciliación/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Cortes/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Maestro SKU/ })).not.toBeInTheDocument()
@@ -40,6 +48,7 @@ describe('AppNavigation', () => {
     expect(isAppViewAllowed('CONTADOR', 'home')).toBe(true)
     expect(isAppViewAllowed('CONTADOR', 'counting')).toBe(true)
     expect(isAppViewAllowed('CONTADOR', 'supervision')).toBe(false)
+    expect(isAppViewAllowed('CONTADOR', 'data-load')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'reconciliation')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'cuts')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'master')).toBe(false)

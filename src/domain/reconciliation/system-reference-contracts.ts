@@ -45,6 +45,12 @@ export const systemReferencePreviewSchema=z.object({
 })
 export type SystemReferencePreview=z.infer<typeof systemReferencePreviewSchema>
 
+export function isBlockingSystemReferenceIssue(issue:SystemReferenceIssue){
+ if(issue.severity!=='ERROR') return false
+ return issue.message.startsWith('HOJA REQUERIDA AUSENTE:')
+   || issue.message.startsWith('COLUMNA REQUERIDA AUSENTE:')
+}
+
 export function hasBlockingSystemReferenceIssues(preview:SystemReferencePreview){
- return preview.issues.some(issue=>issue.severity==='ERROR')
+ return preview.issues.some(isBlockingSystemReferenceIssue)
 }

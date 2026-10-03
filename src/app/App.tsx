@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isSupabaseConfigured } from '../services/supabase'
 import { MasterSkuScreen } from '../features/master/master-sku-screen'
+import { DataLoadScreen } from '../features/data-load/data-load-screen'
 import { SupervisionScreen } from '../features/supervision/supervision-screen'
 import { CountingScreen } from '../features/counting/counting-screen'
 import { CutsScreen } from '../features/cuts/cuts-screen'
@@ -135,6 +136,8 @@ function AuthenticatedRuntime() {
       ? <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} captureGate={captureGate} />
       : visibleView === 'supervision'
         ? <SupervisionScreen />
+        : visibleView === 'data-load'
+          ? <DataLoadScreen role={role} />
         : visibleView === 'reconciliation'
           ? <ReconciliationScreen />
           : visibleView === 'cuts'

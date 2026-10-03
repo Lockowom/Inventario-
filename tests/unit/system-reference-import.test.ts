@@ -56,22 +56,33 @@ describe('F11 system reference RP parser',()=>{
   expect(preview.fileSha256).toMatch(/^[a-f0-9]{64}$/)
  })
 
- it('blocks a positive PARTIDA row without Partida / Talla',async()=>{
+ it('flags a positive PARTIDA row without Partida / Talla for controlled authorization',async()=>{
   const preview=await parseSystemReferenceXlsx(workbookBytes({missingBatch:true}),'synthetic.xlsx')
-  expect(hasBlockingSystemReferenceIssues(preview)).toBe(true)
-  expect(preview.issues.some(issue=>issue.message==='STOCK POSITIVO SIN PARTIDA / TALLA')).toBe(true)
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.unidentifiedBatchCodes).toEqual(['BAT001P'])
+  expect(preview.items.some(item=>item.codigo==='BAT001P')).toBe(false)
+  expect(preview.issues).toContainEqual(expect.objectContaining({codigo:'BAT001P',severity:'WARNING',message:expect.stringContaining('REQUIERE AUTORIZACIÓN CONTROLADA')}))
  })
 
- it('blocks duplicate system serials',async()=>{
+ it('materializes the technical missing-batch reference only after authorization',async()=>{
+  const preview=await parseSystemReferenceXlsx(workbookBytes({missingBatch:true}),'synthetic.xlsx',new Set(['BAT001P']))
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.items).toContainEqual(expect.objectContaining({
+   codigo:'BAT001P',referenceType:'PARTIDA',referenceValue:'EXC-SIN-PARTIDA:BAT001P',quantity:5,availableQuantity:5,
+  }))
+  expect(preview.issues).toContainEqual(expect.objectContaining({sheet:'EXCEPCIÓN CONTROLADA',severity:'WARNING'}))
+ })
+
+ it('keeps duplicate system serials as non-blocking Softland findings',async()=>{
   const preview=await parseSystemReferenceXlsx(workbookBytes({duplicateSerial:true}),'synthetic.xlsx')
-  expect(hasBlockingSystemReferenceIssues(preview)).toBe(true)
-  expect(preview.issues.some(issue=>issue.message==='SERIE DUPLICADA EN FUENTE DE SISTEMA')).toBe(true)
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.issues).toContainEqual(expect.objectContaining({severity:'WARNING',message:'SERIE DUPLICADA EN FUENTE DE SISTEMA'}))
  })
 
- it('blocks workbook sheet universes that do not reconcile',async()=>{
+ it('keeps workbook universe mismatches as non-blocking Softland findings',async()=>{
   const preview=await parseSystemReferenceXlsx(workbookBytes({dropFromSerialUniverse:true}),'synthetic.xlsx')
-  expect(hasBlockingSystemReferenceIssues(preview)).toBe(true)
-  expect(preview.issues.some(issue=>issue.message==='EL UNIVERSO SKU NO COINCIDE CON STOCK TOTAL')).toBe(true)
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.issues).toContainEqual(expect.objectContaining({severity:'WARNING',message:'EL UNIVERSO SKU NO COINCIDE CON STOCK TOTAL'}))
  })
 
  it('combina archivos separados de partidas y series sin requerir un libro consolidado',async()=>{
@@ -114,7 +125,7 @@ describe('F11 system reference RP parser',()=>{
   ],'series-sin-lote.xlsx')
 
   const blocked=await parseSystemReferenceFiles(batches,serials)
-  expect(hasBlockingSystemReferenceIssues(blocked)).toBe(true)
+  expect(hasBlockingSystemReferenceIssues(blocked)).toBe(false)
   expect(blocked.unidentifiedBatchCodes).toEqual(['BAT001P'])
   expect(blocked.items).toEqual([])
 
