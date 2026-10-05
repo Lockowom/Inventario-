@@ -46,6 +46,17 @@ describe('CountingScreen Device Health capture gate', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeEnabled())
   })
 
+  it('blocks malformed or overlong locations in the input before saving', async () => {
+    render(<CountingScreen runtime={runtime()} syncCoordinator={coordinator} captureGate={{ blocked: false, message: null }} />)
+    const location = await screen.findByLabelText('UBICACION')
+    expect(location).toHaveAttribute('maxlength', '8')
+    fireEvent.change(location, { target: { value: 'AAAAAAAAAAAAAAAAAAAAAAAA' } })
+    expect(location).toHaveValue('')
+    expect(screen.getByText(/Ubicación mal digitada/i)).toBeVisible()
+    fireEvent.change(location, { target: { value: 'f-32-03' } })
+    expect(location).toHaveValue('F-32-03')
+  })
+
   it('closes regular capture after C1 while leaving sync available', async () => {
     const c1Runtime = { ...runtime(), context: { inventoryId, userId, inventoryStatus: 'C1_COMPLETADO' as const } }
     render(<CountingScreen runtime={c1Runtime} syncCoordinator={coordinator} captureGate={{ blocked: false, message: null }} />)
