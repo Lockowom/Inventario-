@@ -157,13 +157,11 @@ test.describe('F9A certificación responsive y accesible', () => {
     await expect(page.getByText('REQUIERE REINTENTO')).toBeVisible()
   })
 
-  test('supervisión y maestro declaran sólo el smoke de layout sin backend', async ({ page }) => {
+  test('supervisión declara el smoke de layout sin backend', async ({ page }) => {
     await page.setViewportSize({ width: 1024, height: 900 })
     await page.goto('/?fixture=layout')
     await expect(page.getByRole('heading', { name: 'SUPERVISIÓN' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Maestro SKU' })).toBeVisible()
     await expect(page.getByLabel('Inventario').last()).toBeVisible()
-    await expect(page.getByLabel(/Archivo maestro/)).toBeVisible()
     await expect(page.getByRole('button', { name: 'ACTUALIZAR' })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   })

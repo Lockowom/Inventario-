@@ -20,11 +20,20 @@ describe('F11 system reference panel lifecycle',()=>{
   expect(screen.queryByRole('button',{name:'GENERAR / ACTUALIZAR HALLAZGOS'})).toBeNull()
  })
 
- it('shows materialization only for an open inventory',async()=>{
+ it('updates live differences while C1 keeps uncounted system references informational',async()=>{
   const onMaterialized=vi.fn()
   render(<SystemReferencePanel inventoryId="inv-1" inventoryStatus="ABIERTO" role="ADMIN" onMaterialized={onMaterialized}/>)
   expect(screen.queryByText('Libro RP (.xlsx)')).toBeNull()
-  fireEvent.click(screen.getByRole('button',{name:'GENERAR / ACTUALIZAR HALLAZGOS'}))
+  expect(screen.getByText(/aún no contadas no se interpretan como faltantes/i)).toBeTruthy()
+  fireEvent.click(screen.getByRole('button',{name:'ACTUALIZAR DIFERENCIAS EN VIVO'}))
+  await waitFor(()=>expect(materialize).toHaveBeenCalledWith('inv-1'))
+  await waitFor(()=>expect(onMaterialized).toHaveBeenCalled())
+ })
+
+ it('enables missing-case materialization only in final reconciliation',async()=>{
+  const onMaterialized=vi.fn()
+  render(<SystemReferencePanel inventoryId="inv-1" inventoryStatus="CONCILIACION_FINAL" role="ADMIN" onMaterialized={onMaterialized}/>)
+  fireEvent.click(screen.getByRole('button',{name:'GENERAR / ACTUALIZAR HALLAZGOS FINALES'}))
   await waitFor(()=>expect(materialize).toHaveBeenCalledWith('inv-1'))
   await waitFor(()=>expect(onMaterialized).toHaveBeenCalled())
   expect(screen.getByText(/2 casos nuevos, 5 casos abiertos/)).toBeTruthy()

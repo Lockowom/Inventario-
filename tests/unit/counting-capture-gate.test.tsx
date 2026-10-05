@@ -46,6 +46,14 @@ describe('CountingScreen Device Health capture gate', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeEnabled())
   })
 
+  it('closes regular capture after C1 while leaving sync available', async () => {
+    const c1Runtime = { ...runtime(), context: { inventoryId, userId, inventoryStatus: 'C1_COMPLETADO' as const } }
+    render(<CountingScreen runtime={c1Runtime} syncCoordinator={coordinator} captureGate={{ blocked: false, message: null }} />)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeDisabled())
+    expect(screen.getByText(/captura normal ya no está disponible/i)).toBeVisible()
+    expect(screen.getByRole('button', { name: 'SINCRONIZAR AHORA' })).toBeEnabled()
+  })
+
   it.each([
     [39, /Pendientes: 39 \/ 50/, false],
     [40, /Advertencia: existen varios conteos pendientes/, false],

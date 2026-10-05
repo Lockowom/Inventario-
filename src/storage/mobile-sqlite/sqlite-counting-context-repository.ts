@@ -2,7 +2,7 @@ import { cachedCountingContextSchema, type CachedCountingContext, type CountingC
 import type { SqliteDatabase } from './sqlite-database'
 import { applySqliteMigrations } from './sqlite-migrations'
 
-interface ContextRow extends Record<string, unknown> { user_id: string; inventory_id: string; inventory_status: 'ABIERTO'; verified_at: string }
+interface ContextRow extends Record<string, unknown> { user_id: string; inventory_id: string; inventory_status: 'ABIERTO' | 'C1_COMPLETADO' | 'CONCILIACION_FINAL'; verified_at: string }
 
 export class SqliteCountingContextRepository implements CountingContextRepository {
   private initialized = false

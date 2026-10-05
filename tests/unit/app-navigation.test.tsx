@@ -42,7 +42,6 @@ describe('AppNavigation', () => {
     expect(isAppViewAllowed('CONTADOR', 'supervision')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'reconciliation')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'cuts')).toBe(false)
-    expect(isAppViewAllowed('CONTADOR', 'master')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'users')).toBe(false)
   })
 })

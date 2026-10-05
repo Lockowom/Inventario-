@@ -65,6 +65,17 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = [
       )
     },
   },
+  {
+    version: 7,
+    up: async (database) => {
+      // SQLite cannot alter a CHECK constraint in place. Preserve the current
+      // authorization lease while allowing C2/C3-only contexts after C1.
+      await database.execute('alter table local_counting_context rename to local_counting_context_v6')
+      await database.execute("create table local_counting_context (context_key text primary key check (context_key = 'active'), user_id text not null, inventory_id text not null, inventory_status text not null check (inventory_status in ('ABIERTO', 'C1_COMPLETADO', 'CONCILIACION_FINAL')), verified_at text not null)")
+      await database.execute('insert into local_counting_context (context_key,user_id,inventory_id,inventory_status,verified_at) select context_key,user_id,inventory_id,inventory_status,verified_at from local_counting_context_v6')
+      await database.execute('drop table local_counting_context_v6')
+    },
+  },
 ]
 
 const migrationRuns = new WeakMap<SqliteDatabase, Promise<void>>()

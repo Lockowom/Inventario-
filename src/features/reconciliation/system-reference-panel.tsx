@@ -9,6 +9,12 @@ import { parseSystemReferenceFiles } from './system-reference-import-parser'
 const repo=new SupabaseReconciliationRepository()
 const masters=new SupabaseMasterSkuRepository()
 
+function errorMessage(error: unknown, fallback: string): string {
+ if (error instanceof Error) return error.message
+ if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') return error.message
+ return fallback
+}
+
 export function SystemReferencePanel({inventoryId,inventoryStatus,role,onMaterialized}:{inventoryId:string;inventoryStatus:string;role:'CONTADOR'|'ANALISTA'|'ADMIN'|null;onMaterialized:()=>Promise<void>|void}){
  const [preview,setPreview]=useState<SystemReferencePreview|null>(null)
  const [message,setMessage]=useState('Carga el Maestro SKU, el archivo de partidas y el archivo de series. El Maestro define qué códigos se pueden contar; los otros dos sólo aportan referencia Softland.')
@@ -37,7 +43,7 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,role,onMateria
    setMessage(hasBlockingSystemReferenceIssues(next)?'Preview bloqueado: corrige los errores del libro RP antes de importar.':'Preview válido: '+next.itemCount+' referencias listas para importación atómica.')
   }catch(error){
    setPreview(null)
-   setMessage(error instanceof Error?error.message:'No fue posible leer la referencia de sistema.')
+   setMessage(errorMessage(error,'No fue posible leer la referencia de sistema.'))
   }finally{setBusy(false)}
  }
 
@@ -59,7 +65,7 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,role,onMateria
    setMasterPreview(nextPreview)
    setMessage(nextPreview.rejectedRows>0?'El Maestro tiene filas inválidas: corrígelas antes de confirmar.':`Maestro validado: ${nextPreview.validRows} SKU existentes. Confírmalo para habilitar el conteo de esos códigos.`)
    if(batchFile&&serialFile)await handleFiles(batchFile,serialFile)
-  }catch(error){setMessage(error instanceof Error?error.message:'No fue posible leer el Maestro SKU.')
+  }catch(error){setMessage(errorMessage(error,'No fue posible leer el Maestro SKU.'))
   }finally{setBusy(false)}
  }
 
@@ -91,7 +97,7 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,role,onMateria
    setMasterImported(true)
    if(batchFile&&serialFile)await handleFiles(batchFile,serialFile)
    else setMessage(`Maestro confirmado: ${items.length} SKU existentes habilitados para conteo. Ahora carga Partidas y Series.`)
-  }catch(error){setMessage(error instanceof Error?error.message:'No fue posible confirmar el Maestro SKU.')
+  }catch(error){setMessage(errorMessage(error,'No fue posible confirmar el Maestro SKU.'))
   }finally{setBusy(false)}
  }
 
@@ -102,7 +108,7 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,role,onMateria
    const result=await repo.importSystemReference(inventoryId,preview.items,preview.fileName,preview.fileSha256,preview.sourceFiles)
    setMessage('Referencia importada: versión '+result.reference_version+', '+result.row_count+' filas, fingerprint '+result.fingerprint.slice(0,12)+'…')
   }catch(error){
-   setMessage(error instanceof Error?error.message:'La referencia de sistema fue rechazada.')
+   setMessage(errorMessage(error,'La referencia de sistema fue rechazada.'))
   }finally{setBusy(false)}
  }
 
@@ -119,7 +125,7 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,role,onMateria
    setPreview(next)
    setMessage(`Excepción controlada autorizada para ${pending.length} SKU. Se conserva como referencia explícita, no como partida real.`)
   }catch(error){
-   setMessage(error instanceof Error?error.message:'No fue posible autorizar la excepción controlada.')
+   setMessage(errorMessage(error,'No fue posible autorizar la excepción controlada.'))
   }finally{setBusy(false)}
  }
 
@@ -130,7 +136,7 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,role,onMateria
    setMessage('Conciliación actualizada: '+result.created_count+' casos nuevos, '+result.existing_count+' casos abiertos para este snapshot.')
    await onMaterialized()
   }catch(error){
-   setMessage(error instanceof Error?error.message:'No fue posible materializar la conciliación.')
+   setMessage(errorMessage(error,'No fue posible materializar la conciliación.'))
   }finally{setBusy(false)}
  }
 
@@ -153,7 +159,9 @@ export function SystemReferencePanel({inventoryId,inventoryStatus,role,onMateria
    {preview&&!masterImported&&<p>Confirma el Maestro SKU antes de importar la referencia. Los SKU que estén sólo en Partidas o Series quedarán como advertencia y no se habilitarán para conteo.</p>}
    <button className="button-primary" type="button" disabled={!canImport||busy} onClick={()=>void handleImport()}>{busy?'Procesando…':'CONFIRMAR REFERENCIA DE SISTEMA'}</button>
   </>}
-  {inventoryStatus==='ABIERTO'&&<button className="button-primary" type="button" disabled={busy} onClick={()=>void handleMaterialize()}>{busy?'Procesando…':'GENERAR / ACTUALIZAR HALLAZGOS'}</button>}
+  {inventoryStatus==='ABIERTO'&&<><p className="master-message">Actualiza diferencias en vivo para asignar C2/C3. Las referencias Softland aún no contadas no se interpretan como faltantes hasta iniciar la conciliación final.</p><button className="button-primary" type="button" disabled={busy} onClick={()=>void handleMaterialize()}>{busy?'Procesando…':'ACTUALIZAR DIFERENCIAS EN VIVO'}</button></>}
+  {inventoryStatus==='C1_COMPLETADO'&&<p className="master-message">C1 está completado. Inicia Conciliación final para abrir los faltantes reales de referencias Softland sin conteo físico.</p>}
+  {inventoryStatus==='CONCILIACION_FINAL'&&<button className="button-primary" type="button" disabled={busy} onClick={()=>void handleMaterialize()}>{busy?'Procesando…':'GENERAR / ACTUALIZAR HALLAZGOS FINALES'}</button>}
   <p className="master-message" role="status">{message}</p>
  </section>
 }

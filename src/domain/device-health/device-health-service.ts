@@ -54,8 +54,9 @@ export class DeviceHealthService {
   }
 
   private checkInventoryContext(context: ResolvedCountingContext): DeviceHealthCheck {
-    if (context.kind !== 'BLOCKED' && context.context.inventoryStatus === 'ABIERTO') return { key: 'INVENTORY_CONTEXT', status: 'PASS', blocking: true, message: 'Inventario abierto autorizado.' }
-    return { key: 'INVENTORY_CONTEXT', status: 'FAIL', blocking: true, message: 'Seleccione un inventario abierto autorizado.' }
+    if (context.kind === 'BLOCKED') return { key: 'INVENTORY_CONTEXT', status: 'FAIL', blocking: true, message: 'Seleccione un inventario autorizado.' }
+    if (context.context.inventoryStatus === 'ABIERTO') return { key: 'INVENTORY_CONTEXT', status: 'PASS', blocking: true, message: 'Inventario abierto autorizado.' }
+    return { key: 'INVENTORY_CONTEXT', status: 'PASS', blocking: true, message: 'C1 cerrado: sólo se permite un reconteo C2/C3 asignado.' }
   }
 
   private async checkMasterSnapshot(context: ResolvedCountingContext): Promise<DeviceHealthCheck> {

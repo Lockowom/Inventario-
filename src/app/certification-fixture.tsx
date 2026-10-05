@@ -1,6 +1,5 @@
 import { useMemo } from 'react'
 import { SupervisionScreen } from '../features/supervision/supervision-screen'
-import { MasterSkuScreen } from '../features/master/master-sku-screen'
 import { CountingScreen, type CountingRuntime } from '../features/counting/counting-screen'
 import { CutsScreen } from '../features/cuts/cuts-screen'
 import { DeviceHealthScreen } from '../features/device-health/device-health-screen'
@@ -148,7 +147,7 @@ export function CertificationFixture() {
     <header><p className="eyebrow">Fase 9 · fixture DEV determinista</p><h1>INVEN3 CERTIFICATION</h1><p>Datos sintéticos contractualmente válidos para regresión visual y accesibilidad.</p></header>
     {report && <DeviceHealthScreen report={report} loading={false} error={null} onRefresh={() => undefined} onFullCheck={() => undefined} />}
     {state.startsWith('counting-') && <CountingScreen runtime={runtime} syncCoordinator={fixtureSyncCoordinator} captureGate={state === 'counting-health-blocked' ? { blocked: true, message: 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.' } : undefined} />}
-    {state === 'layout' && <><SupervisionScreen /><MasterSkuScreen /></>}
+    {state === 'layout' && <SupervisionScreen />}
     {['cuts-ready', 'rectification', 'artifacts'].includes(state) && <CutsScreen cutsRepository={fixtureCutsRepository} rectificationsRepository={repository} />}
   </main>
 }

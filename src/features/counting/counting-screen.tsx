@@ -84,7 +84,9 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
   if (!runtime) return <section className="counting-screen" aria-labelledby="counting-title"><p className="eyebrow">Fase 4 · Captura bloqueada</p><h1 id="counting-title">CONTEO FÍSICO</h1><p className="form-error" role="alert">{captureGate?.message ?? 'Captura no disponible: seleccione un inventario ABIERTO desde el contexto autenticado.'}</p><section className="sync-status" aria-label="Estado de sincronización pendiente"><p role="status">{syncMessage || startupSyncMessage || 'Los conteos locales pendientes permanecen protegidos y disponibles para sincronización.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runOutstandingSync()}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section></section>
   const activeRuntime = runtime
   const capacity = pending === null ? null : pendingCapacity(pending)
-  const disabled = healthBlocked || masterAvailable !== true || saving || pending === null || capacity === 'BLOCKED'
+  const recountOnlyContext = activeRuntime.context.inventoryStatus !== 'ABIERTO'
+  const captureAllowed = !recountOnlyContext || activeRecount !== null
+  const disabled = healthBlocked || masterAvailable !== true || saving || pending === null || capacity === 'BLOCKED' || !captureAllowed
 
   async function resolveSku(code = draft.codigo) {
     const resolution = await resolveCountSku(activeRuntime.context.inventoryId, code, draft, activeRuntime.masters)
@@ -111,7 +113,9 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
   }
   async function save() {
     if (healthBlocked) { setMessage(captureGate?.message ?? 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.'); return }
+    if (recountOnlyContext && !activeRecount) { setMessage('C1 está cerrado: sólo puede registrar un reconteo C2/C3 que le haya sido asignado.'); return }
     if (capacity === 'BLOCKED') { setMessage('Se alcanzó el límite de 50 conteos pendientes en este dispositivo. Sincronice antes de continuar.'); return }
+    if (activeRecount && !window.confirm(`¿Confirmar reconteo C${activeRecount.round} de ${activeRecount.codigo}? La cantidad anterior permanece oculta y el registro se enviará a validación.`)) return
     setSaving(true); setMessage('')
     try {
       const { savePhysicalCount } = await import('../../domain/count/save-physical-count')
@@ -141,12 +145,13 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
   }
 
   return <section className="counting-screen" aria-labelledby="counting-title">
-    <p className="eyebrow">Offline-first · Inventario ABIERTO</p><h1 id="counting-title">CONTEO FÍSICO</h1>
+    <p className="eyebrow">Offline-first · {recountOnlyContext ? 'RECONTEO CONTROLADO' : 'INVENTARIO ABIERTO'}</p><h1 id="counting-title">CONTEO FÍSICO</h1>
     {healthBlocked && <p className="form-error" role="alert">{captureGate?.message ?? 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.'}</p>}
     {masterAvailable === false && <p className="form-error" role="alert">No existe un maestro SKU disponible en este dispositivo. Actualice el maestro antes de iniciar el conteo.</p>}
     <CapacityStatus pending={pending} capacity={capacity} />
-    {recounts.length>0&&<section className="sync-status" aria-label="Reconteos asignados"><strong>RECONTEOS ASIGNADOS</strong>{recounts.map(item=><button key={item.id} type="button" className="button-secondary" onClick={()=>void selectRecount(item)}>C{item.round} · {item.codigo}{item.reference_value?` · ${item.reference_value}`:''}</button>)}</section>}
-    {activeRecount&&<p className="form-warning" role="status">RECONTEO C{activeRecount.round} ACTIVO · {activeRecount.codigo}. Captura ciega: la cantidad anterior no se muestra.</p>}
+    {recountOnlyContext&&!activeRecount&&<p className="form-warning" role="status">C1 está cerrado. La captura normal ya no está disponible; seleccione un reconteo asignado para continuar.</p>}
+    {recounts.length>0&&<section className="sync-status" aria-label="Reconteos asignados"><strong>RECONTEOS ASIGNADOS · {recounts.length}</strong><p>{activeRecount?`${recounts.findIndex(item=>item.id===activeRecount.id)+1} de ${recounts.length}`:'Seleccione el siguiente SKU o partida a verificar.'}</p>{recounts.map((item,index)=><button key={item.id} type="button" className="button-secondary" aria-pressed={activeRecount?.id===item.id} onClick={()=>void selectRecount(item)}>{index+1}. C{item.round} · {item.codigo}{item.reference_value?` · ${item.reference_value}`:''}</button>)}</section>}
+    {activeRecount&&<p className="form-warning" role="status">RECONTEO C{activeRecount.round} ACTIVO · {activeRecount.codigo}. Captura ciega: la cantidad anterior no se muestra. Verifique ubicación, SKU y {activeRecount.reference_type==='SERIAL'?'serie':'partida'} antes de confirmar.</p>}
     <section className="sync-status" aria-label="Estado de sincronización"><p role="status">{syncMessage || startupSyncMessage || 'Sincronización preparada. Los conteos locales permanecen disponibles sin conexión.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runSync(pendingRecountClientId ?? undefined, true)}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section>
     {message && <p className={message === 'CONTEO GUARDADO' ? 'form-success' : 'form-error'} role="status">{message}</p>}
     <div className="counting-form" aria-disabled={disabled}>

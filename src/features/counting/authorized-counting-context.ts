@@ -6,12 +6,12 @@ import { getSupabaseClient } from '../../services/supabase'
 import { classifyAuthError, classifyPostgrestError } from './supabase-error-classification'
 import { persistAuthUserId, readPersistedAuthUserId } from '../../services/local-auth-identity'
 
-const inventoryRowSchema = z.object({ id: z.uuid(), status: z.enum(['BORRADOR', 'PREPARADO', 'ABIERTO', 'CERRADO', 'CONGELADO']) })
+const inventoryRowSchema = z.object({ id: z.uuid(), status: z.enum(['BORRADOR', 'PREPARADO', 'ABIERTO', 'C1_COMPLETADO', 'CONCILIACION_FINAL', 'CERRADO', 'CONGELADO']) })
 
 export function selectAuthorizedCountingContext(userId: string, rows: unknown[]): ActiveCountingContext | null {
-  const open = rows.map((row) => inventoryRowSchema.safeParse(row)).flatMap((result) => result.success && result.data.status === 'ABIERTO' ? [result.data] : [])
-  if (open.length !== 1) return null
-  return { userId, inventoryId: open[0]!.id, inventoryStatus: 'ABIERTO' }
+  const active = rows.map((row) => inventoryRowSchema.safeParse(row)).flatMap((result) => result.success && ['ABIERTO', 'C1_COMPLETADO', 'CONCILIACION_FINAL'].includes(result.data.status) ? [result.data] : [])
+  if (active.length !== 1) return null
+  return { userId, inventoryId: active[0]!.id, inventoryStatus: active[0]!.status as ActiveCountingContext['inventoryStatus'] }
 }
 
 /** Network-authoritative verification. It never reads the local context cache. */
@@ -37,14 +37,14 @@ export async function verifyServerCountingContext(): Promise<ServerCountingConte
   if (assignmentsResponse.error) return classifyPostgrestError(assignmentsResponse)
   const ids = (assignmentsResponse.data ?? []).map((assignment) => assignment.inventory_id)
   if (ids.length === 0) return { kind: 'NOT_AUTHORIZED' }
-  const inventoriesResponse = await client.from('inventories').select('id, status').in('id', ids).eq('status', 'ABIERTO')
+  const inventoriesResponse = await client.from('inventories').select('id, status').in('id', ids).in('status', ['ABIERTO', 'C1_COMPLETADO', 'CONCILIACION_FINAL'])
   if (inventoriesResponse.error) return classifyPostgrestError(inventoriesResponse)
   const parsed = (inventoriesResponse.data ?? []).map((row) => inventoryRowSchema.safeParse(row))
   if (parsed.some((result) => !result.success)) return { kind: 'AMBIGUOUS' }
-  const open = parsed.flatMap((result) => result.success ? [result.data] : [])
-  if (open.length === 0) return { kind: 'NOT_AUTHORIZED' }
-  if (open.length !== 1) return { kind: 'AMBIGUOUS' }
-  return { kind: 'AUTHORIZED', context: { userId: authData.user.id, inventoryId: open[0]!.id, inventoryStatus: 'ABIERTO' }, verifiedAt: new Date().toISOString() }
+  const active = parsed.flatMap((result) => result.success ? [result.data] : [])
+  if (active.length === 0) return { kind: 'NOT_AUTHORIZED' }
+  if (active.length !== 1) return { kind: 'AMBIGUOUS' }
+  return { kind: 'AUTHORIZED', context: { userId: authData.user.id, inventoryId: active[0]!.id, inventoryStatus: active[0]!.status as ActiveCountingContext['inventoryStatus'] }, verifiedAt: new Date().toISOString() }
 }
 
 /** Reads only the Supabase client's persisted session identity for outage fallback. */

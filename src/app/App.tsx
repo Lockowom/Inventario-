@@ -1,7 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isSupabaseConfigured } from '../services/supabase'
-import { MasterSkuScreen } from '../features/master/master-sku-screen'
 import { SupervisionScreen } from '../features/supervision/supervision-screen'
 import { CountingScreen } from '../features/counting/counting-screen'
 import { CutsScreen } from '../features/cuts/cuts-screen'
@@ -139,9 +138,7 @@ function AuthenticatedRuntime() {
           ? <ReconciliationScreen />
           : visibleView === 'cuts'
             ? <CutsScreen />
-            : visibleView === 'master'
-              ? <MasterSkuScreen />
-              : <UserManagementScreen role={role} />
+            : <UserManagementScreen role={role} />
 
   return <main className="app-shell app-shell--authenticated">
     <AppNavigation role={role} activeView={visibleView} onSelect={(view) => { if (isAppViewAllowed(role, view)) setActiveView(view) }} onSignOut={() => void authService.signOut()} />

@@ -20,7 +20,7 @@ export type ResolvedCountingContext =
 export async function resolveCountingContext(verifier: CountingContextVerifier, cache: CountingContextRepository): Promise<ResolvedCountingContext> {
   const server = await verifier.verifyServer()
   if (server.kind === 'AUTHORIZED') {
-    const cached: CachedCountingContext = { userId: server.context.userId, inventoryId: server.context.inventoryId, inventoryStatus: 'ABIERTO', verifiedAt: server.verifiedAt }
+    const cached: CachedCountingContext = { userId: server.context.userId, inventoryId: server.context.inventoryId, inventoryStatus: server.context.inventoryStatus, verifiedAt: server.verifiedAt }
     await cache.save(cached)
     return { kind: 'ONLINE', context: server.context }
   }
@@ -30,5 +30,5 @@ export async function resolveCountingContext(verifier: CountingContextVerifier, 
   }
   const cached = await cache.get()
   if (!cached) return { kind: 'BLOCKED', reason: 'CACHE_MISMATCH' }
-  return { kind: 'OFFLINE', context: { userId: cached.userId, inventoryId: cached.inventoryId, inventoryStatus: 'ABIERTO' } }
+  return { kind: 'OFFLINE', context: { userId: cached.userId, inventoryId: cached.inventoryId, inventoryStatus: cached.inventoryStatus } }
 }

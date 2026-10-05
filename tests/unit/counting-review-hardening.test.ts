@@ -27,10 +27,11 @@ describe('correcciones de revisión Fase 3', () => {
     expect(status.capacity).toBe(capacity)
     expect(status.message).toContain(text)
   })
-  it('bloquea contextos que no provienen de exactamente un inventario ABIERTO', () => {
+  it('autoriza un único contexto activo y mantiene cerrados los inventarios terminales', () => {
     expect(selectAuthorizedCountingContext(userId, [{ id: inventoryId, status: 'CERRADO' }])).toBeNull()
     expect(selectAuthorizedCountingContext(userId, [{ id: inventoryId, status: 'ABIERTO' }, { id: '33333333-3333-4333-8333-333333333333', status: 'ABIERTO' }])).toBeNull()
     expect(selectAuthorizedCountingContext(userId, [{ id: inventoryId, status: 'ABIERTO' }])).toMatchObject({ userId, inventoryStatus: 'ABIERTO' })
+    expect(selectAuthorizedCountingContext(userId, [{ id: inventoryId, status: 'C1_COMPLETADO' }])).toMatchObject({ userId, inventoryStatus: 'C1_COMPLETADO' })
   })
   it('procesa appRestoredResult sin guardar automáticamente y conserva el campo', () => {
     const values = new Map<string, string>([['inven3.pending-scan-field', 'codigo']])

@@ -15,6 +15,7 @@ export type RecountCandidate={user_id:string;display_name:string;role:'CONTADOR'
 export type SystemReferenceImportResult={reference_version:number;row_count:number;fingerprint:string}
 export type MissingBatchException={codigo:string;reason:string;created_at:string}
 export type MaterializationResult={created_count:number;existing_count:number;source_fingerprint:string}
+export type InventoryLifecycleResult={id:string;status:string;c1_completed_at:string|null;final_reconciliation_started_at:string|null}
 export type ReconciliationEvent={id:string;case_id:string;event_type:string;actor_user_id:string;actor_display_name:string;target_display_name:string|null;payload:Record<string,unknown>;created_at:string}
 export type ReconciliationSummary={inventory_id:string;source_reference:null|{reference_version:number;row_count:number;fingerprint:string;source:string;import_identifier:string|null;imported_at:string};summary:{total:number;open:number;pending_analysis:number;second_recount:number;third_recount:number;physical_confirmed:number;resolved:number};anomalies:Record<string,number>;last_materialized_at:string|null}
 export type LiveReconciliationStatus='CUADRADO'|'DIFERENCIA'|'NUEVO_LOTE_SERIE'|'FUERA_DE_DISPONIBLE'|'VENCIMIENTO_DISTINTO'
@@ -47,6 +48,8 @@ export class SupabaseReconciliationRepository {
   const rows=await rpc<MaterializationResult[]>('materialize_reconciliation_cases',{p_inventory_id:inventoryId})
   const result=rows[0];if(!result)throw new Error('La materialización no devolvió resultado.');return result
  }
+ completeFirstCount(inventoryId:string){return rpc<InventoryLifecycleResult>('complete_first_count',{target_inventory_id:inventoryId})}
+ startFinalReconciliation(inventoryId:string){return rpc<InventoryLifecycleResult>('start_final_reconciliation',{target_inventory_id:inventoryId})}
  liveWorkspace(inventoryId:string,search:string|null=null,status:string='TODOS'){return rpc<LiveReconciliationWorkspace>('get_live_reconciliation_workspace',{p_inventory_id:inventoryId,p_search:search,p_status:status,p_limit:100})}
  assignSecond(caseId:string,userId:string){return rpc<ReconciliationRow>('assign_second_recount',{p_case_id:caseId,p_user_id:userId})}
  assignThird(caseId:string,userId:string){return rpc<ReconciliationRow>('assign_third_recount',{p_case_id:caseId,p_analyst_id:userId})}
