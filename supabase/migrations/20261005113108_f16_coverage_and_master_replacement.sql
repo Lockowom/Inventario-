@@ -144,11 +144,17 @@ $$;
 
 create or replace function public.close_inventory(target_inventory_id uuid)
 returns public.inventories language plpgsql security definer set search_path = public, app_private, pg_temp as $$
-declare fp text;
+declare fp text; lifecycle public.inventory_status;
 begin
   if auth.uid() is null then raise exception 'Authentication is required' using errcode = '42501'; end if;
   if not app_private.can_manage_inventory(target_inventory_id) then raise exception 'Not authorized to manage inventory' using errcode = '42501'; end if;
   perform app_private.lock_inventory(target_inventory_id);
+  select status into lifecycle from public.inventories where id = target_inventory_id;
+  -- Backward-compatible close for inventories created before the F16 coverage
+  -- workflow.  The F16 UI never exposes this path: new operations advance
+  -- through C1 and final reconciliation below.
+  if lifecycle = 'ABIERTO' then return app_private.transition_inventory(target_inventory_id, 'ABIERTO', 'CERRADO', 'INVENTORY_CLOSED'); end if;
+  if lifecycle <> 'CONCILIACION_FINAL' then raise exception 'Inventory must complete final reconciliation before closing' using errcode = '23514'; end if;
   select fingerprint into fp from public.inventory_system_reference_metadata where inventory_id = target_inventory_id;
   if fp is null then raise exception 'System reference snapshot is required before closing inventory' using errcode = '23514'; end if;
   if exists (select 1 from public.reconciliation_cases where inventory_id = target_inventory_id and source_fingerprint = fp and status <> 'RESUELTO') then raise exception 'Final reconciliation has unresolved cases' using errcode = '23514'; end if;
@@ -206,7 +212,7 @@ begin
   on conflict do nothing returning 1
  )
  select count(*)::integer into made from ins;
- select count(*)::integer into existed from public.reconciliation_cases where inventory_id=p_inventory_id and source_fingerprint=fp and status<>'RESUELTO';
+ select count(*)::integer into existed from public.reconciliation_cases rc where rc.inventory_id=p_inventory_id and rc.source_fingerprint=fp and rc.status<>'RESUELTO';
  insert into public.audit_events(inventory_id,actor_user_id,event_type,entity_type,entity_id,payload)
  values(p_inventory_id,actor,'MASTER_IMPORTED','reconciliation_materialization',p_inventory_id,jsonb_build_object('source_fingerprint',fp,'created_count',made,'open_case_count',existed,'coverage_status',lifecycle));
  created_count:=made;existing_count:=existed;source_fingerprint:=fp;return next;
