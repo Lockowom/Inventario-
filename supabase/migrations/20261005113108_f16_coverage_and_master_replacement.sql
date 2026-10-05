@@ -12,6 +12,20 @@ alter table public.inventories
   add column if not exists final_reconciliation_started_at timestamptz,
   add column if not exists final_reconciliation_started_by uuid references public.profiles(user_id) on delete restrict;
 
+-- Extend the original timestamp state machine without invalidating closed
+-- inventories created before F16.  C1 and final reconciliation have their
+-- own accountable actor/timestamp pairs; terminal states retain those facts.
+alter table public.inventories drop constraint if exists inventories_lifecycle_timestamps;
+alter table public.inventories add constraint inventories_lifecycle_timestamps check (
+  (status = 'BORRADOR' and prepared_at is null and prepared_by is null and opened_at is null and opened_by is null and closed_at is null and closed_by is null and frozen_at is null and frozen_by is null and c1_completed_at is null and c1_completed_by is null and final_reconciliation_started_at is null and final_reconciliation_started_by is null)
+  or (status = 'PREPARADO' and prepared_at is not null and prepared_by is not null and opened_at is null and opened_by is null and closed_at is null and closed_by is null and frozen_at is null and frozen_by is null and c1_completed_at is null and c1_completed_by is null and final_reconciliation_started_at is null and final_reconciliation_started_by is null)
+  or (status = 'ABIERTO' and prepared_at is not null and prepared_by is not null and opened_at is not null and opened_by is not null and closed_at is null and closed_by is null and frozen_at is null and frozen_by is null and c1_completed_at is null and c1_completed_by is null and final_reconciliation_started_at is null and final_reconciliation_started_by is null)
+  or (status = 'C1_COMPLETADO' and prepared_at is not null and prepared_by is not null and opened_at is not null and opened_by is not null and closed_at is null and closed_by is null and frozen_at is null and frozen_by is null and c1_completed_at is not null and c1_completed_by is not null and final_reconciliation_started_at is null and final_reconciliation_started_by is null)
+  or (status = 'CONCILIACION_FINAL' and prepared_at is not null and prepared_by is not null and opened_at is not null and opened_by is not null and closed_at is null and closed_by is null and frozen_at is null and frozen_by is null and c1_completed_at is not null and c1_completed_by is not null and final_reconciliation_started_at is not null and final_reconciliation_started_by is not null)
+  or (status = 'CERRADO' and prepared_at is not null and prepared_by is not null and opened_at is not null and opened_by is not null and closed_at is not null and closed_by is not null and frozen_at is null and frozen_by is null)
+  or (status = 'CONGELADO' and prepared_at is not null and prepared_by is not null and opened_at is not null and opened_by is not null and closed_at is not null and closed_by is not null and frozen_at is not null and frozen_by is not null)
+);
+
 -- A replacement no longer deletes and recreates the whole master.  Existing
 -- identities are preserved, which keeps controlled historical exceptions
 -- valid.  Removed exception codes are archived in audit_events before their
