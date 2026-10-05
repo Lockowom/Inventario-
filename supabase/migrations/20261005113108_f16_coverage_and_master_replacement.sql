@@ -1,10 +1,7 @@
 -- F16: an explicit coverage gate separates an in-progress first count from
--- final reconciliation.  System references with no physical observation are
--- only actionable after the accountable C1 close.
-alter type public.inventory_status add value if not exists 'C1_COMPLETADO' after 'ABIERTO';
-alter type public.inventory_status add value if not exists 'CONCILIACION_FINAL' after 'C1_COMPLETADO';
-alter type public.audit_event_type add value if not exists 'INVENTORY_C1_COMPLETED';
-alter type public.audit_event_type add value if not exists 'INVENTORY_FINAL_RECONCILIATION_STARTED';
+-- final reconciliation. System references with no physical observation are
+-- only actionable after the accountable C1 close. Enum values are committed
+-- by the preceding migration before this one references them.
 
 alter table public.inventories
   add column if not exists c1_completed_at timestamptz,
