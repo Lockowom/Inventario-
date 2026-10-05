@@ -2,6 +2,8 @@ import { masterMetadataSchema, masterSkuSchema, type MasterMetadata, type Master
 import type { MasterSkuRepository, MasterSnapshot } from '../domain/ports/master-sku-repository'
 import { getSupabaseClient } from './supabase'
 
+const MASTER_PAGE_SIZE = 1_000
+
 export class SupabaseMasterSkuRepository implements MasterSkuRepository {
   public async findByCode(inventoryId: string, codigo: string): Promise<MasterSku | null> {
     const client = requireClient()
@@ -12,9 +14,22 @@ export class SupabaseMasterSkuRepository implements MasterSkuRepository {
 
   public async listByInventory(inventoryId: string): Promise<MasterSku[]> {
     const client = requireClient()
-    const { data, error } = await client.from('inventory_master_items').select('inventory_id, codigo, descripcion, control_type, created_at').eq('inventory_id', inventoryId).order('codigo')
-    if (error) throw error
-    return (data ?? []).map(parseMasterSku)
+    const items: MasterSku[] = []
+    // PostgREST en QA limita una respuesta a una página. El maestro puede
+    // tener miles de SKU: cargar sólo la primera página hacía que Health
+    // rechazara un snapshot remoto correcto como si no existiera localmente.
+    for (let from = 0; ; from += MASTER_PAGE_SIZE) {
+      const { data, error } = await client
+        .from('inventory_master_items')
+        .select('inventory_id, codigo, descripcion, control_type, created_at')
+        .eq('inventory_id', inventoryId)
+        .order('codigo')
+        .range(from, from + MASTER_PAGE_SIZE - 1)
+      if (error) throw error
+      const page = (data ?? []).map(parseMasterSku)
+      items.push(...page)
+      if (page.length < MASTER_PAGE_SIZE) return items
+    }
   }
 
   public async getMetadata(inventoryId: string): Promise<MasterMetadata | null> {
