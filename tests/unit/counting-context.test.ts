@@ -46,6 +46,12 @@ describe('last known authorized counting context', () => {
     expect(cache.value).toBeNull()
   })
 
+  it('conserva un diagnóstico seguro cuando la autoridad es ambigua', async () => {
+    const cache = new MemoryContextRepository(); cache.value = cached
+    await expect(resolveCountingContext(verifier({ kind: 'AMBIGUOUS', diagnostic: 'INVENTORIES_QUERY' }), cache)).resolves.toEqual({ kind: 'BLOCKED', reason: 'AMBIGUOUS', diagnostic: 'INVENTORIES_QUERY' })
+    expect(cache.value).toBeNull()
+  })
+
   it('no reutiliza un ABIERTO antiguo cuando el servidor informa que el inventario está CERRADO', async () => {
     const cache = new MemoryContextRepository(); cache.value = cached
     await expect(resolveCountingContext(verifier({ kind: 'NOT_AUTHORIZED' }), cache)).resolves.toEqual({ kind: 'BLOCKED', reason: 'NOT_AUTHORIZED' })

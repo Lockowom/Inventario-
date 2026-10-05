@@ -39,20 +39,29 @@ export async function verifyServerCountingContext(): Promise<ServerCountingConte
   if (profileResponse.error) return classifyPostgrestError(profileResponse)
   const profile = profileResponse.data
   const parsedProfile = profileSchema.safeParse(profile)
-  if (!parsedProfile.success) return profile === null ? { kind: 'NOT_AUTHORIZED' } : { kind: 'AMBIGUOUS' }
+  if (!parsedProfile.success) return profile === null ? { kind: 'NOT_AUTHORIZED' } : { kind: 'AMBIGUOUS', diagnostic: 'PROFILE_CONTRACT' }
   if (!parsedProfile.data.active || parsedProfile.data.user_id !== authData.user.id) return { kind: 'NOT_AUTHORIZED' }
   const assignmentsResponse = await client.from('inventory_assignments').select('inventory_id').eq('user_id', authData.user.id).eq('active', true)
-  if (assignmentsResponse.error) return classifyPostgrestError(assignmentsResponse)
+  if (assignmentsResponse.error) return withAuthorityDiagnostic(classifyPostgrestError(assignmentsResponse), 'ASSIGNMENTS_QUERY')
   const ids = (assignmentsResponse.data ?? []).map((assignment) => assignment.inventory_id)
   if (ids.length === 0) return { kind: 'NOT_AUTHORIZED' }
-  const inventoriesResponse = await client.from('inventories').select('id, status').in('id', ids).in('status', ['ABIERTO', 'C1_COMPLETADO', 'CONCILIACION_FINAL'])
-  if (inventoriesResponse.error) return classifyPostgrestError(inventoriesResponse)
+  // Do not send future lifecycle literals as a database enum predicate. QA can
+  // legitimately be one migration behind the web bundle; PostgreSQL rejects
+  // the whole query when an enum value does not exist yet, even if the user's
+  // current inventory is simply ABIERTO. Read assigned inventories and apply
+  // the forward-compatible lifecycle allow-list after validating the payload.
+  const inventoriesResponse = await client.from('inventories').select('id, status').in('id', ids)
+  if (inventoriesResponse.error) return withAuthorityDiagnostic(classifyPostgrestError(inventoriesResponse), 'INVENTORIES_QUERY')
   const parsed = (inventoriesResponse.data ?? []).map((row) => inventoryRowSchema.safeParse(row))
-  if (parsed.some((result) => !result.success)) return { kind: 'AMBIGUOUS' }
-  const active = parsed.flatMap((result) => result.success ? [result.data] : [])
+  if (parsed.some((result) => !result.success)) return { kind: 'AMBIGUOUS', diagnostic: 'INVENTORY_CONTRACT' }
+  const active = parsed.flatMap((result) => result.success && ['ABIERTO', 'C1_COMPLETADO', 'CONCILIACION_FINAL'].includes(result.data.status) ? [result.data] : [])
   if (active.length === 0) return { kind: 'NOT_AUTHORIZED' }
-  if (active.length !== 1) return { kind: 'AMBIGUOUS' }
+  if (active.length !== 1) return { kind: 'AMBIGUOUS', diagnostic: 'MULTIPLE_OPEN_INVENTORIES' }
   return { kind: 'AUTHORIZED', context: { userId: authData.user.id, inventoryId: active[0]!.id, inventoryStatus: active[0]!.status as ActiveCountingContext['inventoryStatus'] }, verifiedAt: new Date().toISOString() }
+}
+
+function withAuthorityDiagnostic(result: ServerCountingContextResult, diagnostic: 'ASSIGNMENTS_QUERY' | 'INVENTORIES_QUERY'): ServerCountingContextResult {
+  return result.kind === 'AMBIGUOUS' ? { ...result, diagnostic } : result
 }
 
 /** Reads only the Supabase client's persisted session identity for outage fallback. */

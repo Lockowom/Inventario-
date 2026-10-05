@@ -185,11 +185,20 @@ describe('DeviceHealthService', () => {
   })
 
   it('explains an ambiguous inventory authority without weakening the block', async () => {
-    const { health } = service({ resolveContext: async () => ({ kind: 'BLOCKED', reason: 'AMBIGUOUS' }) })
+    const { health } = service({ resolveContext: async () => ({ kind: 'BLOCKED', reason: 'AMBIGUOUS', diagnostic: 'MULTIPLE_OPEN_INVENTORIES' }) })
     const report = await health.check()
     expect(report.overall).toBe('BLOCKED')
-    expect(check(report, 'AUTH_USER').message).toMatch(/único inventario activo/i)
+    expect(check(report, 'AUTH_USER').message).toMatch(/más de un inventario activo/i)
     expect(check(report, 'INVENTORY_CONTEXT').message).toMatch(/más de un inventario activo/i)
+  })
+
+  it('does not claim multiple inventories when the validation query itself fails', async () => {
+    const { health } = service({ resolveContext: async () => ({ kind: 'BLOCKED', reason: 'AMBIGUOUS', diagnostic: 'INVENTORIES_QUERY' }) })
+    const report = await health.check()
+    expect(report.overall).toBe('BLOCKED')
+    expect(check(report, 'AUTH_USER').message).toMatch(/validar el inventario autorizado/i)
+    expect(check(report, 'INVENTORY_CONTEXT').message).toMatch(/validar el inventario asignado/i)
+    expect(check(report, 'INVENTORY_CONTEXT').message).not.toMatch(/más de un inventario activo/i)
   })
 
   it('enforces the exact five minute time boundary and accepts epoch zero', async () => {

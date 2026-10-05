@@ -1,5 +1,5 @@
 import type { MasterSkuRepository } from '../ports/master-sku-repository'
-import type { ResolvedCountingContext } from '../count/resolve-counting-context'
+import type { CountingContextAmbiguity, ResolvedCountingContext } from '../count/resolve-counting-context'
 import { evaluateDeviceHealthOverall } from './evaluate-overall'
 import type { AppVersionProvider, DeviceHealthCheck, DeviceHealthMode, DeviceHealthReport, LocalHealthProbe, PassiveScannerHealthProbe, ServerTimeGateway } from './contracts'
 
@@ -50,7 +50,7 @@ export class DeviceHealthService {
 
   private checkAuthUser(context: ResolvedCountingContext): DeviceHealthCheck {
     if (context.kind !== 'BLOCKED') return { key: 'AUTH_USER', status: 'PASS', blocking: true, message: 'Identidad autorizada disponible localmente.' }
-    if (context.reason === 'AMBIGUOUS') return { key: 'AUTH_USER', status: 'FAIL', blocking: true, message: 'La autoridad de conteo es ambigua. Mantenga un único inventario activo para este usuario.' }
+    if (context.reason === 'AMBIGUOUS') return { key: 'AUTH_USER', status: 'FAIL', blocking: true, message: authorityMessage(context.diagnostic) }
     if (context.reason === 'CACHE_MISMATCH') return { key: 'AUTH_USER', status: 'FAIL', blocking: true, message: 'No existe una autorización local verificable para este usuario.' }
     return { key: 'AUTH_USER', status: 'FAIL', blocking: true, message: 'Inicie sesión con un usuario activo.' }
   }
@@ -58,7 +58,7 @@ export class DeviceHealthService {
   private checkInventoryContext(context: ResolvedCountingContext): DeviceHealthCheck {
     if (context.kind === 'BLOCKED') {
       const message = context.reason === 'AMBIGUOUS'
-        ? 'El usuario tiene más de un inventario activo. Deje sólo uno antes de capturar.'
+        ? inventoryAuthorityMessage(context.diagnostic)
         : context.reason === 'CACHE_MISMATCH'
           ? 'No hay un inventario autorizado disponible sin conexión.'
           : 'Seleccione un inventario autorizado.'
@@ -120,6 +120,24 @@ export class DeviceHealthService {
       ? { key: 'DEVICE_TIME', status: 'PASS', blocking: true, message: 'La hora del dispositivo coincide con el servidor.', observedValue: driftMs }
       : { key: 'DEVICE_TIME', status: 'FAIL', blocking: true, message: 'La hora del dispositivo difiere del servidor. Corríjala antes de capturar.', observedValue: driftMs }
   }
+}
+
+function authorityMessage(diagnostic: CountingContextAmbiguity | undefined): string {
+  if (diagnostic === 'MULTIPLE_OPEN_INVENTORIES') return 'La autoridad de conteo tiene más de un inventario activo. Deje sólo uno antes de capturar.'
+  if (diagnostic === 'PROFILE_CONTRACT') return 'El perfil de usuario no tiene datos válidos para autorizar el conteo.'
+  if (diagnostic === 'ASSIGNMENTS_QUERY') return 'No fue posible leer las asignaciones activas del usuario.'
+  if (diagnostic === 'INVENTORIES_QUERY') return 'No fue posible validar el inventario autorizado.'
+  if (diagnostic === 'INVENTORY_CONTRACT') return 'El inventario autorizado tiene datos no válidos para el conteo.'
+  return 'No fue posible validar la autoridad de conteo.'
+}
+
+function inventoryAuthorityMessage(diagnostic: CountingContextAmbiguity | undefined): string {
+  if (diagnostic === 'MULTIPLE_OPEN_INVENTORIES') return 'El usuario tiene más de un inventario activo. Deje sólo uno antes de capturar.'
+  if (diagnostic === 'ASSIGNMENTS_QUERY') return 'No se pudieron leer las asignaciones activas para determinar el inventario.'
+  if (diagnostic === 'INVENTORIES_QUERY') return 'No se pudo validar el inventario asignado para el conteo.'
+  if (diagnostic === 'PROFILE_CONTRACT') return 'El perfil activo debe corregirse antes de determinar el inventario.'
+  if (diagnostic === 'INVENTORY_CONTRACT') return 'Los datos del inventario asignado deben corregirse antes de capturar.'
+  return 'No se pudo determinar el inventario autorizado.'
 }
 
 function validIso(value: Date): string | null {
