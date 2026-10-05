@@ -20,7 +20,15 @@ export async function verifyServerCountingContext(): Promise<ServerCountingConte
   if (!client) return { kind: 'UNAVAILABLE' }
   let authData: Awaited<ReturnType<typeof client.auth.getUser>>['data']
   try {
-    const response = await client.auth.getUser()
+    let response = await client.auth.getUser()
+    // A Pages preview is a distinct origin. Its persisted browser session can
+    // briefly contain an access token that is valid locally but rejected by
+    // Auth after switching previews. Refresh once before declaring the user
+    // unauthorised; the server remains authoritative if refresh also fails.
+    if (response.error) {
+      const refreshed = await client.auth.refreshSession()
+      if (!refreshed.error && refreshed.data.session) response = await client.auth.getUser()
+    }
     if (response.error) return classifyAuthError(response.error)
     authData = response.data
   } catch (error: unknown) {

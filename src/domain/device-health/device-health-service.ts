@@ -50,11 +50,20 @@ export class DeviceHealthService {
 
   private checkAuthUser(context: ResolvedCountingContext): DeviceHealthCheck {
     if (context.kind !== 'BLOCKED') return { key: 'AUTH_USER', status: 'PASS', blocking: true, message: 'Identidad autorizada disponible localmente.' }
+    if (context.reason === 'AMBIGUOUS') return { key: 'AUTH_USER', status: 'FAIL', blocking: true, message: 'La autoridad de conteo es ambigua. Mantenga un único inventario activo para este usuario.' }
+    if (context.reason === 'CACHE_MISMATCH') return { key: 'AUTH_USER', status: 'FAIL', blocking: true, message: 'No existe una autorización local verificable para este usuario.' }
     return { key: 'AUTH_USER', status: 'FAIL', blocking: true, message: 'Inicie sesión con un usuario activo.' }
   }
 
   private checkInventoryContext(context: ResolvedCountingContext): DeviceHealthCheck {
-    if (context.kind === 'BLOCKED') return { key: 'INVENTORY_CONTEXT', status: 'FAIL', blocking: true, message: 'Seleccione un inventario autorizado.' }
+    if (context.kind === 'BLOCKED') {
+      const message = context.reason === 'AMBIGUOUS'
+        ? 'El usuario tiene más de un inventario activo. Deje sólo uno antes de capturar.'
+        : context.reason === 'CACHE_MISMATCH'
+          ? 'No hay un inventario autorizado disponible sin conexión.'
+          : 'Seleccione un inventario autorizado.'
+      return { key: 'INVENTORY_CONTEXT', status: 'FAIL', blocking: true, message }
+    }
     if (context.context.inventoryStatus === 'ABIERTO') return { key: 'INVENTORY_CONTEXT', status: 'PASS', blocking: true, message: 'Inventario abierto autorizado.' }
     return { key: 'INVENTORY_CONTEXT', status: 'PASS', blocking: true, message: 'C1 cerrado: sólo se permite un reconteo C2/C3 asignado.' }
   }
