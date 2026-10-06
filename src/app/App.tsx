@@ -2,6 +2,7 @@ import { Capacitor } from '@capacitor/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isSupabaseConfigured } from '../services/supabase'
 import { SupervisionScreen } from '../features/supervision/supervision-screen'
+import { LiveMonitorScreen } from '../features/live-monitor/live-monitor-screen'
 import { CountingScreen } from '../features/counting/counting-screen'
 import { CutsScreen } from '../features/cuts/cuts-screen'
 import { createCountingRuntime, createSyncCoordinator, getCountingContextRepository } from '../features/counting/counting-runtime'
@@ -132,7 +133,9 @@ function AuthenticatedRuntime() {
     ? <><InfrastructureDiagnostic supabaseState="CONFIGURED" /><DeviceHealthScreen report={healthReport} loading={healthLoading} error={healthError} onRefresh={() => void runHealth('LIGHT')} onFullCheck={() => void runHealth('FULL')} /></>
     : visibleView === 'counting'
       ? <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} captureGate={captureGate} />
-      : visibleView === 'supervision'
+      : visibleView === 'monitor'
+        ? <LiveMonitorScreen />
+        : visibleView === 'supervision'
         ? <SupervisionScreen />
         : visibleView === 'reconciliation'
           ? <ReconciliationScreen />

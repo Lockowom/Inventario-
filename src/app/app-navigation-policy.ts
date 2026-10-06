@@ -1,6 +1,6 @@
 import type { AppRole } from '../domain/auth/contracts'
 
-export type AppView = 'home' | 'counting' | 'supervision' | 'reconciliation' | 'cuts' | 'users'
+export type AppView = 'home' | 'counting' | 'monitor' | 'supervision' | 'reconciliation' | 'cuts' | 'users'
 
 export type NavigationItem = { id: AppView; label: string; detail: string }
 
@@ -11,6 +11,7 @@ const counterItems: NavigationItem[] = [
 
 const analystItems: NavigationItem[] = [
   ...counterItems,
+  { id: 'monitor', label: 'Monitor', detail: 'Cobertura y actividad en vivo' },
   { id: 'supervision', label: 'Supervisión', detail: 'Seguimiento operativo' },
   { id: 'reconciliation', label: 'Conciliación', detail: 'Diferencias y recuentos' },
   { id: 'cuts', label: 'Cortes', detail: 'Cierres y respaldos' },

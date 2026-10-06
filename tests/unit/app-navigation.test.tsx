@@ -39,6 +39,7 @@ describe('AppNavigation', () => {
   it('deniega vistas de gestión a CONTADOR aunque un caller intente seleccionarlas', () => {
     expect(isAppViewAllowed('CONTADOR', 'home')).toBe(true)
     expect(isAppViewAllowed('CONTADOR', 'counting')).toBe(true)
+    expect(isAppViewAllowed('CONTADOR', 'monitor')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'supervision')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'reconciliation')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'cuts')).toBe(false)
