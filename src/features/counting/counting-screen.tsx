@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
-import { PhysicalCountValidationError, pendingCapacity, type LocalCountRecord, type PendingCapacity, type PhysicalCountDraft } from '../../domain/count/contracts'
+import { LOCATION_ERROR, LOCATION_MAX_LENGTH, normalizeLocationInput, PhysicalCountValidationError, pendingCapacity, type LocalCountRecord, type PendingCapacity, type PhysicalCountDraft } from '../../domain/count/contracts'
 import type { ActiveCountingContext, SavePhysicalCountDependencies } from '../../domain/count/save-physical-count'
 import type { MasterSku } from '../../domain/master/contracts'
 import { resolveCountSku } from '../../domain/count/resolve-count-sku'
@@ -52,6 +52,7 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
       if (result.error) { setMessage(result.error); return }
       if (!result.field || !result.value) return
       if (result.field === 'codigo') void resolveSku(result.value)
+      else if (result.field === 'ubicacion') applyLocation(result.value)
       else setDraft((current) => ({ ...current, [result.field!]: result.value! }))
     }
     if (runtime && !healthBlocked) {
@@ -88,12 +89,18 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     setMaster(null)
     setDraft((current) => ({ ...current, codigo: value }))
   }
+  function applyLocation(value: string) {
+    const normalized = normalizeLocationInput(value)
+    if (normalized === null) { setMessage(LOCATION_ERROR); return }
+    setDraft((current) => ({ ...current, ubicacion: normalized }))
+  }
   async function scan(field: ScanField) {
     if (healthBlocked) return
     const result = await scanBarcodeField(field)
     if (result.error) { setMessage(result.error); return }
     if (!result.value) return
     if (field === 'codigo') await resolveSku(result.value)
+    else if (field === 'ubicacion') applyLocation(result.value)
     else setDraft((current) => ({ ...current, [field]: result.value! }))
   }
   async function save() {
@@ -133,7 +140,7 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     <section className="sync-status" aria-label="Estado de sincronización"><p role="status">{syncMessage || startupSyncMessage || 'Sincronización preparada. Los conteos locales permanecen disponibles sin conexión.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runSync(true)}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section>
     {message && <p className={message === 'CONTEO GUARDADO' ? 'form-success' : 'form-error'} role="status">{message}</p>}
     <div className="counting-form" aria-disabled={disabled}>
-      <Field label="UBICACION"><TextInput value={draft.ubicacion} onChange={(value) => setDraft((current) => ({ ...current, ubicacion: value }))} disabled={disabled} /><ScanButton field="ubicacion" onScan={scan} disabled={disabled} /></Field>
+      <Field label="UBICACION"><TextInput value={draft.ubicacion} onChange={applyLocation} disabled={disabled} maxLength={LOCATION_MAX_LENGTH} pattern="(?:TECHO|(?:C2|[ABCDFGHI])-[0-9]{2}-[0-9]{2})" title="Formato permitido: TECHO, F-32-03 o C2-32-03" /><ScanButton field="ubicacion" onScan={scan} disabled={disabled} /></Field>
       <Field label="CODIGO"><TextInput inputRef={codeInput} value={draft.codigo} onChange={updateCode} onBlur={() => void resolveSku()} disabled={disabled} /><ScanButton field="codigo" onScan={scan} disabled={disabled} /></Field>
       <Field label="SERIE"><TextInput value={draft.serie ?? ''} onChange={(value) => setDraft((current) => ({ ...current, serie: value }))} disabled={disabled || master?.controlType === 'PARTIDA'} maxLength={19} /><ScanButton field="serie" onScan={scan} disabled={disabled || master?.controlType === 'PARTIDA'} /></Field>
       <Field label="PARTIDA"><TextInput value={draft.partida ?? ''} onChange={(value) => setDraft((current) => ({ ...current, partida: value }))} disabled={disabled || master?.controlType === 'SERIAL'} /><ScanButton field="partida" onScan={scan} disabled={disabled || master?.controlType === 'SERIAL'} /></Field>
