@@ -49,6 +49,7 @@ describe('AppNavigation', () => {
     expect(isAppViewAllowed('CONTADOR', 'home')).toBe(true)
     expect(isAppViewAllowed('CONTADOR', 'counting')).toBe(true)
     expect(isAppViewAllowed('CONTADOR', 'recounts')).toBe(true)
+    expect(isAppViewAllowed('CONTADOR', 'monitor')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'supervision')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'data-load')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'reconciliation')).toBe(false)

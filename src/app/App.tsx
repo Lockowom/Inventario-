@@ -4,6 +4,7 @@ import { isSupabaseConfigured } from '../services/supabase'
 import { MasterSkuScreen } from '../features/master/master-sku-screen'
 import { DataLoadScreen } from '../features/data-load/data-load-screen'
 import { SupervisionScreen } from '../features/supervision/supervision-screen'
+import { LiveMonitorScreen } from '../features/live-monitor/live-monitor-screen'
 import { CountingScreen } from '../features/counting/counting-screen'
 import { CutsScreen } from '../features/cuts/cuts-screen'
 import { createCountingRuntime, createSyncCoordinator, getCountingContextRepository } from '../features/counting/counting-runtime'
@@ -137,7 +138,9 @@ function AuthenticatedRuntime() {
       ? <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} captureGate={captureGate} />
       : visibleView === 'recounts'
         ? <RecountQueueScreen />
-      : visibleView === 'supervision'
+      : visibleView === 'monitor'
+        ? <LiveMonitorScreen />
+        : visibleView === 'supervision'
         ? <SupervisionScreen />
         : visibleView === 'data-load'
           ? <DataLoadScreen role={role} />

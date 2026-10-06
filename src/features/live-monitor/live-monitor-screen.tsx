@@ -1,0 +1,72 @@
+import { useEffect, useMemo, useState } from 'react'
+import { canAccessLiveMonitor } from '../../domain/live-monitor/contracts'
+import type { AppRole } from '../../domain/auth/contracts'
+import { SupabaseLiveMonitorRepository } from '../../services/supabase-live-monitor-repository'
+import { SupabaseSupervisionRepository } from '../../services/supabase-supervision-repository'
+
+const monitor = new SupabaseLiveMonitorRepository()
+const supervision = new SupabaseSupervisionRepository()
+type Inventory = { id: string; name: string; status: string }
+
+export function LiveMonitorScreen() {
+  const [role, setRole] = useState<AppRole | null>(null)
+  const [inventories, setInventories] = useState<Inventory[]>([])
+  const [inventoryId, setInventoryId] = useState('')
+  const [summary, setSummary] = useState<Record<string, unknown> | null>(null)
+  const [coverage, setCoverage] = useState<Record<string, unknown>[]>([])
+  const [activity, setActivity] = useState<Record<string, unknown>[]>([])
+  const [coverageStatus, setCoverageStatus] = useState('TODOS')
+  const [stage, setStage] = useState('TODOS')
+  const [search, setSearch] = useState('')
+  const [message, setMessage] = useState('Cargando monitor autorizado…')
+
+  const selectedInventory = useMemo(() => inventories.find((item) => item.id === inventoryId), [inventories, inventoryId])
+  useEffect(() => {
+    void Promise.all([supervision.myProfile(), monitor.inventories()]).then(([profile, items]) => {
+      setRole(profile.role as AppRole); setInventories(items as Inventory[]); setInventoryId(items[0]?.id ?? '')
+      setMessage(items.length ? '' : 'No existen inventarios autorizados para monitorizar.')
+    }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : 'Monitor no disponible.'))
+  }, [])
+
+  useEffect(() => { if (inventoryId && canAccessLiveMonitor(role)) void refresh() // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inventoryId, role, coverageStatus, stage])
+
+  useEffect(() => {
+    if (!inventoryId || !canAccessLiveMonitor(role)) return
+    const timer = window.setInterval(() => { void refresh() }, 30_000)
+    return () => window.clearInterval(timer)
+    // The timer refreshes the protected server read model. It is not device presence.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inventoryId, role, coverageStatus, stage])
+
+  async function refresh() {
+    try {
+      const [nextSummary, nextCoverage, nextActivity] = await Promise.all([
+        monitor.summary(inventoryId), monitor.coverage(inventoryId, coverageStatus, search), monitor.activity(inventoryId, stage, search),
+      ])
+      setSummary(nextSummary); setCoverage(nextCoverage); setActivity(nextActivity); setMessage('')
+    } catch (error: unknown) { setMessage(error instanceof Error ? error.message : 'Monitor no disponible.') }
+  }
+
+  if (role && !canAccessLiveMonitor(role)) return <section className="live-monitor-screen"><h1>MONITOR OPERATIVO</h1><p className="form-warning">Esta vista está disponible sólo para ANALISTA y ADMIN.</p></section>
+  const counts = objectOrEmpty(summary?.counts)
+  const reference = objectOrEmpty(summary?.reference)
+  const missions = objectOrEmpty(summary?.missions)
+  const devices = objectOrEmpty(summary?.devices)
+  return <section className="live-monitor-screen" aria-labelledby="live-monitor-title">
+    <header><p className="eyebrow">LIVE · operación y cobertura</p><h1 id="live-monitor-title">MONITOR OPERATIVO</h1><p>Lectura en vivo de evidencia recibida. Disponible es la única base de comparación; no se ejecutan ajustes de stock.</p></header>
+    <div className="live-monitor-actions"><label className="field"><span>Inventario</span><select value={inventoryId} onChange={(event) => setInventoryId(event.target.value)}>{inventories.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.status}</option>)}</select></label><button className="button-secondary" type="button" onClick={() => void refresh()}>ACTUALIZAR</button></div>
+    {selectedInventory?.status === 'ABIERTO' && <p className="live-monitor-note">C1 está abierto: una referencia Softland no visitada aún es cobertura pendiente, no un faltante.</p>}
+    {message && <p className="form-warning" role="status">{message}</p>}
+    <section className="live-monitor-metrics" aria-label="Resumen en vivo"><Metric label="Observaciones C1/C2/C3" value={counts.observations} /><Metric label="SKU contados" value={counts.counted_skus} /><Metric label="Unidades físicas" value={counts.counted_units} /><Metric label="Unidades Disponible" value={reference.available_units} /><Metric label="C2 pendientes" value={missions.c2_pending} /><Metric label="C3 en curso" value={missions.c3_pending_or_assigned} /><Metric label="Físicos confirmados" value={missions.physical_confirmed} /><Metric label="Pendientes sync" value={devices.pending_records} /></section>
+    <section className="live-monitor-filter"><label className="field"><span>Buscar SKU, referencia o ubicación</span><input value={search} onChange={(event) => setSearch(event.target.value)} /></label><label className="field"><span>Estado de cobertura</span><select value={coverageStatus} onChange={(event) => setCoverageStatus(event.target.value)}><option value="TODOS">Todos</option><option value="CUBIERTA">Cubierta</option><option value="PENDIENTE_DE_COBERTURA">Pendiente de cobertura</option><option value="SERIE_SISTEMA_NO_CONTADA">Serie sistema no contada</option><option value="PARTIDA_SISTEMA_NO_CONTADA">Partida sistema no contada</option><option value="SERIE_FUERA_DE_DISPONIBLE">Serie fuera de disponible</option><option value="PARTIDA_FUERA_DE_DISPONIBLE">Partida fuera de disponible</option></select></label><label className="field"><span>Etapa de actividad</span><select value={stage} onChange={(event) => setStage(event.target.value)}><option value="TODOS">C1, C2 y C3</option><option value="C1">C1</option><option value="C2">C2</option><option value="C3">C3</option></select></label><button className="button-primary" type="button" onClick={() => void refresh()}>APLICAR FILTROS</button></section>
+    <section className="live-monitor-section"><h2>Cobertura por SKU y referencia</h2><p>La identidad se conserva por serie o partida: dos filas con igual SKU no son duplicados si su referencia es distinta.</p><CoverageTable rows={coverage} /></section>
+    <section className="live-monitor-section"><h2>Actividad de conteo</h2><ActivityList rows={activity} /></section>
+  </section>
+}
+
+function Metric({ label, value }: { label: string; value: unknown }) { return <article><span>{label}</span><strong>{value == null ? '—' : String(value)}</strong></article> }
+function CoverageTable({ rows }: { rows: Record<string, unknown>[] }) { if (!rows.length) return <p>Sin referencias para los filtros actuales.</p>; return <div className="live-monitor-table"><table><thead><tr><th>SKU</th><th>Referencia</th><th>Disponible</th><th>Físico</th><th>Estado</th></tr></thead><tbody>{rows.map((row) => <tr key={`${row.codigo}-${row.reference_type}-${row.reference_value ?? ''}`}><td><strong>{String(row.codigo)}</strong><span>{String(row.descripcion)}</span></td><td>{String(row.reference_value ?? '—')}<span>{String(row.reference_type)}</span></td><td>{String(row.available_quantity)}</td><td>{String(row.physical_quantity)}</td><td><span className={`coverage-status coverage-status--${String(row.coverage_status).toLowerCase()}`}>{String(row.coverage_status).replaceAll('_', ' ')}</span></td></tr>)}</tbody></table></div> }
+function ActivityList({ rows }: { rows: Record<string, unknown>[] }) { if (!rows.length) return <p>Sin actividad recibida para los filtros actuales.</p>; return <ul className="live-monitor-activity">{rows.map((row) => <li key={String(row.id)}><strong>{String(row.stage)} · {String(row.codigo)} · {String(row.cantidad_contada)}</strong><span>{String(row.display_name)} · {String(row.ubicacion)} · {formatDate(row.received_at)}</span><span>{row.serie ? `Serie ${String(row.serie)}` : row.partida ? `Partida ${String(row.partida)}` : 'SKU sin referencia controlada'}</span></li>)}</ul> }
+function objectOrEmpty(value: unknown): Record<string, unknown> { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {} }
+function formatDate(value: unknown) { return typeof value === 'string' ? new Date(value).toLocaleString() : 'Sin fecha' }
