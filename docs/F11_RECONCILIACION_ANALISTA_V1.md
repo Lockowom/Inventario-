@@ -18,35 +18,54 @@ Una diferencia es un hallazgo a investigar:
 
 ## 2. Fuente de sistema
 
-La referencia de sistema se importa desde el libro RP completo en formato XLSX.
+El flujo usa **tres archivos independientes**. El primero es el Maestro de SKU y los otros dos son la referencia de sistema entregada por RP/Softland:
 
-Hojas obligatorias:
+1. Maestro SKU (`.csv` o `.xlsx`): catálogo completo de códigos existentes, con `Código`/`Cod. Producto` y `Descripción`/`Producto`. Es la única autoridad que habilita un SKU para conteo, tenga o no stock actual;
+2. archivo de partidas: hoja `STOCK CON P` —o una única hoja con ese encabezado—;
+3. archivo de series: hoja `STOCK CON S` —o una única hoja con ese encabezado—.
 
-1. `STOCK TOTAL`
-2. `STOCK CON P`
-3. `STOCK CON S`
+INVEN3 confirma el Maestro antes de importar el snapshot combinado de Partidas y Series; el operador no debe consolidar archivos manualmente. Un código presente en la referencia pero ausente del Maestro se muestra como advertencia y no queda habilitado para conteo.
 
 Uso:
 
-- LEGACY: cantidad desde `STOCK TOTAL`;
-- PARTIDA: lote/talla + cantidad desde `STOCK CON P`;
-- SERIAL: serie + cantidad desde `STOCK CON S`.
+- LEGACY: se toma del archivo de partidas; si esa fuente no lo incluye, se toma como respaldo del archivo de series;
+- PARTIDA: lote/talla desde el archivo `STOCK CON P`;
+- SERIAL: serie desde el archivo `STOCK CON S`.
+
+Cuando un SKU exista en ambos archivos, INVEN3 compara su `Stock Total` consolidado. No obliga a que ambos archivos tengan el mismo universo: Softland puede separar los productos según su tipo de control.
+
+### Regla de base conciliable: `Disponible`
+
+Para conciliación física, la única cantidad de sistema que puede compararse contra el conteo es la columna **`Disponible`** de Softland/RP.
+
+- `Reserva`, `Transitoria` y `Consignación` se conservan como evidencia de la ecuación fuente, pero no se suman al conteo físico.
+- `Stock Total` y `Disponible` originales se conservan como trazabilidad de importación; nunca se convierten en una cantidad física negativa.
+- Un lote/serie que exista solo en un estado distinto de `Disponible` no se convierte en stock conciliable ni se envía como ajuste a Softland.
+- Una diferencia o un lote/serie detectado por INVEN3 es un hallazgo de investigación, no una instrucción de alta ni un ajuste automático de ERP.
+
+Esto evita que un lote transitorio contado físicamente se trate como una unidad nueva al exportar o revisar resultados, evitando duplicidades y ajustes manuales innecesarios.
 
 El parser conserva texto formateado para códigos, lotes y series, incluyendo ceros iniciales.
+También conserva `Cod. U. Medida` y, para partidas, `Fecha Venc` normalizada para la lectura operativa.
 
 Bloqueos de importación incluyen, entre otros:
 
-- hoja o columna requerida ausente;
-- universo SKU no conciliado entre hojas;
-- ecuación de stock inconsistente;
-- stock total negativo;
-- PARTIDA con stock positivo sin `Partida / Talla`;
+- archivo, hoja o columna requerida ausente;
+- PARTIDA con stock positivo sin `Partida / Talla`, salvo una excepción controlada autorizada;
 - serie en SKU no SERIAL;
 - serie sin cantidad exacta 1;
 - serie duplicada;
 - referencia natural duplicada.
 
-Los estados de stock negativos se reportan como warning cuando la ecuación del total sigue cuadrando.
+Los estados negativos, un total negativo o una ecuación de estados inconsistente se importan como **advertencias trazables**. INVEN3 preserva sus valores de origen, pero usa `0` como mínimo para la base conciliable: jamás pide ni registra un conteo físico negativo.
+
+### Excepción controlada: SKU PARTIDA sin partida en Softland
+
+Si Softland reporta `Disponible` positivo para un SKU cuyo control es `PARTIDA`, pero su archivo no contiene `Partida / Talla`, el preview permanece bloqueado por defecto. No se infiere, genera ni corrige una partida desde INVEN3.
+
+Un **ADMIN** asignado puede autorizar la excepción únicamente mientras el inventario está en `BORRADOR` o `PREPARADO`, indicando un motivo de al menos diez caracteres. INVEN3 deja una fila auditada con el actor y el motivo, y representa el dato como `EXC-SIN-PARTIDA:<CODIGO>`.
+
+Esa etiqueta es evidencia técnica explícita: no es una partida real de Softland, no habilita ajustes de inventario y no cambia el ERP. Reintentar una importación con esa etiqueta sin una autorización activa para ese mismo inventario y SKU es rechazado por PostgreSQL.
 
 ## 3. Snapshot versionado
 
@@ -83,6 +102,7 @@ Precondiciones:
 - snapshot de sistema existente.
 
 La materialización compara el snapshot activo con `count_records`.
+El snapshot usa exclusivamente `Disponible` como cantidad sistema; `Stock Total` queda fuera de toda clasificación de diferencia.
 
 Tipos de anomalía:
 
@@ -282,6 +302,16 @@ Métricas:
 No mezcla casos pertenecientes a snapshots RP distintos.
 
 CONTADOR no tiene acceso.
+
+## 11.1 Vista operativa en vivo
+
+RPC:
+
+`get_live_reconciliation_workspace(inventory_id, search, status, limit)`
+
+La vista de ANALISTA/ADMIN presenta SKU, producto, unidad de medida, partida/serie, vencimiento, `Disponible`, conteo físico, diferencia y estado (`CUADRADO`, `DIFERENCIA`, `NUEVO_LOTE_SERIE`, `FUERA_DE_DISPONIBLE` o `VENCIMIENTO_DISTINTO`). `FUERA_DE_DISPONIBLE` identifica una partida/serie que sí existe en la fuente, pero únicamente en reserva/transitorio/consignación: nunca se trata como alta ni lote nuevo. Se refresca como lectura operacional; no ejecuta cambios sobre Softland ni sobre stock de sistema.
+
+CONTADOR no puede consultar esta vista ni sus cantidades mediante UI, RLS o RPC.
 
 ## 12. Seguridad
 

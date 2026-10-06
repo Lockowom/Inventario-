@@ -23,13 +23,31 @@ describe('maestro SKU: normalización e importación', () => {
     expect(validMasterItems(semicolon)[0]).toMatchObject({ codigo: '00002', descripcion: 'Producto; con punto y coma' })
   })
 
-  it('reporta vacíos y duplicados sin habilitar una importación parcial', () => {
-    const preview = parseMasterCsv('CODIGO,DESCRIPCION\n,Sin código\nA1,\n a1 ,Duplicado')
-    expect(preview.validRows).toBe(0)
-    expect(preview.rejectedRows).toBe(3)
+  it('reporta vacíos sin convertir en SKU duplicado una fila válida posterior', () => {
+    const preview = parseMasterCsv('CODIGO,DESCRIPCION\n,Sin código\nA1,\n a1 ,Producto válido')
+    expect(preview.validRows).toBe(1)
+    expect(preview.rejectedRows).toBe(2)
     expect(preview.emptyRows).toBe(2)
-    expect(preview.duplicateRows).toBe(1)
-    expect(preview.rows[2]?.errors).toContain('CODIGO DUPLICADO')
+    expect(preview.duplicateRows).toBe(0)
+    expect(validMasterItems(preview)).toMatchObject([{ codigo: 'A1', descripcion: 'Producto válido' }])
+  })
+
+  it('consolida SKU repetidos por partidas o series cuando su descripción coincide', () => {
+    const preview = parseMasterCsv('CODIGO,DESCRIPCION,PARTIDA\nNGE41400245S,Balanza digital de piso,LOTE-1\nNGE41400245S,Balanza digital de piso,LOTE-2\nNGE41400245S,BALANZA   DIGITAL DE PISO,LOTE-3')
+    expect(preview.totalRows).toBe(3)
+    expect(preview.validRows).toBe(1)
+    expect(preview.rejectedRows).toBe(0)
+    expect(preview.duplicateRows).toBe(2)
+    expect(validMasterItems(preview)).toEqual([{ codigo: 'NGE41400245S', descripcion: 'Balanza digital de piso', controlType: 'SERIAL' }])
+  })
+
+  it('bloquea un código repetido cuando las descripciones entran en conflicto', () => {
+    const preview = parseMasterCsv('CODIGO,DESCRIPCION\nA1,Producto uno\nA1,Producto diferente')
+    expect(preview.validRows).toBe(0)
+    expect(preview.rejectedRows).toBe(2)
+    expect(preview.duplicateRows).toBe(0)
+    expect(preview.rows.every((row) => row.errors.includes('CODIGO CON DESCRIPCIONES EN CONFLICTO'))).toBe(true)
+    expect(validMasterItems(preview)).toEqual([])
   })
 
   it('preserva códigos XLSX de texto con ceros iniciales y no inventa ceros para una celda numérica', async () => {

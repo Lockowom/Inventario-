@@ -3,6 +3,7 @@ import { SupabaseReconciliationRepository, type ReconciliationRow, type RecountC
 import { SupabaseSupervisionRepository } from '../../services/supabase-supervision-repository'
 import { SystemReferencePanel } from './system-reference-panel'
 import { ReconciliationTimeline } from './reconciliation-timeline'
+import { LiveReconciliationWorkspace } from './live-reconciliation-workspace'
 
 const repo=new SupabaseReconciliationRepository()
 const supervision=new SupabaseSupervisionRepository()
@@ -18,18 +19,36 @@ export function ReconciliationScreen(){
  const [assignee,setAssignee]=useState<Record<string,string>>({})
  const [candidates,setCandidates]=useState<Record<string,RecountCandidate[]>>({})
  const [disposition,setDisposition]=useState<Record<string,Disposition>>({})
+ const [lifecycleBusy,setLifecycleBusy]=useState(false)
  useEffect(()=>{void Promise.all([supervision.myProfile(),supervision.inventories()]).then(([p,i])=>{setProfile(p as Profile);setInventories(i);setInventoryId(i[0]?.id??'')}).catch(e=>setMessage(e instanceof Error?e.message:'Conciliación no disponible.'))},[])
  const refresh=useCallback(async()=>{try{const [nextRows,nextSummary]=await Promise.all([repo.list(inventoryId),repo.summary(inventoryId)]);setRows(nextRows);setSummary(nextSummary);setMessage('')}catch(e){setMessage(e instanceof Error?e.message:'No fue posible cargar conciliación.')}},[inventoryId])
  useEffect(()=>{if(inventoryId&&(profile?.role==='ANALISTA'||profile?.role==='ADMIN')) void refresh()},[inventoryId,profile?.role,refresh])
  const visible=useMemo(()=>filter==='TODOS'?rows:rows.filter(r=>r.status===filter),[rows,filter])
  const selectedInventory=useMemo(()=>inventories.find(inventory=>inventory.id===inventoryId)??null,[inventories,inventoryId])
  const loadCandidates=useCallback(async(caseId:string,round:2|3)=>{const key=`${caseId}:${round}`;if(candidates[key])return;try{const list=await repo.candidates(caseId,round);setCandidates(current=>({...current,[key]:list}));if(list.length===1)setAssignee(current=>({...current,[caseId]:list[0]!.user_id}))}catch(e){setMessage(e instanceof Error?e.message:'No fue posible cargar candidatos.')}},[candidates])
+ async function advanceLifecycle(action:'C1'|'FINAL'){
+  if(!inventoryId||!selectedInventory||lifecycleBusy)return
+  const copy=action==='C1'
+   ? '¿Completar C1? Se detiene la captura normal y los faltantes se evaluarán sólo al iniciar la conciliación final.'
+   : '¿Iniciar Conciliación final? Desde este momento, una referencia Softland sin conteo físico se investiga como faltante.'
+  if(!window.confirm(copy))return
+  try{
+   setLifecycleBusy(true)
+   const next=action==='C1'?await repo.completeFirstCount(inventoryId):await repo.startFinalReconciliation(inventoryId)
+   setInventories(current=>current.map(item=>item.id===next.id?{...item,status:next.status}:item))
+   setMessage(action==='C1'?'C1 completado. La captura normal quedó cerrada; ahora puedes iniciar la conciliación final cuando corresponda.':'Conciliación final iniciada. Genera los hallazgos para incluir faltantes reales.')
+   await refresh()
+  }catch(error){setMessage(error instanceof Error?error.message:'No fue posible avanzar el ciclo de inventario.')
+  }finally{setLifecycleBusy(false)}
+ }
  if(profile?.role==='CONTADOR') return null
  return <section className="supervision-screen" aria-labelledby="reconciliation-title">
   <header><p className="eyebrow">F11 · control de inventario</p><h1 id="reconciliation-title">CENTRO DE CONCILIACIÓN</h1><p>Una diferencia es un hallazgo a investigar; no se interpreta automáticamente como error del contador ni genera ajuste de stock.</p></header>
   <div className="supervision-actions"><label className="field"><span>Inventario</span><select value={inventoryId} onChange={e=>setInventoryId(e.target.value)}>{inventories.map(i=><option key={i.id} value={i.id}>{i.name} · {i.status}</option>)}</select></label><label className="field"><span>Estado</span><select value={filter} onChange={e=>setFilter(e.target.value)}><option>TODOS</option><option>PENDIENTE_ANALISIS</option><option>2DO_CONTEO_ASIGNADO</option><option>REQUIERE_3ER_CONTEO</option><option>3ER_CONTEO_ASIGNADO</option><option>FISICO_CONFIRMADO</option><option>RESUELTO</option></select></label><button className="button-secondary" onClick={()=>void refresh()}>ACTUALIZAR</button></div>
   {message&&<p className="form-warning" role="status">{message}</p>}
-  {inventoryId&&selectedInventory&&<SystemReferencePanel inventoryId={inventoryId} inventoryStatus={selectedInventory.status} onMaterialized={refresh}/>}
+  {inventoryId&&selectedInventory&&<><section className="master-status" aria-label="Cobertura del primer conteo"><h2>COBERTURA DEL INVENTARIO</h2>{selectedInventory.status==='ABIERTO'&&<><p>C1 sigue abierto: una referencia Softland aún no recorrida no se interpreta como faltante.</p><button className="button-primary" type="button" disabled={lifecycleBusy} onClick={()=>void advanceLifecycle('C1')}>{lifecycleBusy?'PROCESANDO…':'COMPLETAR C1'}</button></>}{selectedInventory.status==='C1_COMPLETADO'&&<><p>C1 finalizó. La captura normal está cerrada; el siguiente paso convierte faltantes pendientes en casos de conciliación.</p><button className="button-primary" type="button" disabled={lifecycleBusy} onClick={()=>void advanceLifecycle('FINAL')}>{lifecycleBusy?'PROCESANDO…':'INICIAR CONCILIACIÓN FINAL'}</button></>}{selectedInventory.status==='CONCILIACION_FINAL'&&<p>Conciliación final activa: los faltantes de referencia ya son casos investigables.</p>}</section><SystemReferencePanel inventoryId={inventoryId} inventoryStatus={selectedInventory.status} role={profile?.role??null} onMaterialized={refresh}/></>}
+  {inventoryId&&<LiveReconciliationWorkspace inventoryId={inventoryId}/>}
+  <section className="reconciliation-cases"><h2>CASOS DE INVESTIGACIÓN Y RECONTEO</h2><p>Los hallazgos no crean ajustes automáticos. Se investigan y resuelven mediante el flujo controlado.</p>
   {summary&&<section className="supervision-summary" aria-label="Resumen conciliación">
    <SummaryMetric label="Casos abiertos" value={summary.summary.open}/>
    <SummaryMetric label="Pendiente análisis" value={summary.summary.pending_analysis}/>
@@ -44,6 +63,7 @@ export function ReconciliationScreen(){
    {r.status==='REQUIERE_3ER_CONTEO'&&(profile?.role==='ANALISTA'||profile?.role==='ADMIN')&&<><label className="field"><span>Analista para 3.er conteo</span><select value={assignee[r.id]??''} onFocus={()=>void loadCandidates(r.id,3)} onChange={e=>setAssignee({...assignee,[r.id]:e.target.value})}><option value="">Seleccionar analista</option>{(candidates[`${r.id}:3`]??[]).map(c=><option key={c.user_id} value={c.user_id}>{c.display_name}</option>)}</select></label><button className="button-secondary" disabled={!assignee[r.id]} onClick={()=>void repo.assignThird(r.id,assignee[r.id]??'').then(refresh).catch(e=>setMessage(e.message))}>ASIGNAR 3.er CONTEO</button></>}
    {r.status==='FISICO_CONFIRMADO'&&profile?.role==='ANALISTA'&&<><label className="field"><span>Dictamen</span><select value={disposition[r.id]??''} onChange={e=>setDisposition({...disposition,[r.id]:e.target.value as Disposition})}><option value="">Seleccionar dictamen</option>{dispositions.map(value=><option key={value} value={value}>{value.replaceAll('_',' ')}</option>)}</select></label><label className="field"><span>Justificación de dictamen</span><textarea value={reason[r.id]??''} onChange={e=>setReason({...reason,[r.id]:e.target.value})}/></label><button className="button-primary" disabled={!disposition[r.id]||!(reason[r.id]??'').trim()} onClick={()=>{const selected=disposition[r.id];if(!selected)return;void repo.resolve(r.id,selected,reason[r.id]??'').then(refresh).catch(e=>setMessage(e.message))}}>REGISTRAR DICTAMEN Y CERRAR</button></>}
    {r.status==='RESUELTO'&&<span>Dictamen: {r.disposition} · {r.resolution_reason}</span>}<ReconciliationTimeline caseId={r.id}/></article>)}</div>
+  </section>
  </section>
 }
 

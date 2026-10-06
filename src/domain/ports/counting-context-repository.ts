@@ -3,7 +3,7 @@ import { z } from 'zod'
 export const cachedCountingContextSchema = z.object({
   userId: z.uuid(),
   inventoryId: z.uuid(),
-  inventoryStatus: z.literal('ABIERTO'),
+  inventoryStatus: z.enum(['ABIERTO', 'C1_COMPLETADO', 'CONCILIACION_FINAL']),
   verifiedAt: z.string().datetime(),
 })
 export type CachedCountingContext = z.infer<typeof cachedCountingContextSchema>

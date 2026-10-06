@@ -64,7 +64,10 @@ insert into public.generated_files (inventory_id, cut_id, file_type, file_name, 
 insert into public.inventory_cuts (id, inventory_id, cut_number, created_by) values
   ('f8300000-0000-0000-0000-000000000002', 'f8100000-0000-0000-0000-000000000001', 2, 'f8000000-0000-0000-0000-000000000001');
 
-select ok((select artifact_generation_id is null from public.generated_files where file_type = 'CUT_XLSX'), 'F7 CUT_XLSX keeps a null artifact_generation_id');
+-- F16 can reserve additional artifacts for the same inventory.  This Phase 8
+-- assertion concerns the immutable F7 file created above, not every future
+-- CUT_XLSX row that belongs to the inventory.
+select ok((select artifact_generation_id is null from public.generated_files where cut_id = 'f8300000-0000-0000-0000-000000000001' and file_type = 'CUT_XLSX'), 'F7 CUT_XLSX keeps a null artifact_generation_id');
 select throws_ok($$insert into public.generated_files (inventory_id, cut_id, file_type, file_name, storage_path, sha256, size_bytes, content_type, created_by) values ('f8100000-0000-0000-0000-000000000001', 'f8300000-0000-0000-0000-000000000002', 'SNAPSHOT', 'snapshot.json', 'inventory/f8/snapshot.json', repeat('b', 64), 1, 'application/json', 'f8000000-0000-0000-0000-000000000002')$$, '23514', 'new row for relation "generated_files" violates check constraint "generated_files_artifact_generation_requirement"', 'F8 generated files require an artifact generation');
 
 select set_config('request.jwt.claim.sub', 'f8000000-0000-0000-0000-000000000003', true); set local role authenticated;

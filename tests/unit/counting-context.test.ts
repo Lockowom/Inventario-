@@ -46,6 +46,12 @@ describe('last known authorized counting context', () => {
     expect(cache.value).toBeNull()
   })
 
+  it('conserva un diagnóstico seguro cuando la autoridad es ambigua', async () => {
+    const cache = new MemoryContextRepository(); cache.value = cached
+    await expect(resolveCountingContext(verifier({ kind: 'AMBIGUOUS', diagnostic: 'INVENTORIES_QUERY' }), cache)).resolves.toEqual({ kind: 'BLOCKED', reason: 'AMBIGUOUS', diagnostic: 'INVENTORIES_QUERY' })
+    expect(cache.value).toBeNull()
+  })
+
   it('no reutiliza un ABIERTO antiguo cuando el servidor informa que el inventario está CERRADO', async () => {
     const cache = new MemoryContextRepository(); cache.value = cached
     await expect(resolveCountingContext(verifier({ kind: 'NOT_AUTHORIZED' }), cache)).resolves.toEqual({ kind: 'BLOCKED', reason: 'NOT_AUTHORIZED' })
@@ -69,11 +75,11 @@ describe('last known authorized counting context', () => {
 })
 
 describe('adaptadores persistentes del contexto', () => {
-  it('SQLite v6 conserva el contexto a través de una nueva instancia', async () => {
+  it('SQLite v7 conserva el contexto a través de una nueva instancia', async () => {
     const database = new ContextSqliteDatabase()
     await new SqliteCountingContextRepository(database).save(cached)
     await expect(new SqliteCountingContextRepository(database).get()).resolves.toEqual(cached)
-    expect(database.userVersion).toBe(6)
+    expect(database.userVersion).toBe(7)
   })
 
   it('Dexie v4 conserva el contexto después de simular un reinicio de app', async () => {
@@ -85,6 +91,12 @@ describe('adaptadores persistentes del contexto', () => {
     await expect(new DexieCountingContextRepository(restartedDatabase).get()).resolves.toEqual(cached)
     restartedDatabase.close()
     await restartedDatabase.delete()
+  })
+
+  it('preserva un contexto C1 para terminar solamente reconteos asignados cuando no hay red', async () => {
+    const cache = new MemoryContextRepository()
+    cache.value = { ...cached, inventoryStatus: 'C1_COMPLETADO' }
+    await expect(resolveCountingContext(verifier({ kind: 'UNAVAILABLE' }), cache)).resolves.toEqual({ kind: 'OFFLINE', context: { userId, inventoryId, inventoryStatus: 'C1_COMPLETADO' } })
   })
 })
 

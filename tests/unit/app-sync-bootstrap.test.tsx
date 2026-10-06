@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 const h = vi.hoisted(() => ({
   createSyncCoordinator: vi.fn(),
   runDeviceHealthCheck: vi.fn(),
+  invalidateLocalAuthority: vi.fn(),
 }))
 
 vi.mock('../../src/services/supabase', () => ({
@@ -16,7 +17,7 @@ vi.mock('../../src/features/auth/auth-service', () => ({
     hasRuntimeIdentity: async () => true,
     onAuthStateChange: () => ({ unsubscribe: () => undefined }),
     onLocalSignOut: () => ({ unsubscribe: () => undefined }),
-    invalidateLocalAuthority: async () => undefined,
+    invalidateLocalAuthority: h.invalidateLocalAuthority,
     signOut: async () => undefined,
     getRole: async () => 'CONTADOR',
   },
@@ -88,5 +89,17 @@ describe('App sync bootstrap', () => {
     await waitFor(() => expect(view.getByRole('button', { name: /Conteo/ })).toBeInTheDocument())
     fireEvent.click(view.getByRole('button', { name: /Conteo/ }))
     await waitFor(() => expect(view.getByTestId('sync-state')).toHaveTextContent('enabled'))
+  })
+
+  it('keeps a valid session open when counting authorization is absent', async () => {
+    h.runDeviceHealthCheck.mockResolvedValue({
+      report: { resolvedContext: { kind: 'BLOCKED', reason: 'NOT_AUTHORIZED' } },
+      runtime: null,
+    })
+
+    const view = render(<App />)
+
+    await waitFor(() => expect(view.getByText('health')).toBeInTheDocument())
+    expect(h.invalidateLocalAuthority).not.toHaveBeenCalled()
   })
 })

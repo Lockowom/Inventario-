@@ -1,7 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isSupabaseConfigured } from '../services/supabase'
-import { MasterSkuScreen } from '../features/master/master-sku-screen'
 import { SupervisionScreen } from '../features/supervision/supervision-screen'
 import { CountingScreen } from '../features/counting/counting-screen'
 import { CutsScreen } from '../features/cuts/cuts-screen'
@@ -68,10 +67,10 @@ function AuthenticatedRuntime() {
     try {
       const result = await runDeviceHealthCheck(mode, { createService: createDeviceHealthService, createCountingRuntime })
       if (run !== healthRun.current) return
-      if (result.report.resolvedContext.kind === 'BLOCKED' && result.report.resolvedContext.reason === 'NOT_AUTHORIZED') {
-        await authService.invalidateLocalAuthority()
-        return
-      }
+      // A valid Supabase session is not the same thing as a counting
+      // authorization. An ADMIN without an active inventory assignment must
+      // still be able to enter User Management and repair assignments. The
+      // capture gate remains BLOCKED because the health report is retained.
       setHealthReport(result.report); setCountingRuntime(result.runtime)
     } catch (error: unknown) {
       console.error('DEVICE_HEALTH_RUNTIME_FAIL', error)
@@ -139,9 +138,7 @@ function AuthenticatedRuntime() {
           ? <ReconciliationScreen />
           : visibleView === 'cuts'
             ? <CutsScreen />
-            : visibleView === 'master'
-              ? <MasterSkuScreen />
-              : <UserManagementScreen role={role} />
+            : <UserManagementScreen role={role} />
 
   return <main className="app-shell app-shell--authenticated">
     <AppNavigation role={role} activeView={visibleView} onSelect={(view) => { if (isAppViewAllowed(role, view)) setActiveView(view) }} onSignOut={() => void authService.signOut()} />

@@ -57,9 +57,12 @@ export const masterMetadataSchema = z.object({
 export type MasterMetadata = z.infer<typeof masterMetadataSchema>
 
 export function validMasterItems(preview: MasterImportPreview): Array<Pick<MasterSku, 'codigo' | 'descripcion' | 'controlType'>> {
-  return preview.rows
-    .filter((row) => row.errors.length === 0 && row.controlType)
-    .map((row) => ({ codigo: row.normalizedCodigo, descripcion: row.normalizedDescripcion, controlType: row.controlType! }))
+  const uniqueItems = new Map<string, Pick<MasterSku, 'codigo' | 'descripcion' | 'controlType'>>()
+  for (const row of preview.rows) {
+    if (row.errors.length > 0 || !row.controlType || uniqueItems.has(row.normalizedCodigo)) continue
+    uniqueItems.set(row.normalizedCodigo, { codigo: row.normalizedCodigo, descripcion: row.normalizedDescripcion, controlType: row.controlType })
+  }
+  return [...uniqueItems.values()]
 }
 
 export async function createMasterFingerprint(items: ReadonlyArray<Pick<MasterSku, 'codigo' | 'descripcion' | 'controlType'>>): Promise<string> {

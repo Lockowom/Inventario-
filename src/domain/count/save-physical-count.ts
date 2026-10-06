@@ -2,7 +2,10 @@ import { localCountRecordSchema, pendingCapacity, validatePhysicalCountDraft, ty
 import type { MasterSkuRepository } from '../ports/master-sku-repository'
 import type { CountRepository } from '../ports/count-repository'
 
-export interface ActiveCountingContext { inventoryId: string; userId: string; inventoryStatus: 'ABIERTO' }
+/** A closed C1 context may only be used by the recount UI; the server remains
+ * authoritative and rejects any post-C1 record without an active assignment. */
+export type CountingInventoryStatus = 'ABIERTO' | 'C1_COMPLETADO' | 'CONCILIACION_FINAL'
+export interface ActiveCountingContext { inventoryId: string; userId: string; inventoryStatus: CountingInventoryStatus }
 export interface SavePhysicalCountDependencies { masters: MasterSkuRepository; counts: CountRepository; now?: () => Date; createUuid?: () => string }
 export interface SavedPhysicalCount { record: LocalCountRecord; pending: number; capacity: PendingCapacity }
 
