@@ -1,11 +1,11 @@
 import { z } from 'zod'
 import { masterControlTypeSchema, normalizeMasterCode, normalizeMasterDescription, type MasterSku } from '../master/contracts'
 
-export const LOCATION_PATTERN = /^(A|B|C|C2|D|F|G|H|I)-[0-9]{2}-[0-9]{2}$/
+export const LOCATION_PATTERN = /^(?:TECHO|(A|B|C|C2|D|F|G|H|I)-[0-9]{2}-[0-9]{2})$/
 export const LOCATION_MAX_LENGTH = 8
 /** Allows an incomplete but structurally valid value while the operator types. */
-export const LOCATION_TYPING_PATTERN = /^(?:C2?|[ABDFGHI]?)(?:-?\d{0,2})?(?:-?\d{0,2})?$/
-export const LOCATION_ERROR = 'Ubicación mal digitada. Verifique el formato y el pasillo. Ejemplos válidos: F-32-03 o C2-32-03.'
+export const LOCATION_TYPING_PATTERN = /^(?:T(?:E(?:C(?:H(?:O)?)?)?)?|(?:C2?|[ABDFGHI]?)(?:-?\d{0,2})?(?:-?\d{0,2})?)$/
+export const LOCATION_ERROR = 'Ubicación mal digitada. Use TECHO o el formato de pasillo F-32-03 / C2-32-03.'
 export const SERIAL_REQUIRED_ERROR = 'Favor introducir la serie. Si el producto no está etiquetado o no tiene una serie visible, favor hablar con el Analista de Inventario.'
 export const SERIAL_LENGTH_ERROR = 'La serie ingresada supera el máximo permitido de 19 caracteres. Diríjase al Analista de Inventario con el producto para su revisión.'
 export const BATCH_REQUIRED_ERROR = 'Favor introducir el lote/partida. Si el producto no está etiquetado o no tiene un lote visible, favor hablar con el Analista de Inventario.'

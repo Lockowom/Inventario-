@@ -6,6 +6,7 @@ import { profileSchema } from '../../src/domain/auth/contracts'
 describe('contratos compartidos', () => {
   it('acepta una ubicación contractual', () => {
     expect(locationSchema.parse('C2-15-03')).toBe('C2-15-03')
+    expect(locationSchema.parse('TECHO')).toBe('TECHO')
   })
 
   it('rechaza un pasillo no autorizado', () => {

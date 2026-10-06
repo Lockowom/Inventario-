@@ -55,6 +55,10 @@ describe('CountingScreen Device Health capture gate', () => {
     expect(screen.getByText(/Ubicación mal digitada/i)).toBeVisible()
     fireEvent.change(location, { target: { value: 'f-32-03' } })
     expect(location).toHaveValue('F-32-03')
+    fireEvent.change(location, { target: { value: 'techo' } })
+    expect(location).toHaveValue('TECHO')
+    fireEvent.change(location, { target: { value: 'bodega' } })
+    expect(location).toHaveValue('TECHO')
   })
 
   it('closes regular capture after C1 while leaving sync available', async () => {
