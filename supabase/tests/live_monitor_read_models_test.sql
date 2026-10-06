@@ -1,5 +1,5 @@
 begin;
-select plan(12);
+select plan(15);
 
 select is((select has_function_privilege('anon', 'public.get_live_monitor_summary(uuid)', 'EXECUTE')), false, 'anon cannot read the live monitor summary');
 select is((select has_function_privilege('authenticated', 'public.get_live_monitor_summary(uuid)', 'EXECUTE')), true, 'authenticated may invoke the guarded summary RPC');
@@ -51,6 +51,9 @@ select is(((public.get_live_monitor_summary('a6200000-0000-0000-0000-00000000000
 select is((select stage from public.get_live_monitor_activity('a6200000-0000-0000-0000-000000000001',10,null,null,'C1','SER-OK') limit 1),'C1','activity stream labels accepted first-count evidence as C1');
 select is((select status::text from public.complete_first_count('a6200000-0000-0000-0000-000000000001')),'C1_COMPLETADO','manager can close C1 after reading the live monitor');
 select is((select coverage_status from public.get_live_monitor_coverage('a6200000-0000-0000-0000-000000000001','TODOS',null,100,0) where reference_value='LOT-MISSING'),'PARTIDA_SISTEMA_NO_CONTADA','the same missing batch becomes an actionable absence after C1 closes');
+select ok((select created_count from public.materialize_reconciliation_cases('a6200000-0000-0000-0000-000000000001')) > 0,'C1 closure materializes cases for the existing C2/C3 lifecycle');
+select is((select stage from public.get_live_monitor_missions('a6200000-0000-0000-0000-000000000001','C2','TODOS',100) limit 1),'C2','monitor exposes a C2 case without creating another mission table');
+select is((select identity_status from public.get_live_monitor_identity('a6200000-0000-0000-0000-000000000001',100) where codigo='LIV001S'),'DIFERENCIA_CANTIDAD','identity read model preserves the quantity difference for an out-of-available serial');
 reset role;
 
 select * from finish();

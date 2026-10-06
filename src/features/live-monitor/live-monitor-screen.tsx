@@ -15,6 +15,8 @@ export function LiveMonitorScreen() {
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null)
   const [coverage, setCoverage] = useState<Record<string, unknown>[]>([])
   const [activity, setActivity] = useState<Record<string, unknown>[]>([])
+  const [missionRows, setMissionRows] = useState<Record<string, unknown>[]>([])
+  const [identity, setIdentity] = useState<Record<string, unknown>[]>([])
   const [coverageStatus, setCoverageStatus] = useState('TODOS')
   const [stage, setStage] = useState('TODOS')
   const [search, setSearch] = useState('')
@@ -50,10 +52,13 @@ export function LiveMonitorScreen() {
 
   async function refresh() {
     try {
-      const [nextSummary, nextCoverage, nextActivity] = await Promise.all([
+      const missionLoader = typeof monitor.missions === 'function' ? monitor.missions(inventoryId, stage) : Promise.resolve([])
+      const identityLoader = typeof monitor.identity === 'function' ? monitor.identity(inventoryId) : Promise.resolve([])
+      const [nextSummary, nextCoverage, nextActivity, nextMissions, nextIdentity] = await Promise.all([
         monitor.summary(inventoryId), monitor.coverage(inventoryId, coverageStatus, search), monitor.activity(inventoryId, stage, search),
+        missionLoader, identityLoader,
       ])
-      setSummary(nextSummary); setCoverage(nextCoverage); setActivity(nextActivity); setMessage('')
+      setSummary(nextSummary); setCoverage(nextCoverage); setActivity(nextActivity); setMissionRows(nextMissions); setIdentity(nextIdentity); setMessage('')
     } catch (error: unknown) { setMessage(error instanceof Error ? error.message : 'Monitor no disponible.') }
   }
 
@@ -71,11 +76,15 @@ export function LiveMonitorScreen() {
     <section className="live-monitor-filter"><label className="field"><span>Buscar SKU, referencia o ubicación</span><input value={search} onChange={(event) => setSearch(event.target.value)} /></label><label className="field"><span>Estado de cobertura</span><select value={coverageStatus} onChange={(event) => setCoverageStatus(event.target.value)}><option value="TODOS">Todos</option><option value="CUBIERTA">Cubierta</option><option value="PENDIENTE_DE_COBERTURA">Pendiente de cobertura</option><option value="SERIE_SISTEMA_NO_CONTADA">Serie sistema no contada</option><option value="PARTIDA_SISTEMA_NO_CONTADA">Partida sistema no contada</option><option value="SERIE_FUERA_DE_DISPONIBLE">Serie fuera de disponible</option><option value="PARTIDA_FUERA_DE_DISPONIBLE">Partida fuera de disponible</option></select></label><label className="field"><span>Etapa de actividad</span><select value={stage} onChange={(event) => setStage(event.target.value)}><option value="TODOS">C1, C2 y C3</option><option value="C1">C1</option><option value="C2">C2</option><option value="C3">C3</option></select></label><button className="button-primary" type="button" onClick={() => void refresh()}>APLICAR FILTROS</button></section>
     <section className="live-monitor-section"><h2>Cobertura por SKU y referencia</h2><p>La identidad se conserva por serie o partida: dos filas con igual SKU no son duplicados si su referencia es distinta.</p><CoverageTable rows={coverage} /></section>
     <section className="live-monitor-section"><h2>Actividad de conteo</h2><ActivityList rows={activity} /></section>
+    <section className="live-monitor-section"><h2>Misiones C2 / C3</h2><p>La cola usa los casos de conciliación existentes. Sólo muestra identidad, ubicaciones conocidas y progreso; el contador sigue ciego a Softland y C1.</p><MissionList rows={missionRows} /></section>
+    <section className="live-monitor-section"><h2>Diagnóstico por identidad</h2><p>Un total igual no cierra el SKU si cambian las series o partidas. Los riesgos de inflación requieren dictamen antes de proponer altas.</p><IdentityList rows={identity} /></section>
   </section>
 }
 
 function Metric({ label, value }: { label: string; value: unknown }) { return <article><span>{label}</span><strong>{value == null ? '—' : String(value)}</strong></article> }
 function CoverageTable({ rows }: { rows: Record<string, unknown>[] }) { if (!rows.length) return <p>Sin referencias para los filtros actuales.</p>; return <div className="live-monitor-table"><table><thead><tr><th>SKU</th><th>Referencia</th><th>Disponible</th><th>Físico</th><th>Estado</th></tr></thead><tbody>{rows.map((row) => <tr key={`${row.codigo}-${row.reference_type}-${row.reference_value ?? ''}`}><td><strong>{String(row.codigo)}</strong><span>{String(row.descripcion)}</span></td><td>{String(row.reference_value ?? '—')}<span>{String(row.reference_type)}</span></td><td>{String(row.available_quantity)}</td><td>{String(row.physical_quantity)}</td><td><span className={`coverage-status coverage-status--${String(row.coverage_status).toLowerCase()}`}>{String(row.coverage_status).replaceAll('_', ' ')}</span></td></tr>)}</tbody></table></div> }
 function ActivityList({ rows }: { rows: Record<string, unknown>[] }) { if (!rows.length) return <p>Sin actividad recibida para los filtros actuales.</p>; return <ul className="live-monitor-activity">{rows.map((row) => <li key={String(row.id)}><strong>{String(row.stage)} · {String(row.codigo)} · {String(row.cantidad_contada)}</strong><span>{String(row.display_name)} · {String(row.ubicacion)} · {formatDate(row.received_at)}</span><span>{row.serie ? `Serie ${String(row.serie)}` : row.partida ? `Partida ${String(row.partida)}` : 'SKU sin referencia controlada'}</span></li>)}</ul> }
+function MissionList({ rows }: { rows: Record<string, unknown>[] }) { if (!rows.length) return <p>Sin misiones C2/C3 para este inventario.</p>; return <ul className="live-monitor-activity">{rows.map((row) => <li key={String(row.id)}><strong>{String(row.stage)} · {String(row.mission_status)} · {String(row.codigo)}</strong><span>{String(row.anomaly_type).replaceAll('_', ' ')} · {String(row.reference_value ?? 'Sin referencia')} · {String(row.assigned_to)}</span><span>Ubicaciones conocidas: {Array.isArray(row.known_locations) && row.known_locations.length ? row.known_locations.join(', ') : 'Sin observaciones aún'} · Observaciones: {String(row.observation_count)}</span></li>)}</ul> }
+function IdentityList({ rows }: { rows: Record<string, unknown>[] }) { if (!rows.length) return <p>Sin referencias para diagnosticar.</p>; return <ul className="live-monitor-identity">{rows.map((row) => <li key={`${row.codigo}-${row.reference_type}`}><strong>{String(row.codigo)} · {String(row.identity_status).replaceAll('_', ' ')}</strong><span>Sistema Disponible: {String(row.system_available_quantity)} · Físico: {String(row.physical_quantity)}</span><span>Referencias sistema pendientes: {String(row.system_missing_references)} · físicas nuevas/fuera de disponible: {String(row.physical_new_references)}</span>{row.risk_inflation_stock === true && <em>RIESGO INFLACIÓN STOCK: no ejecutar altas aisladas.</em>}</li>)}</ul> }
 function objectOrEmpty(value: unknown): Record<string, unknown> { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {} }
 function formatDate(value: unknown) { return typeof value === 'string' ? new Date(value).toLocaleString() : 'Sin fecha' }
