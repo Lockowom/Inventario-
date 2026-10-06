@@ -34,4 +34,18 @@ export class SupabaseLiveMonitorRepository {
     if (error) throw new Error('No fue posible cargar la actividad de conteo.')
     return (data ?? []) as Record<string, unknown>[]
   }
+
+  /** Events are only invalidation signals; canonical data always comes from the guarded RPCs. */
+  public subscribe(inventoryId: string, onChange: () => void, onStatus: (state: 'CONNECTED' | 'DEGRADED') => void) {
+    const client = clientOrThrow()
+    const refresh = () => onChange()
+    const channel = client.channel(`live-monitor:${inventoryId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'count_records', filter: `inventory_id=eq.${inventoryId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reconciliation_cases', filter: `inventory_id=eq.${inventoryId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_system_reference_items', filter: `inventory_id=eq.${inventoryId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_freeze_guards', filter: `inventory_id=eq.${inventoryId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'inventories', filter: `id=eq.${inventoryId}` }, refresh)
+      .subscribe((status) => onStatus(status === 'SUBSCRIBED' ? 'CONNECTED' : status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED' ? 'DEGRADED' : 'DEGRADED'))
+    return () => { void client.removeChannel(channel) }
+  }
 }

@@ -19,6 +19,7 @@ export function LiveMonitorScreen() {
   const [stage, setStage] = useState('TODOS')
   const [search, setSearch] = useState('')
   const [message, setMessage] = useState('Cargando monitor autorizado…')
+  const [realtime, setRealtime] = useState<'CONNECTING' | 'CONNECTED' | 'DEGRADED'>('CONNECTING')
 
   const selectedInventory = useMemo(() => inventories.find((item) => item.id === inventoryId), [inventories, inventoryId])
   useEffect(() => {
@@ -30,6 +31,14 @@ export function LiveMonitorScreen() {
 
   useEffect(() => { if (inventoryId && canAccessLiveMonitor(role)) void refresh() // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inventoryId, role, coverageStatus, stage])
+
+  useEffect(() => {
+    if (!inventoryId || !canAccessLiveMonitor(role) || typeof monitor.subscribe !== 'function') return
+    setRealtime('CONNECTING')
+    return monitor.subscribe(inventoryId, () => { void refresh() }, (state) => setRealtime(state))
+    // The channel carries invalidation only. It never becomes a second source of truth.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inventoryId, role])
 
   useEffect(() => {
     if (!inventoryId || !canAccessLiveMonitor(role)) return
@@ -54,7 +63,7 @@ export function LiveMonitorScreen() {
   const missions = objectOrEmpty(summary?.missions)
   const devices = objectOrEmpty(summary?.devices)
   return <section className="live-monitor-screen" aria-labelledby="live-monitor-title">
-    <header><p className="eyebrow">LIVE · operación y cobertura</p><h1 id="live-monitor-title">MONITOR OPERATIVO</h1><p>Lectura en vivo de evidencia recibida. Disponible es la única base de comparación; no se ejecutan ajustes de stock.</p></header>
+    <header><p className="eyebrow">LIVE · operación y cobertura</p><h1 id="live-monitor-title">MONITOR OPERATIVO</h1><p>Lectura en vivo de evidencia recibida. Disponible es la única base de comparación; no se ejecutan ajustes de stock.</p><span className={`live-monitor-realtime live-monitor-realtime--${realtime.toLowerCase()}`}>{realtime === 'CONNECTED' ? 'EN VIVO' : realtime === 'CONNECTING' ? 'CONECTANDO EN VIVO…' : 'ACTUALIZACIÓN PROGRAMADA'}</span></header>
     <div className="live-monitor-actions"><label className="field"><span>Inventario</span><select value={inventoryId} onChange={(event) => setInventoryId(event.target.value)}>{inventories.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.status}</option>)}</select></label><button className="button-secondary" type="button" onClick={() => void refresh()}>ACTUALIZAR</button></div>
     {selectedInventory?.status === 'ABIERTO' && <p className="live-monitor-note">C1 está abierto: una referencia Softland no visitada aún es cobertura pendiente, no un faltante.</p>}
     {message && <p className="form-warning" role="status">{message}</p>}
