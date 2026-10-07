@@ -36,7 +36,7 @@ class OtaUpdateService {
         body: { deviceId: device.deviceId, nativeVersion: current.native, currentBundleVersion: current.bundle.version, eventType: 'CHECKED' },
       })
       if (error || !data) return { kind: 'ERROR', message: 'No fue posible verificar la actualización OTA.' }
-      if (!data.update) return { kind: 'UNASSIGNED', message: data.enrollment === 'PENDING_ADMIN_ASSIGNMENT' ? 'Este dispositivo espera asignación ADMIN a qa-beta.' : 'No hay bundle OTA disponible para este dispositivo.' }
+      if (!data.update) return { kind: 'UNASSIGNED', message: 'Dispositivo registrado en qa-beta. Aún no existe un bundle OTA posterior a esta APK base.' }
       if (compareVersions(current.native, data.update.minNativeVersion) < 0) return { kind: 'NATIVE_REQUIRED', minNativeVersion: data.update.minNativeVersion, message: `Esta operación requiere APK Android ${data.update.minNativeVersion} o superior.` }
       if (compareVersions(data.update.version, current.bundle.version) <= 0) return { kind: 'UP_TO_DATE', message: 'El bundle OTA ya está actualizado.' }
       const downloaded = await CapacitorUpdater.download({ version: data.update.version, url: data.update.url, checksum: data.update.sha256 })

@@ -4,7 +4,11 @@ import { withSupabase } from '@supabase/server'
 const deviceIdPattern = /^[A-Za-z0-9._:-]{8,200}$/
 function json(status: number, body: Record<string, unknown>) { return Response.json(body, { status }) }
 
-/** Authenticated application check. It never assigns a channel to a device. */
+// qa-beta is selected only by this trusted server. The native client neither
+// sends a channel nor has permission to change its own updater channel.
+const qaChannel = 'qa-beta'
+
+/** Authenticated Android QA application check. */
 export default {
   fetch: withSupabase({ auth: 'user' }, async (request, ctx) => {
     if (request.method !== 'POST') return json(405, { error: 'Method not allowed.' })
@@ -18,12 +22,13 @@ export default {
     const eventType = typeof body.eventType === 'string' ? body.eventType : 'CHECKED'
     if (!deviceIdPattern.test(deviceId) || !nativeVersion) return json(400, { error: 'Invalid OTA device identity.' })
     if (!['CHECKED', 'DOWNLOADED', 'APPLIED', 'ROLLED_BACK', 'FAILED', 'INCOMPATIBLE'].includes(eventType)) return json(400, { error: 'Unsupported OTA event.' })
-    const existing = await ctx.supabaseAdmin.from('ota_devices').select('user_id').eq('device_id', deviceId).maybeSingle()
+    const existing = await ctx.supabaseAdmin.from('ota_devices').select('user_id, channel_name').eq('device_id', deviceId).maybeSingle()
     if (existing.error) return json(500, { error: 'Unable to resolve OTA device.' })
     if (existing.data && existing.data.user_id !== actor.data.user.id) return json(403, { error: 'Device belongs to another user.' })
-    const device = await ctx.supabaseAdmin.from('ota_devices').upsert({ device_id: deviceId, user_id: actor.data.user.id, native_version: nativeVersion, current_bundle_version: currentVersion, last_seen_at: new Date().toISOString(), last_check_at: new Date().toISOString(), last_error_code: eventType === 'FAILED' ? 'CLIENT_REPORTED_FAILURE' : null }, { onConflict: 'device_id' }).select('device_id, channel_name').single()
+    const deviceChannel = existing.data?.channel_name ?? qaChannel
+    const device = await ctx.supabaseAdmin.from('ota_devices').upsert({ device_id: deviceId, user_id: actor.data.user.id, channel_name: deviceChannel, native_version: nativeVersion, current_bundle_version: currentVersion, last_seen_at: new Date().toISOString(), last_check_at: new Date().toISOString(), last_error_code: eventType === 'FAILED' ? 'CLIENT_REPORTED_FAILURE' : null }, { onConflict: 'device_id' }).select('device_id, channel_name').single()
     if (device.error || !device.data) return json(500, { error: 'Unable to register OTA device.' })
-    if (!device.data.channel_name) return json(200, { update: null, enrollment: 'PENDING_ADMIN_ASSIGNMENT' })
+    if (device.data.channel_name !== qaChannel) return json(500, { error: 'Invalid OTA channel configuration.' })
     const bundle = await ctx.supabaseAdmin.from('ota_bundles').select('id, version, min_native_version, release_url, sha256, size_bytes').eq('channel_name', device.data.channel_name).is('revoked_at', null).order('published_at', { ascending: false }).limit(1).maybeSingle()
     if (bundle.error) return json(500, { error: 'Unable to resolve OTA channel.' })
     await ctx.supabaseAdmin.from('ota_device_events').insert({ device_id: deviceId, bundle_id: bundle.data?.id ?? null, event_type: eventType, detail: { currentVersion } })

@@ -73,7 +73,7 @@ export function LiveMonitorScreen() {
     <section className="live-monitor-section"><h2>Cobertura por SKU y referencia</h2><p>La identidad se conserva por serie o partida: dos filas con igual SKU no son duplicados si su referencia es distinta.</p><CoverageTable rows={coverage} /></section>
     <section className="live-monitor-section"><h2>Actividad de conteo</h2><ActivityList rows={activity} /></section>
     <section className="live-monitor-section"><h2>Misiones C2 / C3</h2><p>Estado real de cada misión, sus ubicaciones registradas y el caso que la originó.</p><MissionTable rows={missions} /></section>
-    <section className="live-monitor-section"><h2>Dispositivos OTA · Android QA</h2><p>La inscripción en <code>qa-beta</code> es asignada por ADMIN; ningún dispositivo se incorpora por sí mismo.</p><OtaDeviceTable rows={otaDevices} /></section>
+    <section className="live-monitor-section"><h2>Dispositivos OTA · Android QA</h2><p>El servidor asigna <code>qa-beta</code> al registrar un dispositivo QA autenticado; el cliente no puede elegir ni cambiar canal.</p><OtaDeviceTable rows={otaDevices} /></section>
   </section>
 }
 

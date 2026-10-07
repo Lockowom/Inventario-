@@ -12,8 +12,27 @@ describe('OTA security and workflow contracts', () => {
     expect(publish).toContain("Deno.env.get('OTA_PUBLISH_TOKEN')")
     expect(publish).toContain("withSupabase({ auth: 'none' }")
     expect(updates).toContain("withSupabase({ auth: 'user' }")
-    expect(updates).toContain('PENDING_ADMIN_ASSIGNMENT')
+    expect(updates).toContain("const qaChannel = 'qa-beta'")
+    expect(updates).toContain('channel_name: deviceChannel')
     expect(updates).not.toContain('setChannel')
+    expect(updates).not.toContain('body.channel')
+  })
+
+  it('keeps the OTA base Android-only, QA-bound and persistently signed', () => {
+    const config = read('capacitor.config.ts')
+    const workflow = read('.github/workflows/android-qa-base-ota.yml')
+    expect(config).toContain('https://uazunvlxlszdyweddxtb.supabase.co/functions/v1/ota-updates')
+    expect(config).toContain("autoUpdate: 'off'")
+    expect(config).toContain('allowSetDefaultChannel: false')
+    expect(workflow).toContain('INVEN3_QA_KEYSTORE_BASE64')
+    expect(workflow).toContain('INVEN3_QA_KEYSTORE_PASSWORD')
+    expect(workflow).toContain('INVEN3_QA_KEY_ALIAS')
+    expect(workflow).toContain('INVEN3_QA_KEY_PASSWORD')
+    expect(workflow).toContain('npx cap sync android')
+    expect(workflow).toContain('com.lockowom.inven3')
+    expect(workflow).toContain('qa-beta')
+    expect(workflow).not.toContain('cap sync ios')
+    expect(workflow).not.toContain('macos-')
   })
 
   it('only allows the qa branch and immutable GitHub-release bundles', () => {
