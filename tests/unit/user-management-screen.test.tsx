@@ -36,5 +36,17 @@ describe('UserManagementScreen', () => {
     await flush()
     expect(mocks.setTemporaryPassword).toHaveBeenCalledWith({ userId: id, password: 'Temporary-password-12' })
   })
+  it('persists a typed temporary password when the administrator saves an existing user', async () => {
+    render(<UserManagementScreen role="ADMIN" />)
+    await flush()
+    fireEvent.click(screen.getByRole('button', { name: 'EDITAR' }))
+    fireEvent.change(screen.getByLabelText('Nueva contraseña temporal'), { target: { value: 'Temporary-password-12' } })
+    expect(screen.getByRole('button', { name: 'GUARDAR CAMBIOS Y CONTRASEÑA' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'GUARDAR CAMBIOS Y CONTRASEÑA' }))
+    await flush()
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ userId: id }))
+    expect(mocks.setTemporaryPassword).toHaveBeenCalledWith({ userId: id, password: 'Temporary-password-12' })
+    expect(screen.getByText('Usuario y contraseña temporal actualizados y auditados.')).toBeInTheDocument()
+  })
 })
 async function flush() { await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve() }) }
