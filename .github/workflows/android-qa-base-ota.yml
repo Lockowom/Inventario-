@@ -114,9 +114,7 @@ jobs:
           npx cap sync android
           grep -q "capgo-capacitor-updater" android/capacitor.settings.gradle
           grep -q "capgo-capacitor-updater" android/app/capacitor.build.gradle
-          grep -q "uazunvlxlszdyweddxtb.supabase.co/functions/v1/ota-updates" android/app/src/main/assets/capacitor.config.json
-          grep -q '"autoUpdate":"off"' android/app/src/main/assets/capacitor.config.json
-          grep -q '"allowSetDefaultChannel":false' android/app/src/main/assets/capacitor.config.json
+          node -e 'const c = require("./android/app/src/main/assets/capacitor.config.json"); const u = c.plugins?.CapacitorUpdater; if (u?.updateUrl !== "https://uazunvlxlszdyweddxtb.supabase.co/functions/v1/ota-updates" || u?.autoUpdate !== "off" || u?.allowSetDefaultChannel !== false) process.exit(1)'
           grep -R -q "uazunvlxlszdyweddxtb.supabase.co" dist
 
       - name: Build unsigned Android release APK
