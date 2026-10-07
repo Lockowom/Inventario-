@@ -60,9 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$INVEN3_REQUESTED_SHA"
-          test "$(node -p \"require('./release-policy.json').productionLocked\")" = "true"
-          test "$(node -p \"require('./release-policy.json').defaultEnvironment\")" = "qa"
-          test "$(node -p \"require('./release-policy.json').defaultChannel\")" = "beta"
+          node -e 'const p = require("./release-policy.json"); if (p.productionLocked !== true || p.defaultEnvironment !== "qa" || p.defaultChannel !== "beta") process.exit(1)'
 
       - name: Setup Node
         uses: actions/setup-node@v5
