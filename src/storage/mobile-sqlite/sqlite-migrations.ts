@@ -65,6 +65,14 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = [
       )
     },
   },
+  {
+    version: 7,
+    up: async (database) => {
+      // Persisted only after a successful server verification. It restores
+      // permitted offline navigation without storing credentials or a token.
+      await database.execute("alter table local_counting_context add column role text check (role in ('CONTADOR', 'ANALISTA', 'ADMIN'))")
+    },
+  },
 ]
 
 const migrationRuns = new WeakMap<SqliteDatabase, Promise<void>>()

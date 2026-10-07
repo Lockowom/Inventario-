@@ -1,0 +1,58 @@
+name: OTA QA Beta
+
+on:
+  push:
+    branches: [qa]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-immutable-qa-bundle:
+    # No PR, production or arbitrary feature branch can publish OTA.
+    if: github.ref == 'refs/heads/qa'
+    runs-on: ubuntu-latest
+    environment: qa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: Validate QA-only OTA version
+        id: version
+        shell: bash
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+-qa\.[0-9]+$ ]]
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+      - name: Build reproducible web bundle
+        id: bundle
+        shell: bash
+        run: |
+          find dist -exec touch -h -t 198001010000 {} +
+          (cd dist && find . -type f -print | LC_ALL=C sort | zip -X -q ../inven3-ota-${{ steps.version.outputs.version }}.zip -@)
+          echo "sha256=$(sha256sum inven3-ota-${{ steps.version.outputs.version }}.zip | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+          echo "size=$(stat -c%s inven3-ota-${{ steps.version.outputs.version }}.zip)" >> "$GITHUB_OUTPUT"
+      - name: Publish immutable GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "ota-${{ steps.version.outputs.version }}" "inven3-ota-${{ steps.version.outputs.version }}.zip" \
+            --target "$GITHUB_SHA" --title "INVEN3 QA OTA ${{ steps.version.outputs.version }}" --notes "Android QA web bundle. Immutable SHA-256: ${{ steps.bundle.outputs.sha256 }}"
+      - name: Register immutable bundle in INVEN3 QA
+        env:
+          OTA_PUBLISH_TOKEN: ${{ secrets.OTA_PUBLISH_TOKEN }}
+          OTA_PUBLISH_URL: ${{ secrets.OTA_PUBLISH_URL }}
+        run: |
+          test -n "$OTA_PUBLISH_TOKEN" && test -n "$OTA_PUBLISH_URL"
+          curl --fail-with-body --silent --show-error --request POST "$OTA_PUBLISH_URL" \
+            --header 'content-type: application/json' \
+            --header "x-ota-publish-token: $OTA_PUBLISH_TOKEN" \
+            --data "{\"version\":\"${{ steps.version.outputs.version }}\",\"minNativeVersion\":\"1.0.0\",\"url\":\"https://github.com/${{ github.repository }}/releases/download/ota-${{ steps.version.outputs.version }}/inven3-ota-${{ steps.version.outputs.version }}.zip\",\"sha256\":\"${{ steps.bundle.outputs.sha256 }}\",\"sizeBytes\":${{ steps.bundle.outputs.size }},\"commitSha\":\"$GITHUB_SHA\"}"

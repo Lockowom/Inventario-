@@ -27,6 +27,8 @@ import { UserManagementScreen } from '../features/user-management/user-managemen
 import type { AppRole } from '../domain/auth/contracts'
 import { AppNavigation } from './app-navigation'
 import { isAppViewAllowed, type AppView } from './app-navigation-policy'
+import { otaUpdateService, type OtaUpdateState } from '../services/ota-update-service'
+import { OtaUpdatePanel } from '../features/ota/ota-update-panel'
 
 export function App() {
   if (isCertificationFixtureEnabled({ dev: import.meta.env.DEV, fixture: import.meta.env.VITE_CERTIFICATION_FIXTURE })) return <CertificationFixture />
@@ -42,6 +44,9 @@ function AuthBoundary() {
   const [state, setState] = useState<RuntimeAuthState>('CHECKING')
   useEffect(() => {
     let active = true
+    // A successful JS launch is reported before any auth or backend work so
+    // the native updater can automatically recover a broken OTA bundle.
+    void otaUpdateService.notifyLaunchReady().catch(() => undefined)
     void authService.hasRuntimeIdentity().then((signedIn) => { if (active) setState(signedIn ? 'SIGNED_IN' : 'SIGNED_OUT') }).catch(() => { if (active) setState('SIGNED_OUT') })
     const authChanges = authService.onAuthStateChange((event, session) => {
       if (active) setState((current) => nextRuntimeAuthState(current, event, Boolean(session)))
@@ -63,6 +68,7 @@ function AuthenticatedRuntime() {
   const [healthReport, setHealthReport] = useState<DeviceHealthReport | null>(null)
   const [healthLoading, setHealthLoading] = useState(true)
   const [healthError, setHealthError] = useState<string | null>(null)
+  const [otaState, setOtaState] = useState<OtaUpdateState | null>(null)
   const healthRun = useRef(0)
 
   const runHealth = useCallback(async (mode: DeviceHealthMode) => {
@@ -123,21 +129,35 @@ function AuthenticatedRuntime() {
     // A real AuthService always provides getRole; treating its absence as no ADMIN is fail-closed.
     const getRole = authService.getRole
     if (typeof getRole !== 'function') return
-    void getRole.call(authService).then(setRole).catch(() => setRole(null))
+    void getRole.call(authService).then(setRole).catch(async () => {
+      // The active context is an offline lease issued by the server. Reuse
+      // only its last server-verified role; never infer ADMIN while offline.
+      const cached = await getCountingContextRepository().get().catch(() => null)
+      setRole(cached?.role ?? null)
+    })
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    void otaUpdateService.check().then((next) => { if (active) setOtaState(next) })
+    return () => { active = false }
   }, [])
 
   useEffect(() => {
     if (!isAppViewAllowed(role, activeView)) setActiveView('home')
   }, [activeView, role])
 
-  const captureGate = createCaptureGate(healthReport, healthLoading, healthError)
+  const healthCaptureGate = createCaptureGate(healthReport, healthLoading, healthError)
+  const captureGate = otaState?.kind === 'NATIVE_REQUIRED'
+    ? { blocked: true, message: otaState.message }
+    : healthCaptureGate
   const visibleView = isAppViewAllowed(role, activeView) ? activeView : 'home'
   const content = visibleView === 'home'
     ? <><InfrastructureDiagnostic supabaseState="CONFIGURED" /><DeviceHealthScreen report={healthReport} loading={healthLoading} error={healthError} onRefresh={() => void runHealth('LIGHT')} onFullCheck={() => void runHealth('FULL')} /></>
     : visibleView === 'counting'
       ? <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} captureGate={captureGate} />
       : visibleView === 'recounts'
-        ? <RecountQueueScreen />
+        ? <RecountQueueScreen captureGate={captureGate} />
       : visibleView === 'monitor'
         ? <LiveMonitorScreen />
         : visibleView === 'supervision'
@@ -154,7 +174,7 @@ function AuthenticatedRuntime() {
 
   return <main className="app-shell app-shell--authenticated">
     <AppNavigation role={role} activeView={visibleView} onSelect={(view) => { if (isAppViewAllowed(role, view)) setActiveView(view) }} onSignOut={() => void authService.signOut()} />
-    <section className="app-workspace" aria-label="Área de trabajo">{content}</section>
+    <section className="app-workspace" aria-label="Área de trabajo"><OtaUpdatePanel state={otaState} onApply={() => void otaUpdateService.apply()} onRollback={() => void otaUpdateService.rollback()} />{content}</section>
   </main>
 }
 

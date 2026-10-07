@@ -1,8 +1,9 @@
 import type { CachedCountingContext, CountingContextRepository } from '../ports/counting-context-repository'
 import type { ActiveCountingContext } from './save-physical-count'
+import type { AppRole } from '../auth/contracts'
 
 export type ServerCountingContextResult =
-  | { kind: 'AUTHORIZED'; context: ActiveCountingContext; verifiedAt: string }
+  | { kind: 'AUTHORIZED'; context: ActiveCountingContext; verifiedAt: string; role?: AppRole }
   | { kind: 'NOT_AUTHORIZED' }
   | { kind: 'AMBIGUOUS' }
   | { kind: 'UNAVAILABLE' }
@@ -20,7 +21,7 @@ export type ResolvedCountingContext =
 export async function resolveCountingContext(verifier: CountingContextVerifier, cache: CountingContextRepository): Promise<ResolvedCountingContext> {
   const server = await verifier.verifyServer()
   if (server.kind === 'AUTHORIZED') {
-    const cached: CachedCountingContext = { userId: server.context.userId, inventoryId: server.context.inventoryId, inventoryStatus: 'ABIERTO', verifiedAt: server.verifiedAt }
+    const cached: CachedCountingContext = { userId: server.context.userId, inventoryId: server.context.inventoryId, inventoryStatus: 'ABIERTO', verifiedAt: server.verifiedAt, role: server.role }
     await cache.save(cached)
     return { kind: 'ONLINE', context: server.context }
   }

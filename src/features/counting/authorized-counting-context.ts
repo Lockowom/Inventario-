@@ -44,7 +44,7 @@ export async function verifyServerCountingContext(): Promise<ServerCountingConte
   const open = parsed.flatMap((result) => result.success ? [result.data] : [])
   if (open.length === 0) return { kind: 'NOT_AUTHORIZED' }
   if (open.length !== 1) return { kind: 'AMBIGUOUS' }
-  return { kind: 'AUTHORIZED', context: { userId: authData.user.id, inventoryId: open[0]!.id, inventoryStatus: 'ABIERTO' }, verifiedAt: new Date().toISOString() }
+  return { kind: 'AUTHORIZED', context: { userId: authData.user.id, inventoryId: open[0]!.id, inventoryStatus: 'ABIERTO' }, verifiedAt: new Date().toISOString(), role: parsedProfile.data.role }
 }
 
 /** Reads only the Supabase client's persisted session identity for outage fallback. */

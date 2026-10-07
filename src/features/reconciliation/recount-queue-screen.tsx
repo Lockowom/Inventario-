@@ -7,6 +7,7 @@ import { SupabaseReconciliationRepository, type RecountMission, type RecountQueu
 import { SupabaseSupervisionRepository } from '../../services/supabase-supervision-repository'
 import { createCountingRuntime, createSyncCoordinator, getMasterSkuRepository } from '../counting/counting-runtime'
 import { emptyPhysicalCountDraft } from '../counting/form-state'
+import type { CaptureGate } from '../counting/counting-screen'
 
 type Inventory={id:string;name:string;status:string}
 type Profile={user_id:string;display_name:string;role:'CONTADOR'|'ANALISTA'|'ADMIN';active:boolean}
@@ -15,7 +16,7 @@ const reconciliation=new SupabaseReconciliationRepository()
 const supervision=new SupabaseSupervisionRepository()
 const remoteMasters=new SupabaseMasterSkuRepository()
 
-export function RecountQueueScreen(){
+export function RecountQueueScreen({ captureGate }: { captureGate?: CaptureGate }){
  const [profile,setProfile]=useState<Profile|null>(null)
  const [inventories,setInventories]=useState<Inventory[]>([])
  const [inventoryId,setInventoryId]=useState('')
@@ -72,6 +73,7 @@ export function RecountQueueScreen(){
  useEffect(()=>{if(inventoryId&&profile)void refresh()},[inventoryId,profile,refresh])
 
  async function claim(){
+  if(captureGate?.blocked){setMessage(captureGate.message??'Captura bloqueada por Health Check.');return}
   if(!context)return
   try{
    setBusy(true)
@@ -85,6 +87,7 @@ export function RecountQueueScreen(){
  }
 
  async function observe(){
+  if(captureGate?.blocked){setMessage(captureGate.message??'Captura bloqueada por Health Check.');return}
   if(!mission||!context||!runtime||!syncCoordinator)return
   try{
    setBusy(true)
@@ -112,6 +115,7 @@ export function RecountQueueScreen(){
  }
 
  async function finish(){
+  if(captureGate?.blocked){setMessage(captureGate.message??'Captura bloqueada por Health Check.');return}
   if(!mission)return
   try{
    setBusy(true)
@@ -126,6 +130,7 @@ export function RecountQueueScreen(){
  }
 
  async function finishZero(){
+  if(captureGate?.blocked){setMessage(captureGate.message??'Captura bloqueada por Health Check.');return}
   if(!mission||mission.observations.length>0)return
   if(!window.confirm('Confirma que buscaste esta referencia y no encontraste ninguna unidad física. El resultado de esta ronda será 0.'))return
   try{
@@ -146,6 +151,7 @@ export function RecountQueueScreen(){
    <h1 id="recount-title">RECONTEOS</h1>
    <p>Una misión agrupa una referencia completa. Un SKU/lote puede aparecer en varias ubicaciones; el total se calcula sólo al finalizar.</p>
   </header>
+  {captureGate?.blocked&&<p className="form-error" role="alert">{captureGate.message??'Captura bloqueada por Health Check.'}</p>}
 
   {inventories.length>0&&<label className="field"><span>Inventario abierto</span><select value={inventoryId} disabled={busy} onChange={event=>setInventoryId(event.target.value)}>{inventories.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
 
@@ -153,7 +159,7 @@ export function RecountQueueScreen(){
 
   {!mission&&context&&<div className="recount-queue__empty">
    <div><strong>{queue?.queued_count??0} misiones disponibles</strong><small>{queue?.round?' · C'+queue.round:''}</small></div>
-   <button className="button-primary" disabled={busy||!queue?.queued_count} onClick={()=>void claim()}>{busy?'CARGANDO…':'INICIAR SIGUIENTE'}</button>
+   <button className="button-primary" disabled={busy||captureGate?.blocked||!queue?.queued_count} onClick={()=>void claim()}>{busy?'CARGANDO…':'INICIAR SIGUIENTE'}</button>
   </div>}
 
   {mission&&<article className="recount-mission">
@@ -165,15 +171,15 @@ export function RecountQueueScreen(){
    <h3>Ubicaciones conocidas</h3>
    <div className="recount-mission__locations">{mission.known_locations.length?mission.known_locations.map(item=><code key={item}>{item}</code>):<span>Sin ubicaciones previas.</span>}</div>
 
-   <label className="field"><span>Ubicación encontrada</span><input value={ubicacion} disabled={busy} onChange={event=>setUbicacion(event.target.value.toUpperCase())} placeholder="A-21-03"/></label>
-   {mission.reference_type!=='SERIAL'&&<label className="field"><span>Cantidad en esta ubicación</span><input value={cantidad} disabled={busy} inputMode="numeric" onChange={event=>setCantidad(event.target.value)}/></label>}
-   <button className="button-secondary" disabled={busy||!ubicacion.trim()||(mission.reference_type!=='SERIAL'&&!cantidad.trim())} onClick={()=>void observe()}>AGREGAR UBICACIÓN</button>
+   <label className="field"><span>Ubicación encontrada</span><input value={ubicacion} disabled={busy||captureGate?.blocked} onChange={event=>setUbicacion(event.target.value.toUpperCase())} placeholder="A-21-03"/></label>
+   {mission.reference_type!=='SERIAL'&&<label className="field"><span>Cantidad en esta ubicación</span><input value={cantidad} disabled={busy||captureGate?.blocked} inputMode="numeric" onChange={event=>setCantidad(event.target.value)}/></label>}
+   <button className="button-secondary" disabled={busy||captureGate?.blocked||!ubicacion.trim()||(mission.reference_type!=='SERIAL'&&!cantidad.trim())} onClick={()=>void observe()}>AGREGAR UBICACIÓN</button>
 
    <h3>Observaciones C{mission.round}</h3>
    {mission.observations.length?<ul>{mission.observations.map(item=><li key={item.id}><strong>{item.ubicacion}</strong><span>{item.cantidad} un.</span></li>)}</ul>:<p>Aún no hay observaciones registradas en esta ronda.</p>}
 
-   {mission.observations.length===0&&<button className="button-secondary" disabled={busy} onClick={()=>void finishZero()}>CONFIRMAR 0 · NO ENCONTRADO</button>}
-   <button className="button-primary" disabled={busy||mission.observations.length===0} onClick={()=>void finish()}>FINALIZAR C{mission.round}</button>
+   {mission.observations.length===0&&<button className="button-secondary" disabled={busy||captureGate?.blocked} onClick={()=>void finishZero()}>CONFIRMAR 0 · NO ENCONTRADO</button>}
+   <button className="button-primary" disabled={busy||captureGate?.blocked||mission.observations.length===0} onClick={()=>void finish()}>FINALIZAR C{mission.round}</button>
   </article>}
 
   <p className="recount-queue__message" role="status">{message}</p>

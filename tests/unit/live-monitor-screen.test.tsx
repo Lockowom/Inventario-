@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  profile: vi.fn(), inventories: vi.fn(), summary: vi.fn(), coverage: vi.fn(), activity: vi.fn(), missions: vi.fn(),
+  profile: vi.fn(), inventories: vi.fn(), summary: vi.fn(), coverage: vi.fn(), activity: vi.fn(), missions: vi.fn(), otaDevices: vi.fn(),
 }))
 
 vi.mock('../../src/services/supabase-supervision-repository', () => ({
@@ -15,6 +15,7 @@ vi.mock('../../src/services/supabase-live-monitor-repository', () => ({
     coverage = mocks.coverage
     activity = mocks.activity
     missions = mocks.missions
+    otaDevices = mocks.otaDevices
   },
 }))
 
@@ -28,6 +29,7 @@ describe('LiveMonitorScreen', () => {
     mocks.coverage.mockResolvedValue([{ codigo: 'SKU001P', descripcion: 'Producto', reference_type: 'PARTIDA', reference_value: 'L-01', available_quantity: 2, physical_quantity: 0, coverage_status: 'PENDIENTE_DE_COBERTURA' }])
     mocks.activity.mockResolvedValue([])
     mocks.missions.mockResolvedValue([])
+    mocks.otaDevices.mockResolvedValue([])
 
     render(<LiveMonitorScreen />)
     await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); await Promise.resolve() })

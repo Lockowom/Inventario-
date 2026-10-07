@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { canAccessLiveMonitor } from '../../domain/live-monitor/contracts'
 import type { AppRole } from '../../domain/auth/contracts'
 import { SupabaseLiveMonitorRepository } from '../../services/supabase-live-monitor-repository'
@@ -16,6 +16,7 @@ export function LiveMonitorScreen() {
   const [coverage, setCoverage] = useState<Record<string, unknown>[]>([])
   const [activity, setActivity] = useState<Record<string, unknown>[]>([])
   const [missions, setMissions] = useState<Record<string, unknown>[]>([])
+  const [otaDevices, setOtaDevices] = useState<Record<string, unknown>[]>([])
   const [coverageStatus, setCoverageStatus] = useState('TODOS')
   const [stage, setStage] = useState('TODOS')
   const [search, setSearch] = useState('')
@@ -30,33 +31,31 @@ export function LiveMonitorScreen() {
     }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : 'Monitor no disponible.'))
   }, [])
 
-  useEffect(() => { if (inventoryId && canAccessLiveMonitor(role)) void refresh() // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inventoryId, role, coverageStatus, stage])
+  const refresh = useCallback(async () => {
+    if (!inventoryId || !canAccessLiveMonitor(role)) return
+    try {
+      const [nextSummary, nextCoverage, nextActivity, nextMissions, nextOtaDevices] = await Promise.all([
+        monitor.summary(inventoryId), monitor.coverage(inventoryId, coverageStatus, search), monitor.activity(inventoryId, stage, search), monitor.missions(inventoryId), monitor.otaDevices(),
+      ])
+      setSummary(nextSummary); setCoverage(nextCoverage); setActivity(nextActivity); setMissions(nextMissions); setOtaDevices(nextOtaDevices); setMessage('')
+    } catch (error: unknown) { setMessage(error instanceof Error ? error.message : 'Monitor no disponible.') }
+  }, [coverageStatus, inventoryId, role, search, stage])
+
+  useEffect(() => { void refresh() }, [refresh])
 
   useEffect(() => {
     if (!inventoryId || !canAccessLiveMonitor(role) || typeof monitor.subscribe !== 'function') return
     setRealtime('CONNECTING')
     return monitor.subscribe(inventoryId, () => { void refresh() }, (state) => setRealtime(state))
     // The channel carries invalidation only. It never becomes a second source of truth.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inventoryId, role])
+  }, [inventoryId, refresh, role])
 
   useEffect(() => {
     if (!inventoryId || !canAccessLiveMonitor(role)) return
     const timer = window.setInterval(() => { void refresh() }, 30_000)
     return () => window.clearInterval(timer)
     // The timer refreshes the protected server read model. It is not device presence.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inventoryId, role, coverageStatus, stage])
-
-  async function refresh() {
-    try {
-      const [nextSummary, nextCoverage, nextActivity, nextMissions] = await Promise.all([
-        monitor.summary(inventoryId), monitor.coverage(inventoryId, coverageStatus, search), monitor.activity(inventoryId, stage, search), monitor.missions(inventoryId),
-      ])
-      setSummary(nextSummary); setCoverage(nextCoverage); setActivity(nextActivity); setMissions(nextMissions); setMessage('')
-    } catch (error: unknown) { setMessage(error instanceof Error ? error.message : 'Monitor no disponible.') }
-  }
+  }, [inventoryId, refresh, role])
 
   if (role && !canAccessLiveMonitor(role)) return <section className="live-monitor-screen"><h1>MONITOR OPERATIVO</h1><p className="form-warning">Esta vista está disponible sólo para ANALISTA y ADMIN.</p></section>
   const counts = objectOrEmpty(summary?.counts)
@@ -74,6 +73,7 @@ export function LiveMonitorScreen() {
     <section className="live-monitor-section"><h2>Cobertura por SKU y referencia</h2><p>La identidad se conserva por serie o partida: dos filas con igual SKU no son duplicados si su referencia es distinta.</p><CoverageTable rows={coverage} /></section>
     <section className="live-monitor-section"><h2>Actividad de conteo</h2><ActivityList rows={activity} /></section>
     <section className="live-monitor-section"><h2>Misiones C2 / C3</h2><p>Estado real de cada misión, sus ubicaciones registradas y el caso que la originó.</p><MissionTable rows={missions} /></section>
+    <section className="live-monitor-section"><h2>Dispositivos OTA · Android QA</h2><p>La inscripción en <code>qa-beta</code> es asignada por ADMIN; ningún dispositivo se incorpora por sí mismo.</p><OtaDeviceTable rows={otaDevices} /></section>
   </section>
 }
 
@@ -81,5 +81,6 @@ function Metric({ label, value }: { label: string; value: unknown }) { return <a
 function CoverageTable({ rows }: { rows: Record<string, unknown>[] }) { if (!rows.length) return <p>Sin referencias para los filtros actuales.</p>; return <div className="live-monitor-table"><table><thead><tr><th>SKU</th><th>Referencia</th><th>Disponible</th><th>Físico</th><th>Estado</th></tr></thead><tbody>{rows.map((row) => <tr key={`${row.codigo}-${row.reference_type}-${row.reference_value ?? ''}`}><td><strong>{String(row.codigo)}</strong><span>{String(row.descripcion)}</span></td><td>{String(row.reference_value ?? '—')}<span>{String(row.reference_type)}</span></td><td>{String(row.available_quantity)}</td><td>{String(row.physical_quantity)}</td><td><span className={`coverage-status coverage-status--${String(row.coverage_status).toLowerCase()}`}>{String(row.coverage_status).replaceAll('_', ' ')}</span></td></tr>)}</tbody></table></div> }
 function ActivityList({ rows }: { rows: Record<string, unknown>[] }) { if (!rows.length) return <p>Sin actividad recibida para los filtros actuales.</p>; return <ul className="live-monitor-activity">{rows.map((row) => <li key={String(row.id)}><strong>{String(row.stage)} · {String(row.codigo)} · {String(row.cantidad_contada)}</strong><span>{String(row.display_name)} · {String(row.ubicacion)} · {formatDate(row.received_at)}</span><span>{row.serie ? `Serie ${String(row.serie)}` : row.partida ? `Partida ${String(row.partida)}` : 'SKU sin referencia controlada'}</span></li>)}</ul> }
 function MissionTable({ rows }: { rows: Record<string, unknown>[] }) { if (!rows.length) return <p>No hay misiones C2/C3 para este inventario.</p>; return <div className="live-monitor-table"><table><thead><tr><th>Ronda</th><th>SKU / referencia</th><th>Estado</th><th>Responsable</th><th>Ubicaciones</th><th>Total</th></tr></thead><tbody>{rows.map((row) => <tr key={String(row.id)}><td>C{String(row.round)}</td><td><strong>{String(row.codigo)}</strong><span>{String(row.reference_value ?? 'SKU')}</span></td><td>{String(row.status)}<span>{String(row.case_status)}</span></td><td>{String(row.assigned_display_name ?? 'En cola')}</td><td>{String(row.observation_count)}</td><td>{row.total_quantity == null ? '—' : String(row.total_quantity)}</td></tr>)}</tbody></table></div> }
+function OtaDeviceTable({ rows }: { rows: Record<string, unknown>[] }) { if (!rows.length) return <p>Aún no hay dispositivos OTA registrados.</p>; return <div className="live-monitor-table"><table><thead><tr><th>Usuario</th><th>Canal</th><th>APK</th><th>Bundle</th><th>Última señal</th><th>Estado</th></tr></thead><tbody>{rows.map((row) => <tr key={String(row.device_id)}><td>{String(row.display_name)}</td><td>{String(row.channel_name ?? 'SIN ASIGNAR')}</td><td>{String(row.native_version)}</td><td>{String(row.current_bundle_version ?? 'BASE')}</td><td>{formatDate(row.last_seen_at)}</td><td>{String(row.last_error_code ?? 'OK')}</td></tr>)}</tbody></table></div> }
 function objectOrEmpty(value: unknown): Record<string, unknown> { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {} }
 function formatDate(value: unknown) { return typeof value === 'string' ? new Date(value).toLocaleString() : 'Sin fecha' }
