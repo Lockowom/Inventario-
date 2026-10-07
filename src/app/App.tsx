@@ -27,7 +27,7 @@ import { UserManagementScreen } from '../features/user-management/user-managemen
 import type { AppRole } from '../domain/auth/contracts'
 import { AppNavigation } from './app-navigation'
 import { isAppViewAllowed, type AppView } from './app-navigation-policy'
-import { otaUpdateService, type OtaUpdateState } from '../services/ota-update-service'
+import { bindOtaRetryEvents, otaUpdateService, type OtaUpdateState } from '../services/ota-update-service'
 import { OtaUpdatePanel } from '../features/ota/ota-update-panel'
 
 export function App() {
@@ -139,8 +139,10 @@ function AuthenticatedRuntime() {
 
   useEffect(() => {
     let active = true
-    void otaUpdateService.check().then((next) => { if (active) setOtaState(next) })
-    return () => { active = false }
+    const refreshOta = () => { void otaUpdateService.check().then((next) => { if (active) setOtaState(next) }) }
+    refreshOta()
+    const stopRetryEvents = bindOtaRetryEvents((listener) => authService.onAuthStateChange((event) => listener(event)), refreshOta)
+    return () => { active = false; stopRetryEvents() }
   }, [])
 
   useEffect(() => {
@@ -174,7 +176,7 @@ function AuthenticatedRuntime() {
 
   return <main className="app-shell app-shell--authenticated">
     <AppNavigation role={role} activeView={visibleView} onSelect={(view) => { if (isAppViewAllowed(role, view)) setActiveView(view) }} onSignOut={() => void authService.signOut()} />
-    <section className="app-workspace" aria-label="Área de trabajo"><OtaUpdatePanel state={otaState} onApply={() => void otaUpdateService.apply()} onRollback={() => void otaUpdateService.rollback()} />{content}</section>
+    <section className="app-workspace" aria-label="Área de trabajo"><OtaUpdatePanel state={otaState} onApply={() => void otaUpdateService.apply().then((next) => { if (next) setOtaState(next) })} onRollback={() => void otaUpdateService.rollback()} />{content}</section>
   </main>
 }
 

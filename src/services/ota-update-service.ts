@@ -1,14 +1,33 @@
 import { Capacitor } from '@capacitor/core'
 import { CapacitorUpdater } from '@capgo/capacitor-updater'
+import type { AuthChangeEvent } from '@supabase/supabase-js'
 import { getSupabaseClient } from './supabase'
 
 export type OtaUpdateState =
-  | { kind: 'IDLE' | 'UNAVAILABLE' | 'UNASSIGNED' | 'UP_TO_DATE'; message: string }
+  | { kind: 'IDLE' | 'UNAVAILABLE' | 'DEFERRED' | 'UNASSIGNED' | 'UP_TO_DATE'; message: string }
   | { kind: 'DOWNLOADING' | 'READY'; message: string; version: string }
   | { kind: 'NATIVE_REQUIRED'; message: string; minNativeVersion: string }
-  | { kind: 'ERROR'; message: string }
+  | { kind: 'ERROR'; message: string; canRollback: boolean }
 
 type OtaManifest = { update: null | { version: string; minNativeVersion: string; url: string; sha256: string }; enrollment?: string }
+type CurrentOtaBundle = Awaited<ReturnType<typeof CapacitorUpdater.current>>
+
+const deferredForSession = (): OtaUpdateState => ({ kind: 'DEFERRED', message: 'La verificación OTA se realizará al recuperar sesión o conexión.' })
+const deferredForNetwork = (): OtaUpdateState => ({ kind: 'DEFERRED', message: 'Sin conexión. La actualización se verificará automáticamente al volver online.' })
+
+export function shouldRetryOtaForAuthEvent(event: AuthChangeEvent): boolean {
+  return event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED'
+}
+
+export function bindOtaRetryEvents(
+  subscribeAuth: (listener: (event: AuthChangeEvent) => void) => { unsubscribe(): void },
+  retry: () => void,
+): () => void {
+  const subscription = subscribeAuth((event) => { if (shouldRetryOtaForAuthEvent(event)) retry() })
+  const online = () => retry()
+  window.addEventListener('online', online)
+  return () => { subscription.unsubscribe(); window.removeEventListener('online', online) }
+}
 
 export function compareVersions(left: string, right: string): number {
   const parse = (value: string): [number, number, number, number] => {
@@ -19,24 +38,67 @@ export function compareVersions(left: string, right: string): number {
   return leftMajor - rightMajor || leftMinor - rightMinor || leftPatch - rightPatch || leftQa - rightQa
 }
 
-class OtaUpdateService {
+function isBuiltin(current: CurrentOtaBundle | undefined): boolean {
+  return !current || current.bundle.id === 'builtin'
+}
+
+function isUnauthorized(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const context = (error as { context?: { status?: unknown } }).context
+  if (context?.status === 401) return true
+  return /\b401\b|unauthori[sz]ed/i.test(String((error as { message?: unknown }).message ?? ''))
+}
+
+function isNetworkFailure(error: unknown): boolean {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return true
+  if (!error || typeof error !== 'object') return false
+  const name = String((error as { name?: unknown }).name ?? '')
+  const message = String((error as { message?: unknown }).message ?? '')
+  const status = (error as { context?: { status?: unknown } }).context?.status
+  return name === 'FunctionsFetchError' || name === 'FunctionsRelayError' || status === 502 || status === 503 || status === 504 || /network|fetch|offline|failed to fetch/i.test(message)
+}
+
+export class OtaUpdateService {
+  private checkInFlight: Promise<OtaUpdateState> | null = null
+  private rollbackAllowed = false
+  private lastKnownCurrent: CurrentOtaBundle | undefined
+
   public async notifyLaunchReady(): Promise<void> {
     if (Capacitor.getPlatform() !== 'android' || !Capacitor.isPluginAvailable('CapacitorUpdater')) return
     await CapacitorUpdater.notifyAppReady()
   }
 
-  public async check(): Promise<OtaUpdateState> {
+  public check(): Promise<OtaUpdateState> {
+    if (this.checkInFlight) return this.checkInFlight
+    const request = this.performCheck()
+    this.checkInFlight = request
+    void request.finally(() => { if (this.checkInFlight === request) this.checkInFlight = null })
+    return request
+  }
+
+  private async performCheck(): Promise<OtaUpdateState> {
     if (Capacitor.getPlatform() !== 'android' || !Capacitor.isPluginAvailable('CapacitorUpdater')) return { kind: 'UNAVAILABLE', message: 'Actualizaciones OTA disponibles sólo desde la futura APK base Android QA.' }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) return deferredForNetwork()
+    let current: CurrentOtaBundle | undefined
     try {
-      const current = await CapacitorUpdater.current()
+      current = await CapacitorUpdater.current()
+      this.lastKnownCurrent = current
       const device = await CapacitorUpdater.getDeviceId()
       const client = getSupabaseClient()
-      if (!client) return { kind: 'ERROR', message: 'OTA no configurada.' }
+      if (!client) return deferredForSession()
+      const session = await client.auth.getSession()
+      if (session.error) return isNetworkFailure(session.error) ? deferredForNetwork() : deferredForSession()
+      if (!session.data.session) return deferredForSession()
       const { data, error } = await client.functions.invoke<OtaManifest>('ota-updates', {
         body: { deviceId: device.deviceId, nativeVersion: current.native, currentBundleVersion: current.bundle.version, eventType: 'CHECKED' },
       })
-      if (error || !data) return { kind: 'ERROR', message: 'No fue posible verificar la actualización OTA.' }
-      if (!data.update) return { kind: 'UNASSIGNED', message: 'Dispositivo registrado en qa-beta. Aún no existe un bundle OTA posterior a esta APK base.' }
+      if (error) {
+        if (isUnauthorized(error)) return deferredForSession()
+        if (isNetworkFailure(error)) return deferredForNetwork()
+        return this.realError('No fue posible verificar la actualización OTA.', current)
+      }
+      if (!data) return this.realError('No fue posible verificar la actualización OTA.', current)
+      if (!data.update) return { kind: 'UNASSIGNED', message: 'QA-BETA · SIN ACTUALIZACIÓN DISPONIBLE' }
       if (compareVersions(current.native, data.update.minNativeVersion) < 0) return { kind: 'NATIVE_REQUIRED', minNativeVersion: data.update.minNativeVersion, message: `Esta operación requiere APK Android ${data.update.minNativeVersion} o superior.` }
       if (compareVersions(data.update.version, current.bundle.version) <= 0) return { kind: 'UP_TO_DATE', message: 'El bundle OTA ya está actualizado.' }
       const downloaded = await CapacitorUpdater.download({ version: data.update.version, url: data.update.url, checksum: data.update.sha256 })
@@ -44,20 +106,33 @@ class OtaUpdateService {
       await CapacitorUpdater.set(downloaded)
       return { kind: 'READY', version: data.update.version, message: `Actualización ${data.update.version} preparada. Aplíquela cuando sea seguro reiniciar.` }
     } catch (error: unknown) {
+      if (isUnauthorized(error)) return deferredForSession()
+      if (isNetworkFailure(error)) return deferredForNetwork()
       console.error('OTA_CHECK_FAILED', error)
-      return { kind: 'ERROR', message: 'La actualización OTA falló; se conserva el último bundle seguro.' }
+      return this.realError('La actualización OTA falló; se conserva el último bundle seguro.', current)
     }
   }
 
-  public async apply(): Promise<void> {
-    if (Capacitor.getPlatform() !== 'android' || !Capacitor.isPluginAvailable('CapacitorUpdater')) return
-    await CapacitorUpdater.reload()
+  public async apply(): Promise<OtaUpdateState | null> {
+    if (Capacitor.getPlatform() !== 'android' || !Capacitor.isPluginAvailable('CapacitorUpdater')) return null
+    try {
+      await CapacitorUpdater.reload()
+      return null
+    } catch (error: unknown) {
+      console.error('OTA_APPLY_FAILED', error)
+      return this.realError('No fue posible aplicar la actualización OTA.', this.lastKnownCurrent)
+    }
   }
 
   public async rollback(): Promise<void> {
-    if (Capacitor.getPlatform() !== 'android' || !Capacitor.isPluginAvailable('CapacitorUpdater')) return
+    if (!this.rollbackAllowed || Capacitor.getPlatform() !== 'android' || !Capacitor.isPluginAvailable('CapacitorUpdater')) return
     await CapacitorUpdater.reset({ toLastSuccessful: true })
     await CapacitorUpdater.reload()
+  }
+
+  private realError(message: string, current: CurrentOtaBundle | undefined): OtaUpdateState {
+    this.rollbackAllowed = !isBuiltin(current)
+    return { kind: 'ERROR', message, canRollback: this.rollbackAllowed }
   }
 }
 

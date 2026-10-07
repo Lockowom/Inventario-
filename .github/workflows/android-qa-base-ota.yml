@@ -7,28 +7,12 @@ on:
         description: Immutable commit SHA to build (must be the reviewed OTA-09 commit)
         required: true
         type: string
-  # The first base APK must be certifiable before this workflow reaches the
-  # default branch, where GitHub otherwise refuses workflow_dispatch. This is
-  # restricted to PR #23's reviewed source branch; it never runs for forks.
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened]
-    paths:
-      - '.github/workflows/android-qa-base-ota.yml'
-      - 'android/**'
-      - 'capacitor.config.ts'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'src/services/ota-update-service.ts'
-      - 'src/features/ota/**'
-      - 'supabase/functions/ota-updates/**'
-      - 'supabase/migrations/*ota_qa_beta*'
 
 permissions:
   contents: read
 
 concurrency:
-  group: inven3-android-qa-ota-base-${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+  group: inven3-android-qa-ota-base-${{ inputs.source_sha }}
   cancel-in-progress: false
 
 jobs:
@@ -38,7 +22,7 @@ jobs:
     timeout-minutes: 35
     environment: qa
     env:
-      INVEN3_REQUESTED_SHA: ${{ inputs.source_sha || github.event.pull_request.head.sha || github.sha }}
+      INVEN3_REQUESTED_SHA: ${{ inputs.source_sha }}
       VITE_RELEASE_ENV: qa
       VITE_RELEASE_CHANNEL: beta
       VITE_RELEASE_VERSION: 1.0.0
