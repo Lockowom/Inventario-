@@ -35,6 +35,12 @@ export class SupabaseLiveMonitorRepository {
     return (data ?? []) as Record<string, unknown>[]
   }
 
+  public async missions(inventoryId: string) {
+    const { data, error } = await clientOrThrow().rpc('get_live_monitor_missions', { p_inventory_id: inventoryId, p_limit: 100 })
+    if (error) throw new Error('No fue posible cargar las misiones de reconteo.')
+    return (data ?? []) as Record<string, unknown>[]
+  }
+
   /** Events are only invalidation signals; canonical data always comes from the guarded RPCs. */
   public subscribe(inventoryId: string, onChange: () => void, onStatus: (state: 'CONNECTED' | 'DEGRADED') => void) {
     const client = clientOrThrow()

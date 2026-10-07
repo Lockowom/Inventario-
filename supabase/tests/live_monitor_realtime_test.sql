@@ -1,10 +1,18 @@
 begin;
-select plan(5);
+select plan(7);
 
 select ok(exists(
   select 1 from pg_publication_tables
   where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'count_records'
 ), 'count evidence is published as an invalidation source');
+select ok(exists(
+  select 1 from pg_publication_tables
+  where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'recount_missions'
+), 'C2/C3 mission state is published as an invalidation source');
+select ok(exists(
+  select 1 from pg_publication_tables
+  where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'recount_mission_observations'
+), 'C2/C3 observation linkage is published as an invalidation source');
 select ok(exists(
   select 1 from pg_publication_tables
   where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'reconciliation_cases'

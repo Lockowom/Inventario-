@@ -65,6 +65,7 @@ export interface CoverageReference {
   systemAvailableQuantity: number
   physicalQuantity: number
   inventoryStatus: 'ABIERTO' | 'C1_COMPLETADO' | 'CONCILIACION_FINAL' | 'CERRADO' | 'CONGELADO'
+  c1Completed?: boolean
 }
 
 /**
@@ -78,7 +79,8 @@ export function coverageStatusForReference(reference: CoverageReference): Covera
     return 'CUBIERTA'
   }
   if (reference.systemAvailableQuantity > 0 && reference.physicalQuantity > 0) return 'CUBIERTA'
-  if (reference.systemAvailableQuantity > 0 && reference.inventoryStatus === 'ABIERTO') return 'PENDIENTE_DE_COBERTURA'
+  const c1Open = reference.c1Completed == null ? reference.inventoryStatus === 'ABIERTO' : !reference.c1Completed
+  if (reference.systemAvailableQuantity > 0 && c1Open) return 'PENDIENTE_DE_COBERTURA'
   if (reference.systemAvailableQuantity > 0 && reference.referenceType === 'SERIAL') return 'SERIE_SISTEMA_NO_CONTADA'
   if (reference.systemAvailableQuantity > 0 && reference.referenceType === 'PARTIDA') return 'PARTIDA_SISTEMA_NO_CONTADA'
   return 'SKU_SISTEMA_NO_CONTADO'

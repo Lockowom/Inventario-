@@ -10,6 +10,7 @@ import {
 describe('LIVE-01 monitor contracts', () => {
   it('keeps a system reference pending while C1 is open and materializes its identity-specific absence afterwards', () => {
     expect(coverageStatusForReference({ referenceType: 'SERIAL', systemAvailableQuantity: 1, physicalQuantity: 0, inventoryStatus: 'ABIERTO' })).toBe('PENDIENTE_DE_COBERTURA')
+    expect(coverageStatusForReference({ referenceType: 'SERIAL', systemAvailableQuantity: 1, physicalQuantity: 0, inventoryStatus: 'ABIERTO', c1Completed: true })).toBe('SERIE_SISTEMA_NO_CONTADA')
     expect(coverageStatusForReference({ referenceType: 'SERIAL', systemAvailableQuantity: 1, physicalQuantity: 0, inventoryStatus: 'C1_COMPLETADO' })).toBe('SERIE_SISTEMA_NO_CONTADA')
     expect(coverageStatusForReference({ referenceType: 'PARTIDA', systemAvailableQuantity: 4, physicalQuantity: 0, inventoryStatus: 'CONCILIACION_FINAL' })).toBe('PARTIDA_SISTEMA_NO_CONTADA')
   })

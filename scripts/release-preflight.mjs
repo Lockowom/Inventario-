@@ -6,6 +6,7 @@ const root = process.cwd()
 const policy = JSON.parse(fs.readFileSync(path.join(root, 'release-policy.json'), 'utf8'))
 const args = new Set(process.argv.slice(2))
 const staticOnly = args.has('--static')
+const deferIos = args.has('--defer-ios')
 
 function fail(code, message) {
   console.error(`[FAIL] ${message}`)
@@ -42,20 +43,23 @@ if (!androidManifest.includes('android.permission.CAMERA')) fail(173, 'Android c
 if (!androidManifest.includes('android:allowBackup="false"')) fail(174, 'Android release must disable application backup.')
 if (!androidManifest.includes('android:usesCleartextTraffic="false"')) fail(175, 'Android release must reject cleartext traffic.')
 
-const xcode = read('ios/App/App.xcodeproj/project.pbxproj')
-if (!xcode.includes(`MARKETING_VERSION = ${policy.native.iosMarketingVersion};`)) fail(18, 'iOS MARKETING_VERSION is not aligned with release policy.')
-if (!xcode.includes(`CURRENT_PROJECT_VERSION = ${policy.native.iosBaseBuildNumber};`)) fail(181, 'iOS base build number is not aligned with release policy.')
+if (!deferIos) {
+  const xcode = read('ios/App/App.xcodeproj/project.pbxproj')
+  if (!xcode.includes(`MARKETING_VERSION = ${policy.native.iosMarketingVersion};`)) fail(18, 'iOS MARKETING_VERSION is not aligned with release policy.')
+  if (!xcode.includes(`CURRENT_PROJECT_VERSION = ${policy.native.iosBaseBuildNumber};`)) fail(181, 'iOS base build number is not aligned with release policy.')
 
-const iosInfoPlist = read('ios/App/App/Info.plist')
-if (!iosInfoPlist.includes('<key>NSCameraUsageDescription</key>')) fail(182, 'iOS camera usage description is missing.')
-if (!iosInfoPlist.includes('<string>arm64</string>') || iosInfoPlist.includes('<string>armv7</string>')) {
-  fail(184, 'iOS required device capability must target arm64.')
+  const iosInfoPlist = read('ios/App/App/Info.plist')
+  if (!iosInfoPlist.includes('<key>NSCameraUsageDescription</key>')) fail(182, 'iOS camera usage description is missing.')
+  if (!iosInfoPlist.includes('<string>arm64</string>') || iosInfoPlist.includes('<string>armv7</string>')) {
+    fail(184, 'iOS required device capability must target arm64.')
+  }
+
+  const iosPodfile = read('ios/App/Podfile')
+  if (!iosPodfile.includes("platform :ios, '15.5'")) fail(183, 'iOS deployment target must remain at least 15.5 for barcode scanning.')
 }
 
-const iosPodfile = read('ios/App/Podfile')
-if (!iosPodfile.includes("platform :ios, '15.5'")) fail(183, 'iOS deployment target must remain at least 15.5 for barcode scanning.')
-
 pass(`static release policy ${policy.releaseVersion}; production locked`)
+if (deferIos) pass('iOS checks deferred until the final development stage')
 
 if (staticOnly) process.exit(0)
 

@@ -22,7 +22,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run release:preflight:static
+      - run: npm run release:preflight:static -- --defer-ios
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test

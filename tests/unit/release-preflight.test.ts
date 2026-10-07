@@ -52,6 +52,12 @@ describe('F10A release preflight fail-closed guard', () => {
     expect(result.stdout).toContain('production locked')
   })
 
+  test('allows CI to defer iOS verification until final development', () => {
+    const result = run({}, ['--static', '--defer-ios'])
+    expect(result.ok).toBe(true)
+    expect(result.stdout).toContain('iOS checks deferred')
+  })
+
   test('accepts the authorized QA/BETA environment', () => {
     const result = run()
     expect(result.ok).toBe(true)

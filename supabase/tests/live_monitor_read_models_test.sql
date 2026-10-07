@@ -1,5 +1,5 @@
 begin;
-select plan(12);
+select plan(13);
 
 select is((select has_function_privilege('anon', 'public.get_live_monitor_summary(uuid)', 'EXECUTE')), false, 'anon cannot read the live monitor summary');
 select is((select has_function_privilege('authenticated', 'public.get_live_monitor_summary(uuid)', 'EXECUTE')), true, 'authenticated may invoke the guarded summary RPC');
@@ -18,6 +18,11 @@ insert into public.inventory_assignments(inventory_id,user_id,assigned_by) value
 insert into public.inventory_master_items(inventory_id,codigo,descripcion,control_type,source,created_by) values
 ('a6200000-0000-0000-0000-000000000001','LIV001S','Serie disponible','SERIAL','TEST','a6100000-0000-0000-0000-000000000001'),
 ('a6200000-0000-0000-0000-000000000001','LIV002P','Partida disponible','PARTIDA','TEST','a6100000-0000-0000-0000-000000000001');
+insert into public.inventory_master_metadata(inventory_id,master_version,row_count,fingerprint)
+select 'a6200000-0000-0000-0000-000000000001'::uuid,1,count(*)::integer,
+  app_private.master_fingerprint('a6200000-0000-0000-0000-000000000001'::uuid)
+from public.inventory_master_items
+where inventory_id='a6200000-0000-0000-0000-000000000001'::uuid;
 
 select set_config('request.jwt.claim.sub','a6100000-0000-0000-0000-000000000001',true); set local role authenticated;
 select * from public.import_inventory_system_reference('a6200000-0000-0000-0000-000000000001',
@@ -49,8 +54,9 @@ select is((select coverage_status from public.get_live_monitor_coverage('a620000
 select is(((public.get_live_monitor_summary('a6200000-0000-0000-0000-000000000001')->'counts'->>'observations')::integer),2,'summary exposes accepted count observations');
 select is(((public.get_live_monitor_summary('a6200000-0000-0000-0000-000000000001')->'reference'->>'available_units')::bigint),3::bigint,'summary uses Disponible rather than source total');
 select is((select stage from public.get_live_monitor_activity('a6200000-0000-0000-0000-000000000001',10,null,null,'C1','SER-OK') limit 1),'C1','activity stream labels accepted first-count evidence as C1');
-select is((select status::text from public.complete_first_count('a6200000-0000-0000-0000-000000000001')),'C1_COMPLETADO','manager can close C1 after reading the live monitor');
+select is((public.finalize_c1_coverage('a6200000-0000-0000-0000-000000000001'::uuid,true)->>'c1_status'),'COMPLETADO','manager can close C1 after reading the live monitor');
 select is((select coverage_status from public.get_live_monitor_coverage('a6200000-0000-0000-0000-000000000001','TODOS',null,100,0) where reference_value='LOT-MISSING'),'PARTIDA_SISTEMA_NO_CONTADA','the same missing batch becomes an actionable absence after C1 closes');
+select is((select round from public.get_live_monitor_missions('a6200000-0000-0000-0000-000000000001',100) where reference_value='LOT-MISSING'),2::smallint,'C2 monitor rows come from the real F15 mission queue');
 reset role;
 
 select * from finish();

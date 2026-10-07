@@ -2,7 +2,7 @@ import { act, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  profile: vi.fn(), inventories: vi.fn(), summary: vi.fn(), coverage: vi.fn(), activity: vi.fn(),
+  profile: vi.fn(), inventories: vi.fn(), summary: vi.fn(), coverage: vi.fn(), activity: vi.fn(), missions: vi.fn(),
 }))
 
 vi.mock('../../src/services/supabase-supervision-repository', () => ({
@@ -14,6 +14,7 @@ vi.mock('../../src/services/supabase-live-monitor-repository', () => ({
     summary = mocks.summary
     coverage = mocks.coverage
     activity = mocks.activity
+    missions = mocks.missions
   },
 }))
 
@@ -26,6 +27,7 @@ describe('LiveMonitorScreen', () => {
     mocks.summary.mockResolvedValue({ counts: { observations: 7, counted_skus: 3, counted_units: 8 }, reference: { available_units: 9 }, missions: {}, devices: {} })
     mocks.coverage.mockResolvedValue([{ codigo: 'SKU001P', descripcion: 'Producto', reference_type: 'PARTIDA', reference_value: 'L-01', available_quantity: 2, physical_quantity: 0, coverage_status: 'PENDIENTE_DE_COBERTURA' }])
     mocks.activity.mockResolvedValue([])
+    mocks.missions.mockResolvedValue([])
 
     render(<LiveMonitorScreen />)
     await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); await Promise.resolve() })

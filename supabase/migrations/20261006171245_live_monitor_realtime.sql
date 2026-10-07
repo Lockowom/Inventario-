@@ -6,6 +6,8 @@ declare table_name text;
 begin
   foreach table_name in array array[
     'count_records',
+    'recount_missions',
+    'recount_mission_observations',
     'reconciliation_cases',
     'inventory_system_reference_items',
     'inventory_freeze_guards',
