@@ -21,12 +21,12 @@ export function compareVersions(left: string, right: string): number {
 
 class OtaUpdateService {
   public async notifyLaunchReady(): Promise<void> {
-    if (Capacitor.getPlatform() !== 'android') return
+    if (Capacitor.getPlatform() !== 'android' || !Capacitor.isPluginAvailable('CapacitorUpdater')) return
     await CapacitorUpdater.notifyAppReady()
   }
 
   public async check(): Promise<OtaUpdateState> {
-    if (Capacitor.getPlatform() !== 'android') return { kind: 'UNAVAILABLE', message: 'Actualizaciones OTA disponibles sólo para Android QA.' }
+    if (Capacitor.getPlatform() !== 'android' || !Capacitor.isPluginAvailable('CapacitorUpdater')) return { kind: 'UNAVAILABLE', message: 'Actualizaciones OTA disponibles sólo desde la futura APK base Android QA.' }
     try {
       const current = await CapacitorUpdater.current()
       const device = await CapacitorUpdater.getDeviceId()
@@ -50,12 +50,12 @@ class OtaUpdateService {
   }
 
   public async apply(): Promise<void> {
-    if (Capacitor.getPlatform() !== 'android') return
+    if (Capacitor.getPlatform() !== 'android' || !Capacitor.isPluginAvailable('CapacitorUpdater')) return
     await CapacitorUpdater.reload()
   }
 
   public async rollback(): Promise<void> {
-    if (Capacitor.getPlatform() !== 'android') return
+    if (Capacitor.getPlatform() !== 'android' || !Capacitor.isPluginAvailable('CapacitorUpdater')) return
     await CapacitorUpdater.reset({ toLastSuccessful: true })
     await CapacitorUpdater.reload()
   }
