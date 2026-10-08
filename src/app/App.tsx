@@ -29,6 +29,8 @@ import { AppNavigation } from './app-navigation'
 import { isAppViewAllowed, type AppView } from './app-navigation-policy'
 import { bindOtaRetryEvents, otaUpdateService, type OtaUpdateState } from '../services/ota-update-service'
 import { OtaUpdatePanel } from '../features/ota/ota-update-panel'
+import { ActiveInventoryProvider } from '../features/control-center/active-inventory-context'
+import { ControlCenterScreen } from '../features/control-center/control-center-screen'
 
 export function App() {
   if (isCertificationFixtureEnabled({ dev: import.meta.env.DEV, fixture: import.meta.env.VITE_CERTIFICATION_FIXTURE })) return <CertificationFixture />
@@ -160,6 +162,8 @@ function AuthenticatedRuntime() {
       ? <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} captureGate={captureGate} />
       : visibleView === 'recounts'
         ? <RecountQueueScreen captureGate={captureGate} />
+      : visibleView === 'control-center'
+        ? <ControlCenterScreen role={role} />
       : visibleView === 'monitor'
         ? <LiveMonitorScreen />
         : visibleView === 'supervision'
@@ -174,10 +178,10 @@ function AuthenticatedRuntime() {
               ? <MasterSkuScreen />
               : <UserManagementScreen role={role} />
 
-  return <main className="app-shell app-shell--authenticated">
+  return <ActiveInventoryProvider><main className="app-shell app-shell--authenticated">
     <AppNavigation role={role} activeView={visibleView} onSelect={(view) => { if (isAppViewAllowed(role, view)) setActiveView(view) }} onSignOut={() => void authService.signOut()} />
     <section className="app-workspace" aria-label="Área de trabajo"><OtaUpdatePanel state={otaState} onApply={() => void otaUpdateService.apply().then((next) => { if (next) setOtaState(next) })} onRollback={() => void otaUpdateService.rollback()} />{content}</section>
-  </main>
+  </main></ActiveInventoryProvider>
 }
 
 function InfrastructureDiagnostic({ supabaseState }: { supabaseState: 'CONFIGURED' | 'NOT CONFIGURED' }) {

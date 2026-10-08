@@ -9,9 +9,9 @@ describe('AppNavigation', () => {
     render(<AppNavigation role="ADMIN" activeView="home" onSelect={select} onSignOut={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
-    fireEvent.click(screen.getByRole('button', { name: /Conciliación/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Centro de Control/ }))
 
-    expect(select).toHaveBeenCalledWith('reconciliation')
+    expect(select).toHaveBeenCalledWith('control-center')
     expect(screen.getByRole('navigation', { hidden: true })).toHaveAttribute('aria-label', 'Navegación principal')
   })
 
@@ -20,6 +20,14 @@ describe('AppNavigation', () => {
     expect(screen.getByRole('button', { name: /Carga de datos/, hidden: true })).toBeInTheDocument()
     rerender(<AppNavigation role="ADMIN" activeView="home" onSelect={vi.fn()} onSignOut={vi.fn()} />)
     expect(screen.getByRole('button', { name: /Carga de datos/, hidden: true })).toBeInTheDocument()
+  })
+
+  it('concentra Monitor, Supervisión y Conciliación bajo Centro de Control', () => {
+    render(<AppNavigation role="ANALISTA" activeView="home" onSelect={vi.fn()} onSignOut={vi.fn()} />)
+    expect(screen.getByRole('button', { name: /Centro de Control/, hidden: true })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Monitor/, hidden: true })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Supervisión/, hidden: true })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Conciliación/, hidden: true })).not.toBeInTheDocument()
   })
 
   it('muestra Usuarios exclusivamente a ADMIN', () => {
@@ -37,7 +45,7 @@ describe('AppNavigation', () => {
 
     expect(screen.getByRole('button', { name: /Conteo/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Reconteos/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Supervisión/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Centro de Control/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Carga de datos/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Conciliación/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Cortes/ })).not.toBeInTheDocument()
@@ -49,6 +57,7 @@ describe('AppNavigation', () => {
     expect(isAppViewAllowed('CONTADOR', 'home')).toBe(true)
     expect(isAppViewAllowed('CONTADOR', 'counting')).toBe(true)
     expect(isAppViewAllowed('CONTADOR', 'recounts')).toBe(true)
+    expect(isAppViewAllowed('CONTADOR', 'control-center')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'monitor')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'supervision')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'data-load')).toBe(false)
