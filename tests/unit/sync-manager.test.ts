@@ -111,6 +111,31 @@ describe('SyncManager', () => {
     expect(outbox.records.every((item) => item.syncStatus === 'CONFIRMED')).toBe(true)
   })
 
+  it('programa una segunda pasada si entra trabajo durante una sincronización activa', async () => {
+    const outbox = new MemoryOutbox([record(1)])
+    let releaseFirstBatch: (() => void) | undefined
+    const firstBatch = new Promise<void>((resolve) => { releaseFirstBatch = resolve })
+    let firstBatchStarted: (() => void) | undefined
+    const firstStarted = new Promise<void>((resolve) => { firstBatchStarted = resolve })
+    gatewayInstance = gateway(async (records) => {
+      if (gatewayInstance.calls === 1) { firstBatchStarted?.(); await firstBatch }
+      return records.map((item) => ({ client_count_id: item.clientCountId, result_status: 'ACCEPTED', server_count_id: serverId, received_at: '2026-09-17T13:00:00.000Z', reason: null }))
+    })
+    const coordinator = new SyncCoordinator(userId, outbox, gatewayInstance)
+
+    const first = coordinator.runInventorySync(inventoryId)
+    await firstStarted
+    outbox.records.push(record(2))
+    const second = coordinator.runInventorySync(inventoryId)
+    releaseFirstBatch?.()
+
+    const result = await second
+    await first
+    expect(result).toMatchObject({ confirmed: 2, failed: 0 })
+    expect(gatewayInstance.calls).toBe(2)
+    expect(outbox.records.every((item) => item.syncStatus === 'CONFIRMED')).toBe(true)
+  })
+
   it('42501 se vuelve REJECTED visible, sin borrar el payload ni reintentar', async () => {
     const outbox = new MemoryOutbox([record(1)])
     gatewayInstance = gateway(() => { throw new SyncTransportError('TERMINAL_AUTHORIZATION', 'SYNC_AUTHORIZATION_BLOCKED') })

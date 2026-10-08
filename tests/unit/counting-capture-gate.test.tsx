@@ -92,6 +92,19 @@ describe('CountingScreen Device Health capture gate', () => {
     await waitFor(() => expect(runInventorySync).toHaveBeenCalledWith(inventoryId, { forceRetry: true }))
   })
 
+  it('syncs automatically when Conteo opens and when connectivity returns', async () => {
+    const runInventorySync = vi.fn(async () => ({ claimed: 1, confirmed: 1, rejected: 0, failed: 0, conflicts: 0, diagnostic: null }))
+    const automaticCoordinator = {
+      runInventorySync,
+      runOutstanding: vi.fn(async () => ({ scopes: 1, claimed: 1, confirmed: 1, rejected: 0, failed: 0, conflicts: 0, diagnostic: null })),
+    } as unknown as SyncCoordinator
+
+    render(<CountingScreen runtime={runtime()} syncCoordinator={automaticCoordinator} captureGate={{ blocked: false, message: null }} />)
+    await waitFor(() => expect(runInventorySync).toHaveBeenCalledWith(inventoryId, { forceRetry: false }))
+    fireEvent(window, new Event('online'))
+    await waitFor(() => expect(runInventorySync).toHaveBeenCalledTimes(2))
+  })
+
   it('keeps a restored scanner result durable while blocked, then applies it exactly once after READY', async () => {
     const findByCode = vi.fn(async () => null)
     const currentRuntime = runtimeWithSkuLookup(findByCode)

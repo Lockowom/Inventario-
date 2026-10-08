@@ -16,6 +16,7 @@ import type { SyncCoordinator } from '../domain/sync/sync-coordinator'
 import type { DeviceHealthMode, DeviceHealthReport } from '../domain/device-health/contracts'
 import { createDeviceHealthService } from '../features/device-health/device-health-runtime'
 import { DeviceHealthScreen } from '../features/device-health/device-health-screen'
+import { DeviceComponentsPanel } from '../features/device-health/device-components-panel'
 import { runDeviceHealthCheck } from '../features/device-health/device-health-runner'
 import { createCaptureGate } from '../features/device-health/capture-gate'
 import { CertificationFixture } from './certification-fixture'
@@ -26,7 +27,7 @@ import { RecountQueueScreen } from '../features/reconciliation/recount-queue-scr
 import { UserManagementScreen } from '../features/user-management/user-management-screen'
 import type { AppRole } from '../domain/auth/contracts'
 import { AppNavigation } from './app-navigation'
-import { isAppViewAllowed, type AppView } from './app-navigation-policy'
+import { defaultAppViewForRole, isAppViewAllowed, type AppView } from './app-navigation-policy'
 import { bindOtaRetryEvents, otaUpdateService, type OtaUpdateState } from '../services/ota-update-service'
 import { OtaUpdatePanel } from '../features/ota/ota-update-panel'
 import { ActiveInventoryProvider } from '../features/control-center/active-inventory-context'
@@ -66,7 +67,7 @@ function AuthBoundary() {
 
 function AuthenticatedRuntime() {
   const [role, setRole] = useState<AppRole | null>(null)
-  const [activeView, setActiveView] = useState<AppView>('home')
+  const [activeView, setActiveView] = useState<AppView>('counting')
   const [countingRuntime, setCountingRuntime] = useState<CountingRuntime | null>(null)
   const [syncCoordinator, setSyncCoordinator] = useState<SyncCoordinator | null>(null)
   const [startupSyncMessage, setStartupSyncMessage] = useState('')
@@ -134,11 +135,13 @@ function AuthenticatedRuntime() {
     // A real AuthService always provides getRole; treating its absence as no ADMIN is fail-closed.
     const getRole = authService.getRole
     if (typeof getRole !== 'function') return
-    void getRole.call(authService).then(setRole).catch(async () => {
+    void getRole.call(authService).then((nextRole) => { setRole(nextRole); setActiveView(defaultAppViewForRole(nextRole)) }).catch(async () => {
       // The active context is an offline lease issued by the server. Reuse
       // only its last server-verified role; never infer ADMIN while offline.
       const cached = await getCountingContextRepository().get().catch(() => null)
-      setRole(cached?.role ?? null)
+      const cachedRole = cached?.role ?? null
+      setRole(cachedRole)
+      if (cachedRole) setActiveView(defaultAppViewForRole(cachedRole))
     })
   }, [])
 
@@ -151,16 +154,17 @@ function AuthenticatedRuntime() {
   }, [])
 
   useEffect(() => {
-    if (!isAppViewAllowed(role, activeView)) setActiveView('home')
+    if (role && !isAppViewAllowed(role, activeView)) setActiveView(defaultAppViewForRole(role))
   }, [activeView, role])
 
   const healthCaptureGate = createCaptureGate(healthReport, healthLoading, healthError)
   const captureGate = otaState?.kind === 'NATIVE_REQUIRED'
     ? { blocked: true, message: otaState.message }
     : healthCaptureGate
-  const visibleView = isAppViewAllowed(role, activeView) ? activeView : 'home'
-  const content = visibleView === 'home'
-    ? <><InfrastructureDiagnostic supabaseState="CONFIGURED" /><DeviceHealthScreen report={healthReport} loading={healthLoading} error={healthError} onRefresh={() => void runHealth('LIGHT')} onFullCheck={() => void runHealth('FULL')} /></>
+  const visibleView = isAppViewAllowed(role, activeView) ? activeView : defaultAppViewForRole(role)
+  const deviceNeedsReview = healthError !== null || healthReport?.overall === 'BLOCKED'
+  const content = visibleView === 'device-status'
+    ? <><DeviceComponentsPanel report={healthReport} loading={healthLoading} error={healthError} otaState={otaState} onOpenDiagnostic={() => void runHealth('FULL')} /><DeviceHealthScreen report={healthReport} loading={healthLoading} error={healthError} onRefresh={() => void runHealth('LIGHT')} onFullCheck={() => void runHealth('FULL')} /></>
     : visibleView === 'counting'
       ? <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} captureGate={captureGate} />
       : visibleView === 'recounts'
@@ -182,8 +186,8 @@ function AuthenticatedRuntime() {
               : <UserManagementScreen role={role} />
 
   return <ExperienceProvider><SoundRuntime /><ActiveInventoryProvider><main className="app-shell app-shell--authenticated">
-    <AppNavigation role={role} activeView={visibleView} onSelect={(view) => { if (isAppViewAllowed(role, view)) setActiveView(view) }} onSignOut={() => void authService.signOut()} />
-    <section className="app-workspace" aria-label="Área de trabajo"><OtaUpdatePanel state={otaState} onApply={() => void otaUpdateService.apply().then((next) => { if (next) setOtaState(next) })} onRollback={() => void otaUpdateService.rollback()} />{content}</section>
+    <AppNavigation role={role} activeView={visibleView} onSelect={(view) => { if (isAppViewAllowed(role, view)) setActiveView(view) }} onDeviceStatus={() => setActiveView('device-status')} deviceNeedsReview={deviceNeedsReview} onSignOut={() => void authService.signOut()} />
+    <section className="app-workspace" aria-label="Área de trabajo"><OtaUpdatePanel state={otaState} onApply={() => void otaUpdateService.apply().then((next) => { if (next) setOtaState(next) })} onRollback={() => void otaUpdateService.rollback()} />{deviceNeedsReview && visibleView !== 'device-status' && <section className="device-review-banner" role="alert"><strong>DISPOSITIVO REQUIERE REVISIÓN</strong><button className="button-secondary" type="button" onClick={() => setActiveView('device-status')}>VER DIAGNÓSTICO</button></section>}{content}</section>
     <ExperiencePanel />
   </main></ActiveInventoryProvider></ExperienceProvider>
 }

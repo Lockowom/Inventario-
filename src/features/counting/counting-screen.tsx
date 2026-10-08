@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { LOCATION_ERROR, LOCATION_MAX_LENGTH, normalizeLocationInput, PhysicalCountValidationError, pendingCapacity, type LocalCountRecord, type PendingCapacity, type PhysicalCountDraft } from '../../domain/count/contracts'
 import type { ActiveCountingContext, SavePhysicalCountDependencies } from '../../domain/count/save-physical-count'
 import type { MasterSku } from '../../domain/master/contracts'
@@ -27,12 +27,46 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
   const [syncMessage, setSyncMessage] = useState('')
   const [syncing, setSyncing] = useState(false)
   const [feedback, setFeedback] = useState<{ tone: FeedbackTone; message: string }>({ tone: 'IDLE', message: '' })
+  const syncRuns = useRef(0)
   const codeInput = useRef<HTMLInputElement>(null)
   const serialInput = useRef<HTMLInputElement>(null)
   const batchInput = useRef<HTMLInputElement>(null)
   const quantityInput = useRef<HTMLInputElement>(null)
   const healthBlocked = captureGate?.blocked === true
   const { preferences } = useExperiencePreferences()
+
+  const runSync = useCallback(async (forceRetry = false) => {
+    if (!syncCoordinator || !runtime) return
+    if (typeof navigator !== 'undefined' && !navigator.onLine) {
+      const offlineMessage = 'Sin conexión. El conteo permanece guardado localmente y se enviará al reconectar.'
+      setSyncMessage(offlineMessage)
+      setFeedback({ tone: 'OFFLINE', message: offlineMessage })
+      return
+    }
+    syncRuns.current += 1
+    setSyncing(true)
+    setSyncMessage('Enviando conteos pendientes al servidor…')
+    setFeedback({ tone: 'SYNCING', message: 'Enviando conteos pendientes al servidor…' })
+    try {
+      const summary = await syncCoordinator.runInventorySync(runtime.context.inventoryId, { forceRetry })
+      const nextMessage = summary.confirmed > 0
+        ? `Servidor confirmado: ${summary.confirmed} conteo(s).`
+        : summary.diagnostic
+          ? `Sincronización requiere revisión: ${summary.diagnostic}.`
+          : 'No hay conteos elegibles para sincronizar.'
+      setSyncMessage(nextMessage)
+      if (summary.confirmed > 0 && summary.failed === 0) { setFeedback({ tone: 'SUCCESS', message: nextMessage }); interactionSounds.playSyncComplete() }
+      else if (summary.failed > 0) setFeedback({ tone: 'OFFLINE', message: 'Reintento pendiente. Sus conteos locales siguen protegidos.' })
+      setRefreshCounts((value) => value + 1)
+    } catch {
+      const nextMessage = 'No fue posible sincronizar ahora. Sus conteos locales siguen protegidos y se reintentarán.'
+      setSyncMessage(nextMessage)
+      setFeedback({ tone: 'OFFLINE', message: nextMessage })
+    } finally {
+      syncRuns.current -= 1
+      if (syncRuns.current === 0) setSyncing(false)
+    }
+  }, [runtime, syncCoordinator])
   useEffect(() => {
     if (!runtime) return
     void runtime.masters.getMetadata(runtime.context.inventoryId).then((metadata) => setMasterAvailable(Boolean(metadata))).catch(() => setMasterAvailable(false))
@@ -47,6 +81,16 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
       .catch(() => { if (active) setMessage('No fue posible leer la capacidad local. El guardado permanece bloqueado.') })
     return () => { active = false }
   }, [runtime, refreshCounts])
+
+  useEffect(() => {
+    if (!runtime || !syncCoordinator) return
+    const requestSync = () => { void runSync() }
+    const onResume = () => { if (document.visibilityState === 'visible') requestSync() }
+    requestSync()
+    window.addEventListener('online', requestSync)
+    document.addEventListener('visibilitychange', onResume)
+    return () => { window.removeEventListener('online', requestSync); document.removeEventListener('visibilitychange', onResume) }
+  }, [runtime, runSync, syncCoordinator])
 
   useEffect(() => {
     let active = true
@@ -75,6 +119,7 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
   }, [runtime, healthBlocked])
 
   async function runOutstandingSync() {
+    if (runtime) { await runSync(true); return }
     if (!syncCoordinator || syncing) return
     setSyncing(true)
     try {
@@ -150,17 +195,6 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
       const nextMessage = error instanceof PhysicalCountValidationError || error instanceof Error ? error.message : 'No fue posible guardar localmente. Sus datos siguen en el formulario.'
       setMessage(nextMessage); setFeedback({ tone: 'ERROR', message: nextMessage }); interactionSounds.playError()
     } finally { setSaving(false) }
-  }
-
-  async function runSync(forceRetry = false) {
-    if (!syncCoordinator || syncing) return
-    setSyncing(true); setFeedback({ tone: 'SYNCING', message: 'Enviando conteos pendientes al servidor…' })
-    try {
-      const summary = await syncCoordinator.runInventorySync(activeRuntime.context.inventoryId, { forceRetry })
-      setSyncMessage(summary.claimed === 0 ? (summary.diagnostic ? `Sincronización requiere revisión: ${summary.diagnostic}.` : 'No hay conteos elegibles para sincronizar.') : `Sincronización: ${summary.confirmed} confirmados, ${summary.rejected} requieren revisión, ${summary.failed} para reintentar.`)
-      if (summary.confirmed > 0 && summary.failed === 0) { setFeedback({ tone: 'SUCCESS', message: `${summary.confirmed} conteo(s) recibido(s) por el servidor.` }); interactionSounds.playSyncComplete() }
-      setRefreshCounts((value) => value + 1)
-    } catch { const nextMessage = 'No fue posible sincronizar ahora. Sus conteos locales siguen protegidos.'; setSyncMessage(nextMessage); setFeedback({ tone: 'OFFLINE', message: nextMessage }) } finally { setSyncing(false) }
   }
 
   return <section className="counting-screen" aria-labelledby="counting-title">

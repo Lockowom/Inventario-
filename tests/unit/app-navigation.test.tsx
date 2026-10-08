@@ -1,12 +1,12 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { AppNavigation } from '../../src/app/app-navigation'
-import { isAppViewAllowed } from '../../src/app/app-navigation-policy'
+import { defaultAppViewForRole, isAppViewAllowed } from '../../src/app/app-navigation-policy'
 
 describe('AppNavigation', () => {
   it('separa los módulos en navegación y permite cambiar de área', () => {
     const select = vi.fn()
-    render(<AppNavigation role="ADMIN" activeView="home" onSelect={select} onSignOut={vi.fn()} />)
+    render(<AppNavigation role="ADMIN" activeView="control-center" onSelect={select} onSignOut={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
     fireEvent.click(screen.getByRole('button', { name: /Centro de Control/ }))
@@ -16,14 +16,14 @@ describe('AppNavigation', () => {
   })
 
   it('expone Carga de datos a ANALISTA y ADMIN', () => {
-    const { rerender } = render(<AppNavigation role="ANALISTA" activeView="home" onSelect={vi.fn()} onSignOut={vi.fn()} />)
+    const { rerender } = render(<AppNavigation role="ANALISTA" activeView="control-center" onSelect={vi.fn()} onSignOut={vi.fn()} />)
     expect(screen.getByRole('button', { name: /Carga de datos/, hidden: true })).toBeInTheDocument()
-    rerender(<AppNavigation role="ADMIN" activeView="home" onSelect={vi.fn()} onSignOut={vi.fn()} />)
+    rerender(<AppNavigation role="ADMIN" activeView="control-center" onSelect={vi.fn()} onSignOut={vi.fn()} />)
     expect(screen.getByRole('button', { name: /Carga de datos/, hidden: true })).toBeInTheDocument()
   })
 
   it('concentra Monitor, Supervisión y Conciliación bajo Centro de Control', () => {
-    render(<AppNavigation role="ANALISTA" activeView="home" onSelect={vi.fn()} onSignOut={vi.fn()} />)
+    render(<AppNavigation role="ANALISTA" activeView="control-center" onSelect={vi.fn()} onSignOut={vi.fn()} />)
     expect(screen.getByRole('button', { name: /Centro de Control/, hidden: true })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Monitor/, hidden: true })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Supervisión/, hidden: true })).not.toBeInTheDocument()
@@ -31,20 +31,21 @@ describe('AppNavigation', () => {
   })
 
   it('muestra Usuarios exclusivamente a ADMIN', () => {
-    const { rerender } = render(<AppNavigation role="ANALISTA" activeView="home" onSelect={vi.fn()} onSignOut={vi.fn()} />)
+    const { rerender } = render(<AppNavigation role="ANALISTA" activeView="control-center" onSelect={vi.fn()} onSignOut={vi.fn()} />)
     expect(screen.queryByRole('button', { name: /Usuarios/, hidden: true })).not.toBeInTheDocument()
 
-    rerender(<AppNavigation role="ADMIN" activeView="home" onSelect={vi.fn()} onSignOut={vi.fn()} />)
+    rerender(<AppNavigation role="ADMIN" activeView="control-center" onSelect={vi.fn()} onSignOut={vi.fn()} />)
     expect(screen.getByRole('button', { name: /Usuarios/, hidden: true })).toBeInTheDocument()
   })
 
-  it('limita CONTADOR a Inicio, Conteo y Reconteos', () => {
-    render(<AppNavigation role="CONTADOR" activeView="home" onSelect={vi.fn()} onSignOut={vi.fn()} />)
+  it('limita CONTADOR a Conteo y Reconteos, sin Inicio', () => {
+    render(<AppNavigation role="CONTADOR" activeView="counting" onSelect={vi.fn()} onSignOut={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
 
     expect(screen.getByRole('button', { name: /Conteo/ })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Reconteos/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Inicio/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Centro de Control/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Carga de datos/ })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Conciliación/ })).not.toBeInTheDocument()
@@ -54,7 +55,8 @@ describe('AppNavigation', () => {
   })
 
   it('deniega vistas de gestión a CONTADOR aunque un caller intente seleccionarlas', () => {
-    expect(isAppViewAllowed('CONTADOR', 'home')).toBe(true)
+    expect(isAppViewAllowed('CONTADOR', 'home')).toBe(false)
+    expect(isAppViewAllowed('CONTADOR', 'device-status')).toBe(true)
     expect(isAppViewAllowed('CONTADOR', 'counting')).toBe(true)
     expect(isAppViewAllowed('CONTADOR', 'recounts')).toBe(true)
     expect(isAppViewAllowed('CONTADOR', 'control-center')).toBe(false)
@@ -65,5 +67,11 @@ describe('AppNavigation', () => {
     expect(isAppViewAllowed('CONTADOR', 'cuts')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'master')).toBe(false)
     expect(isAppViewAllowed('CONTADOR', 'users')).toBe(false)
+  })
+
+  it('abre Conteo para CONTADOR y Centro de Control para ANALISTA/ADMIN', () => {
+    expect(defaultAppViewForRole('CONTADOR')).toBe('counting')
+    expect(defaultAppViewForRole('ANALISTA')).toBe('control-center')
+    expect(defaultAppViewForRole('ADMIN')).toBe('control-center')
   })
 })

@@ -1,11 +1,10 @@
 import type { AppRole } from '../domain/auth/contracts'
 
-export type AppView = 'home' | 'counting' | 'recounts' | 'control-center' | 'monitor' | 'supervision' | 'data-load' | 'reconciliation' | 'cuts' | 'master' | 'users'
+export type AppView = 'home' | 'device-status' | 'counting' | 'recounts' | 'control-center' | 'monitor' | 'supervision' | 'data-load' | 'reconciliation' | 'cuts' | 'master' | 'users'
 
 export type NavigationItem = { id: AppView; label: string; detail: string }
 
 const counterItems: NavigationItem[] = [
-  { id: 'home', label: 'Inicio', detail: 'Estado del dispositivo' },
   { id: 'counting', label: 'Conteo', detail: 'Captura de inventario' },
   { id: 'recounts', label: 'Reconteos', detail: 'Misiones ciegas C2/C3' },
 ]
@@ -22,9 +21,14 @@ export function navigationItemsForRole(role: AppRole | null): NavigationItem[] {
   if (role === 'CONTADOR') return counterItems
   if (role === 'ANALISTA') return analystItems
   if (role === 'ADMIN') return [...analystItems, { id: 'users', label: 'Usuarios', detail: 'Administración segura' }]
-  return counterItems.filter((item) => item.id === 'home')
+  return []
 }
 
 export function isAppViewAllowed(role: AppRole | null, view: AppView): boolean {
+  if (view === 'device-status') return role !== null
   return navigationItemsForRole(role).some((item) => item.id === view)
+}
+
+export function defaultAppViewForRole(role: AppRole | null): AppView {
+  return role === 'ANALISTA' || role === 'ADMIN' ? 'control-center' : 'counting'
 }

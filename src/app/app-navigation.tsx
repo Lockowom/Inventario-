@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import type { AppRole } from '../domain/auth/contracts'
 import { navigationItemsForRole, type AppView } from './app-navigation-policy'
 
-export function AppNavigation({ role, activeView, onSelect, onSignOut }: {
+export function AppNavigation({ role, activeView, onSelect, onDeviceStatus = () => undefined, onSignOut, deviceNeedsReview = false }: {
   role: AppRole | null
   activeView: AppView
   onSelect: (view: AppView) => void
+  onDeviceStatus?: () => void
   onSignOut: () => void
+  deviceNeedsReview?: boolean
 }) {
   const [open, setOpen] = useState(false)
   const [isDesktop, setIsDesktop] = useState(() => window.matchMedia?.('(min-width: 960px)').matches ?? false)
@@ -41,6 +43,7 @@ export function AppNavigation({ role, activeView, onSelect, onSignOut }: {
         <span aria-hidden="true">☰</span><span>MENÚ</span>
       </button>
       <div className="app-topbar__brand"><strong>INVEN3</strong><span>Operación de inventario</span></div>
+      <button className={`app-device-status${deviceNeedsReview ? ' app-device-status--review' : ''}`} type="button" onClick={onDeviceStatus}>{deviceNeedsReview ? 'REVISAR DISPOSITIVO' : 'ESTADO DEL DISPOSITIVO'}</button>
       <button className="app-sign-out" type="button" onClick={onSignOut}>CERRAR SESIÓN</button>
     </header>
     <button className={`app-navigation-backdrop ${open ? 'app-navigation-backdrop--open' : ''}`} type="button" aria-label="Cerrar menú" tabIndex={open ? 0 : -1} onClick={() => setOpen(false)} />
