@@ -23,10 +23,13 @@ const rectificationId = '66666666-6666-4666-8666-666666666666'
 const fixedAt = '2026-09-24T12:00:00.000Z'
 
 const master: MasterSku = { inventoryId, codigo: '00001', descripcion: 'Producto de certificación', controlType: 'PARTIDA', cachedAt: fixedAt }
+const serialMaster: MasterSku = { inventoryId, codigo: '00002', descripcion: 'Producto serializado de certificación', controlType: 'SERIAL', cachedAt: fixedAt }
+const legacyMaster: MasterSku = { inventoryId, codigo: '00003', descripcion: 'Producto legacy de certificación', controlType: 'LEGACY', cachedAt: fixedAt }
+const fixtureMasters = [master, serialMaster, legacyMaster] as const
 const masters: MasterSkuRepository = {
-  findByCode: async (_inventoryId, code) => code.trim().toUpperCase() === master.codigo ? master : null,
-  listByInventory: async () => [master],
-  getMetadata: async () => ({ inventoryId, masterVersion: 1, rowCount: 1, fingerprint: 'a'.repeat(64), cachedAt: fixedAt }),
+  findByCode: async (_inventoryId, code) => fixtureMasters.find((item) => item.codigo === code.trim().toUpperCase()) ?? null,
+  listByInventory: async () => [...fixtureMasters],
+  getMetadata: async () => ({ inventoryId, masterVersion: 1, rowCount: fixtureMasters.length, fingerprint: 'a'.repeat(64), cachedAt: fixedAt }),
   replaceSnapshot: async () => undefined,
 }
 

@@ -131,6 +131,30 @@ test.describe('F9A certificación responsive y accesible', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   })
 
+  for (const [code, product, visibleField, hiddenField] of [
+    ['00002', 'Producto serializado de certificación', 'SERIE', 'PARTIDA'],
+    ['00001', 'Producto de certificación', 'PARTIDA', 'SERIE'],
+    ['00003', 'Producto legacy de certificación', 'CANTIDAD CONTADA', 'SERIE'],
+  ] as const) {
+    test(`Conteo Físico 2.0 muestra sólo los datos operativos para ${code}`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 })
+      await page.goto('/?fixture=counting-normal')
+      const form = page.locator('.counting-form')
+      const inputFor = (label: string) => form.locator('label.field').filter({ hasText: new RegExp(`^${label}`) }).locator('input')
+      const codeInput = form.locator('label.field').filter({ hasText: /^CODIGO/ }).locator('input').first()
+      await codeInput.fill(code)
+      await codeInput.blur()
+      await expect(form.getByText('✓ PRODUCTO IDENTIFICADO')).toBeVisible()
+      await expect(form.getByText(product)).toBeVisible()
+      await expect(inputFor(visibleField)).toBeVisible()
+      await expect(inputFor(hiddenField)).toHaveCount(0)
+      await expect(inputFor('PIEZA DEL PRODUCTO')).toHaveCount(0)
+      await expect(inputFor('Talla del producto')).toHaveCount(0)
+      await expect(inputFor('Color del Producto')).toHaveCount(0)
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    })
+  }
+
   test('CutsScreen real muestra el flujo READY y rectificación efectiva', async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 1000 })
     await page.goto('/?fixture=rectification')

@@ -28,6 +28,9 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
   const [syncing, setSyncing] = useState(false)
   const [feedback, setFeedback] = useState<{ tone: FeedbackTone; message: string }>({ tone: 'IDLE', message: '' })
   const codeInput = useRef<HTMLInputElement>(null)
+  const serialInput = useRef<HTMLInputElement>(null)
+  const batchInput = useRef<HTMLInputElement>(null)
+  const quantityInput = useRef<HTMLInputElement>(null)
   const healthBlocked = captureGate?.blocked === true
   const { preferences } = useExperiencePreferences()
   useEffect(() => {
@@ -91,7 +94,8 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
   })
   if (!runtime) return <section className="counting-screen" aria-labelledby="counting-title"><p className="eyebrow">Fase 4 · Captura bloqueada</p><h1 id="counting-title">CONTEO FÍSICO</h1><p className="form-error" role="alert">{captureGate?.message ?? 'Captura no disponible: seleccione un inventario ABIERTO desde el contexto autenticado.'}</p><section className="sync-status" aria-label="Estado de sincronización pendiente"><p role="status">{syncMessage || startupSyncMessage || 'Los conteos locales pendientes permanecen protegidos y disponibles para sincronización.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runOutstandingSync()}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section></section>
   const activeRuntime = runtime
-  const disabled = healthBlocked || masterAvailable !== true || saving || pending === null || capacity === 'BLOCKED'
+  const invalidCode = draft.codigo.trim().length > 0 && master === null
+  const disabled = healthBlocked || masterAvailable !== true || saving || pending === null || capacity === 'BLOCKED' || invalidCode
 
   async function resolveSku(code = draft.codigo) {
     const resolution = await resolveCountSku(activeRuntime.context.inventoryId, code, draft, activeRuntime.masters)
@@ -99,7 +103,14 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     setDraft(resolution.draft)
     setMessage(resolution.error ?? '')
     if (resolution.error) { setFeedback({ tone: 'ERROR', message: resolution.error }); interactionSounds.playError() }
-    else if (resolution.master) { setFeedback({ tone: 'SUCCESS', message: 'SKU validado contra el Maestro local.' }); interactionSounds.playScanSuccess() }
+    else if (resolution.master) {
+      setFeedback({ tone: 'SUCCESS', message: 'SKU validado contra el Maestro local.' }); interactionSounds.playScanSuccess()
+      requestAnimationFrame(() => {
+        if (resolution.master?.controlType === 'SERIAL') serialInput.current?.focus()
+        else if (resolution.master?.controlType === 'PARTIDA') batchInput.current?.focus()
+        else quantityInput.current?.focus()
+      })
+    }
   }
   function updateCode(value: string) {
     setMaster(null)
@@ -162,15 +173,14 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     {message && <p className={message === 'CONTEO GUARDADO' ? 'form-success' : 'form-error'} role="status">{message}</p>}
     <div className="counting-form" aria-disabled={disabled} {...countSwipe}>
       <Field label="UBICACION"><TextInput value={draft.ubicacion} onChange={applyLocation} disabled={disabled} maxLength={LOCATION_MAX_LENGTH} pattern="(?:TECHO|(?:C2|[ABCDFGHI])-[0-9]{2}-[0-9]{2})" title="Formato permitido: TECHO, F-32-03 o C2-32-03" /><ScanButton field="ubicacion" onScan={scan} disabled={disabled} /></Field>
-      <Field label="CODIGO"><TextInput inputRef={codeInput} value={draft.codigo} onChange={updateCode} onBlur={() => void resolveSku()} disabled={disabled} /><ScanButton field="codigo" onScan={scan} disabled={disabled} /></Field>
-      <Field label="SERIE"><TextInput value={draft.serie ?? ''} onChange={(value) => setDraft((current) => ({ ...current, serie: value }))} disabled={disabled || master?.controlType === 'PARTIDA'} maxLength={19} /><ScanButton field="serie" onScan={scan} disabled={disabled || master?.controlType === 'PARTIDA'} /></Field>
-      <Field label="PARTIDA"><TextInput value={draft.partida ?? ''} onChange={(value) => setDraft((current) => ({ ...current, partida: value }))} disabled={disabled || master?.controlType === 'SERIAL'} /><ScanButton field="partida" onScan={scan} disabled={disabled || master?.controlType === 'SERIAL'} /></Field>
-      <Field label="PIEZA DEL PRODUCTO"><TextInput value={draft.piezaProducto ?? ''} onChange={(value) => setDraft((current) => ({ ...current, piezaProducto: value }))} disabled={disabled} /></Field>
-      <Field label="FECHA DE VENCIMIENTO"><input type="date" value={draft.fechaVencimiento ?? ''} onChange={(event) => setDraft((current) => ({ ...current, fechaVencimiento: event.target.value }))} disabled={disabled} /></Field>
-      <Field label="Talla del producto"><TextInput value={draft.talla ?? ''} onChange={(value) => setDraft((current) => ({ ...current, talla: value }))} disabled={disabled} /></Field>
-      <Field label="Color del Producto"><TextInput value={draft.color ?? ''} onChange={(value) => setDraft((current) => ({ ...current, color: value }))} disabled={disabled} /></Field>
-      <Field label="Cantidad Contada"><TextInput value={master?.controlType === 'SERIAL' ? '1' : draft.cantidadContada} onChange={(value) => setDraft((current) => ({ ...current, cantidadContada: value }))} disabled={disabled || master?.controlType === 'SERIAL'} inputMode="numeric" /></Field>
-      <Field label="DESCRIPCION"><textarea value={master?.descripcion ?? ''} readOnly aria-readonly="true" rows={3} placeholder="Se completa desde el maestro local" /></Field>
+      <Field label="CODIGO"><TextInput inputRef={codeInput} value={draft.codigo} onChange={updateCode} onBlur={() => void resolveSku()} disabled={healthBlocked || masterAvailable !== true || saving || pending === null || capacity === 'BLOCKED'} className={master ? 'counting-code--valid' : invalidCode ? 'counting-code--invalid' : undefined} /><ScanButton field="codigo" onScan={scan} disabled={healthBlocked || masterAvailable !== true || saving || pending === null || capacity === 'BLOCKED'} /></Field>
+      <ProductIdentification master={master} hasCode={draft.codigo.trim().length > 0} invalid={invalidCode} />
+      {master?.controlType === 'SERIAL' && <Field label="SERIE"><TextInput inputRef={serialInput} value={draft.serie ?? ''} onChange={(value) => setDraft((current) => ({ ...current, serie: value }))} disabled={disabled} maxLength={19} /><ScanButton field="serie" onScan={scan} disabled={disabled} /></Field>}
+      {master?.controlType === 'PARTIDA' && <Field label="PARTIDA"><TextInput inputRef={batchInput} value={draft.partida ?? ''} onChange={(value) => setDraft((current) => ({ ...current, partida: value }))} disabled={disabled} /><ScanButton field="partida" onScan={scan} disabled={disabled} /></Field>}
+      {master && <Field label="FECHA DE VENCIMIENTO"><input type="date" value={draft.fechaVencimiento ?? ''} onChange={(event) => setDraft((current) => ({ ...current, fechaVencimiento: event.target.value }))} disabled={disabled} /></Field>}
+      {master?.controlType === 'SERIAL'
+        ? <Field label="CANTIDAD CONTADA"><input value="1" readOnly aria-readonly="true" inputMode="numeric" /></Field>
+        : master && <Field label="CANTIDAD CONTADA"><TextInput inputRef={quantityInput} value={draft.cantidadContada} onChange={(value) => setDraft((current) => ({ ...current, cantidadContada: value }))} disabled={disabled} inputMode="numeric" /></Field>}
     </div>
     <button className="button-primary counting-save" type="button" disabled={disabled} onClick={() => void save()}>{saving ? 'GUARDANDO…' : 'GUARDAR CONTEO'}</button>
     <MyCounts runtime={activeRuntime} refreshKey={refreshCounts} />
@@ -178,8 +188,14 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="field"><span>{label}</span><span className="field__controls">{children}</span></label> }
-function TextInput({ value, onChange, onBlur, disabled, maxLength, inputMode, inputRef, pattern, title }: { value: string; onChange: (value: string) => void; onBlur?: () => void; disabled: boolean; maxLength?: number; inputMode?: 'numeric'; inputRef?: RefObject<HTMLInputElement | null>; pattern?: string; title?: string }) { return <input ref={inputRef} value={value} onChange={(event) => onChange(event.target.value)} onBlur={onBlur} disabled={disabled} maxLength={maxLength} inputMode={inputMode} pattern={pattern} title={title} /> }
+function TextInput({ value, onChange, onBlur, disabled, maxLength, inputMode, inputRef, pattern, title, className }: { value: string; onChange: (value: string) => void; onBlur?: () => void; disabled: boolean; maxLength?: number; inputMode?: 'numeric'; inputRef?: RefObject<HTMLInputElement | null>; pattern?: string; title?: string; className?: string }) { return <input ref={inputRef} value={value} onChange={(event) => onChange(event.target.value)} onBlur={onBlur} disabled={disabled} maxLength={maxLength} inputMode={inputMode} pattern={pattern} title={title} className={className} /> }
 function ScanButton({ field, onScan, disabled }: { field: ScanField; onScan: (field: ScanField) => Promise<void>; disabled: boolean }) { return <button type="button" className="button-secondary" disabled={disabled} aria-label={`Escanear ${field}`} onClick={() => void onScan(field)}>ESCANEAR</button> }
+
+function ProductIdentification({ master, hasCode, invalid }: { master: MasterSku | null; hasCode: boolean; invalid: boolean }) {
+  if (invalid) return <p className="counting-product-card counting-product-card--error" role="alert">⚠ CÓDIGO NO ENCONTRADO EN MAESTRO</p>
+  if (!master) return hasCode ? <p className="counting-product-card" aria-live="polite">Validando código contra el Maestro local…</p> : null
+  return <section className="counting-product-card" aria-live="polite" aria-label="Producto identificado"><strong>✓ PRODUCTO IDENTIFICADO</strong><span>{master.descripcion}</span><em>{master.controlType}</em></section>
+}
 
 function MyCounts({ runtime, refreshKey }: { runtime: CountingRuntime; refreshKey: number }) {
   const [search, setSearch] = useState('')
