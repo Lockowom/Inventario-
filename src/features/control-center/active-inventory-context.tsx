@@ -60,8 +60,10 @@ export function ActiveInventoryProvider({ children }: { children: ReactNode }) {
   return <ActiveInventoryContext.Provider value={value}>{children}</ActiveInventoryContext.Provider>
 }
 
-export function useActiveInventory() {
-  const value = useContext(ActiveInventoryContext)
+export function useActiveInventory() { return useContext(ActiveInventoryContext) }
+
+export function useRequiredActiveInventory() {
+  const value = useActiveInventory()
   if (!value) throw new Error('ActiveInventoryProvider es requerido para esta vista.')
   return value
 }

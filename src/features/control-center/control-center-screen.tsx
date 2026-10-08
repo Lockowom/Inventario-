@@ -3,7 +3,7 @@ import type { AppRole } from '../../domain/auth/contracts'
 import { SupabaseLiveMonitorRepository } from '../../services/supabase-live-monitor-repository'
 import { SupabaseReconciliationRepository, type LiveReconciliationWorkspace, type ReconciliationRow, type ReconciliationSummary } from '../../services/supabase-reconciliation-repository'
 import { InventoryLifecyclePanel } from '../supervision/inventory-lifecycle-panel'
-import { useActiveInventory } from './active-inventory-context'
+import { useRequiredActiveInventory } from './active-inventory-context'
 
 type ControlCenterTab = 'RESUMEN' | 'ACTIVIDAD' | 'COBERTURA' | 'EQUIPO' | 'DIFERENCIAS' | 'C2_C3' | 'DICTAMEN' | 'HISTORIAL'
 const tabs: ReadonlyArray<{ id: ControlCenterTab; label: string }> = [
@@ -14,7 +14,7 @@ const monitor = new SupabaseLiveMonitorRepository()
 const reconciliation = new SupabaseReconciliationRepository()
 
 export function ControlCenterScreen({ role }: { role: AppRole | null }) {
-  const { inventories, inventoryId, activeInventory, loading: inventoriesLoading, error: inventoryError, selectInventory } = useActiveInventory()
+  const { inventories, inventoryId, activeInventory, loading: inventoriesLoading, error: inventoryError, selectInventory } = useRequiredActiveInventory()
   const [tab, setTab] = useState<ControlCenterTab>('RESUMEN')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)

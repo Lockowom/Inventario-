@@ -9,6 +9,7 @@ import { SupabaseSupervisionRepository } from '../../services/supabase-supervisi
 import { getMasterSkuRepository } from '../counting/counting-runtime'
 import { parseMasterClipboard, parseMasterFile } from '../master/master-import-parser'
 import { parseSystemReferenceFiles } from '../reconciliation/system-reference-import-parser'
+import { useActiveInventory } from '../control-center/active-inventory-context'
 
 type Inventory = { id: string; name: string; status: string }
 type BusyState = 'BOOT' | 'MASTER_PARSE' | 'MASTER_IMPORT' | 'RP_PARSE' | 'RP_IMPORT' | null
@@ -18,8 +19,9 @@ const masters = new SupabaseMasterSkuRepository()
 const reconciliation = new SupabaseReconciliationRepository()
 
 export function DataLoadScreen({ role }: { role: AppRole | null }) {
+  const activeInventory = useActiveInventory()
   const [inventories, setInventories] = useState<Inventory[]>([])
-  const [inventoryId, setInventoryId] = useState('')
+  const [localInventoryId, setLocalInventoryId] = useState('')
   const [busy, setBusy] = useState<BusyState>('BOOT')
   const [message, setMessage] = useState('Selecciona un inventario para preparar su información.')
 
@@ -38,6 +40,8 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
   const batchFileRef = useRef<HTMLInputElement>(null)
   const serialFileRef = useRef<HTMLInputElement>(null)
 
+  const inventoryId = activeInventory?.inventoryId ?? localInventoryId
+  const selectInventory = (nextId: string) => activeInventory ? activeInventory.selectInventory(nextId) : setLocalInventoryId(nextId)
   const selectedInventory = useMemo(() => inventories.find((item) => item.id === inventoryId) ?? null, [inventories, inventoryId])
   const preparationOpen = selectedInventory?.status === 'BORRADOR' || selectedInventory?.status === 'PREPARADO'
   const validMasterRows = useMemo(() => masterPreview ? validMasterItems(masterPreview) : [], [masterPreview])
@@ -55,19 +59,25 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
 
   useEffect(() => {
     let active = true
+    if (activeInventory) {
+      setInventories(activeInventory.inventories)
+      if (!activeInventory.loading && !activeInventory.inventoryId) setMessage(activeInventory.error ?? 'No existen inventarios autorizados para este usuario.')
+      setBusy(null)
+      return () => { active = false }
+    }
     setBusy('BOOT')
     void supervision.inventories()
       .then((rows) => {
         if (!active) return
         const next = rows as Inventory[]
         setInventories(next)
-        setInventoryId((current) => current || next[0]?.id || '')
+        setLocalInventoryId((current) => current || next[0]?.id || '')
         if (!next.length) setMessage('No existen inventarios autorizados para este usuario.')
       })
       .catch((error: unknown) => { if (active) setMessage(describeError(error, 'No fue posible cargar los inventarios.')) })
       .finally(() => { if (active) setBusy(null) })
     return () => { active = false }
-  }, [])
+  }, [activeInventory])
 
   useEffect(() => {
     if (!inventoryId) return
@@ -251,7 +261,7 @@ export function DataLoadScreen({ role }: { role: AppRole | null }) {
 
     <label className="field data-load-inventory">
       <span>Inventario</span>
-      <select value={inventoryId} disabled={busy === 'BOOT'} onChange={(event) => setInventoryId(event.target.value)}>
+      <select value={inventoryId} disabled={busy === 'BOOT'} onChange={(event) => selectInventory(event.target.value)}>
         {inventories.map((inventory) => <option key={inventory.id} value={inventory.id}>{inventory.name} · {inventory.status}</option>)}
       </select>
     </label>

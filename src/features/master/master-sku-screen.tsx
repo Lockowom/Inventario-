@@ -4,6 +4,7 @@ import { refreshMasterSnapshot } from '../../domain/master/offline-master'
 import { SupabaseMasterSkuRepository } from '../../services/supabase-master-sku-repository'
 import { SupabaseSupervisionRepository } from '../../services/supabase-supervision-repository'
 import { getMasterSkuRepository } from '../counting/counting-runtime'
+import { useActiveInventory } from '../control-center/active-inventory-context'
 
 type Inventory={id:string;name:string;status:string}
 
@@ -11,26 +12,34 @@ const masters=new SupabaseMasterSkuRepository()
 const supervision=new SupabaseSupervisionRepository()
 
 export function MasterSkuScreen() {
+  const activeInventory=useActiveInventory()
   const [inventories,setInventories]=useState<Inventory[]>([])
-  const [inventoryId,setInventoryId]=useState('')
+  const [localInventoryId,setLocalInventoryId]=useState('')
   const [metadata,setMetadata]=useState<MasterMetadata|null>(null)
   const [exceptionCode,setExceptionCode]=useState('')
   const [exceptionDescription,setExceptionDescription]=useState('')
   const [exceptionReason,setExceptionReason]=useState('')
   const [busy,setBusy]=useState(false)
   const [message,setMessage]=useState('Consulta el Maestro activo y gestiona excepciones durante el conteo.')
+  const inventoryId=activeInventory?.inventoryId??localInventoryId
+  const selectInventory=(nextId:string)=>activeInventory?activeInventory.selectInventory(nextId):setLocalInventoryId(nextId)
   const selectedInventory=useMemo(()=>inventories.find(item=>item.id===inventoryId)??null,[inventories,inventoryId])
 
   useEffect(()=>{
     let active=true
+    if(activeInventory){
+      setInventories(activeInventory.inventories)
+      if(!activeInventory.loading&&!activeInventory.inventoryId)setMessage(activeInventory.error??'No existen inventarios autorizados.')
+      return()=>{active=false}
+    }
     void supervision.inventories().then(rows=>{
       if(!active)return
       const next=rows as Inventory[]
       setInventories(next)
-      setInventoryId(current=>current||next[0]?.id||'')
+      setLocalInventoryId(current=>current||next[0]?.id||'')
     }).catch((error:unknown)=>{if(active)setMessage(describeError(error,'No fue posible cargar inventarios.'))})
     return()=>{active=false}
-  },[])
+  },[activeInventory])
 
   useEffect(()=>{
     if(!inventoryId)return
@@ -67,7 +76,7 @@ export function MasterSkuScreen() {
       <p className="master-screen__description">Este módulo ya no recibe archivos. La carga y reemplazo del Maestro se realizan exclusivamente en <strong>Carga de datos</strong>.</p>
     </header>
 
-    <label className="field"><span>Inventario</span><select value={inventoryId} disabled={busy} onChange={event=>setInventoryId(event.target.value)}>{inventories.map(item=><option key={item.id} value={item.id}>{item.name} · {item.status}</option>)}</select></label>
+    <label className="field"><span>Inventario</span><select value={inventoryId} disabled={busy} onChange={event=>selectInventory(event.target.value)}>{inventories.map(item=><option key={item.id} value={item.id}>{item.name} · {item.status}</option>)}</select></label>
 
     {metadata&&<section className="master-status" aria-label="Estado del Maestro">
       <h2>Estado actual</h2>
