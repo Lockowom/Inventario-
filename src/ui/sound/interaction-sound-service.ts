@@ -32,11 +32,11 @@ export class InteractionSoundService {
     }
     const [first, duration, second] = notes[kind]
     this.tone(first, duration)
-    if (second) window.setTimeout(() => this.tone(second, duration), Math.round(duration * 700))
+    if (second) this.tone(second, duration, duration * .7)
   }
-  private tone(frequency: number, duration: number) {
+  private tone(frequency: number, duration: number, delay = 0) {
     if (!this.context || !this.preferences) return
-    const oscillator = this.context.createOscillator(); const gain = this.context.createGain(); const now = this.context.currentTime
+    const oscillator = this.context.createOscillator(); const gain = this.context.createGain(); const now = this.context.currentTime + delay
     gain.gain.setValueAtTime(0.0001, now); gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, this.preferences.volume / 700), now + .008); gain.gain.exponentialRampToValueAtTime(0.0001, now + duration)
     oscillator.type = 'sine'; oscillator.frequency.setValueAtTime(frequency, now); oscillator.connect(gain); gain.connect(this.context.destination); oscillator.start(now); oscillator.stop(now + duration + .015)
   }

@@ -1,9 +1,12 @@
 import { useCallback, useRef, type PointerEvent, type PointerEventHandler } from 'react'
 
 type SwipeHandlers = { onSwipeLeft?: () => void; onSwipeRight?: () => void; threshold?: number; enabled?: boolean }
+function isInteractiveTarget(target: EventTarget | null) {
+  return target instanceof HTMLElement && Boolean(target.closest('input, textarea, select, button, a, [contenteditable="true"], [role="button"]'))
+}
 export function useSwipe({ onSwipeLeft, onSwipeRight, threshold = 56, enabled = true }: SwipeHandlers) {
   const start = useRef<{ x: number; y: number } | null>(null)
-  const onPointerDown = useCallback((event: PointerEvent<HTMLElement>) => { if (enabled && event.pointerType !== 'mouse') start.current = { x: event.clientX, y: event.clientY } }, [enabled])
+  const onPointerDown = useCallback((event: PointerEvent<HTMLElement>) => { if (enabled && event.pointerType !== 'mouse' && !isInteractiveTarget(event.target)) start.current = { x: event.clientX, y: event.clientY } }, [enabled])
   const onPointerUp = useCallback((event: PointerEvent<HTMLElement>) => { const point = start.current; start.current = null; if (!point || !enabled) return; const dx = event.clientX - point.x; const dy = event.clientY - point.y; if (Math.abs(dx) < threshold || Math.abs(dy) > Math.abs(dx) * .75) return; if (dx > 0) onSwipeRight?.(); else onSwipeLeft?.() }, [enabled, onSwipeLeft, onSwipeRight, threshold])
   return { onPointerDown, onPointerUp }
 }

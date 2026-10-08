@@ -26,6 +26,16 @@ describe('interaction system', () => {
     expect(left).toHaveBeenCalledOnce()
   })
 
+  it('does not trigger a swipe started on an interactive control', () => {
+    const right = vi.fn()
+    function Probe() { const swipe = useSwipe({ onSwipeRight: right }); return <div {...swipe}><button type="button">FINALIZAR</button></div> }
+    render(<Probe />)
+    const target = screen.getByRole('button', { name: 'FINALIZAR' })
+    fireEvent.pointerDown(target, { pointerType: 'touch', clientX: 10, clientY: 20 })
+    fireEvent.pointerUp(target, { pointerType: 'touch', clientX: 90, clientY: 20 })
+    expect(right).not.toHaveBeenCalled()
+  })
+
   it('does not run shortcuts while an operator is typing', () => {
     const refresh = vi.fn()
     function Probe() { useKeyboardShortcuts([{ key: 'r', handler: refresh }]); return <input aria-label="Buscar" /> }

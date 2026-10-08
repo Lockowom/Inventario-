@@ -156,7 +156,7 @@ export function RecountQueueScreen({ captureGate }: { captureGate?: CaptureGate 
   finally{setBusy(false)}
  }
 
- const missionSwipe=useSwipe({enabled:preferences.gestures&&Boolean(mission)&&!busy,onSwipeLeft:()=>setFeedback({tone:'WARNING',message:'Revisa las ubicaciones antes de finalizar.'}),onSwipeRight:()=>{if(mission?.observations.length)void finish()}})
+ const missionSwipe=useSwipe({enabled:preferences.gestures&&Boolean(mission)&&!busy,onSwipeLeft:()=>setFeedback({tone:'WARNING',message:'Revisa las ubicaciones antes de finalizar.'}),onSwipeRight:()=>setFeedback({tone:'WARNING',message:'Para finalizar usa el botón FINALIZAR y confirma la acción.'})})
 
  return <section className="recount-queue" aria-labelledby="recount-title">
   <header>
