@@ -16,6 +16,7 @@ export function LiveMonitorScreen() {
   const [coverage, setCoverage] = useState<Record<string, unknown>[]>([])
   const [activity, setActivity] = useState<Record<string, unknown>[]>([])
   const [missions, setMissions] = useState<Record<string, unknown>[]>([])
+  const [c2Execution, setC2Execution] = useState<Record<string, unknown>>({})
   const [otaDevices, setOtaDevices] = useState<Record<string, unknown>[]>([])
   const [coverageStatus, setCoverageStatus] = useState('TODOS')
   const [stage, setStage] = useState('TODOS')
@@ -34,10 +35,10 @@ export function LiveMonitorScreen() {
   const refresh = useCallback(async () => {
     if (!inventoryId || !canAccessLiveMonitor(role)) return
     try {
-      const [nextSummary, nextCoverage, nextActivity, nextMissions, nextOtaDevices] = await Promise.all([
-        monitor.summary(inventoryId), monitor.coverage(inventoryId, coverageStatus, search), monitor.activity(inventoryId, stage, search), monitor.missions(inventoryId), monitor.otaDevices(),
+      const [nextSummary, nextCoverage, nextActivity, nextMissions, nextOtaDevices, nextC2Execution] = await Promise.all([
+        monitor.summary(inventoryId), monitor.coverage(inventoryId, coverageStatus, search), monitor.activity(inventoryId, stage, search), monitor.missions(inventoryId), monitor.otaDevices(), typeof monitor.c2Execution === 'function' ? monitor.c2Execution(inventoryId) : Promise.resolve({}),
       ])
-      setSummary(nextSummary); setCoverage(nextCoverage); setActivity(nextActivity); setMissions(nextMissions); setOtaDevices(nextOtaDevices); setMessage('')
+      setSummary(nextSummary); setCoverage(nextCoverage); setActivity(nextActivity); setMissions(nextMissions); setOtaDevices(nextOtaDevices); setC2Execution(nextC2Execution); setMessage('')
     } catch (error: unknown) { setMessage(error instanceof Error ? error.message : 'Monitor no disponible.') }
   }, [coverageStatus, inventoryId, role, search, stage])
 
@@ -68,7 +69,7 @@ export function LiveMonitorScreen() {
     <div className="live-monitor-actions"><label className="field"><span>Inventario</span><select value={inventoryId} onChange={(event) => setInventoryId(event.target.value)}>{inventories.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.status}</option>)}</select></label><button className="button-secondary" type="button" onClick={() => void refresh()}>ACTUALIZAR</button></div>
     {selectedInventory?.status === 'ABIERTO' && !monitorInventory.c1_completed_at && <p className="live-monitor-note">C1 está abierto: una referencia Softland no visitada aún es cobertura pendiente, no un faltante.</p>}
     {message && <p className="form-warning" role="status">{message}</p>}
-    <section className="live-monitor-metrics" aria-label="Resumen en vivo"><Metric label="Observaciones C1" value={counts.observations} /><Metric label="SKU contados" value={counts.counted_skus} /><Metric label="Unidades físicas C1" value={counts.counted_units} /><Metric label="Unidades Disponible" value={reference.available_units} /><Metric label="C2 en cola" value={missionSummary.c2_pending} /><Metric label="C3 en curso" value={missionSummary.c3_active} /><Metric label="Físicos confirmados" value={missionSummary.physical_confirmed} /><Metric label="Pendientes sync" value={devices.pending_records} /></section>
+    <section className="live-monitor-metrics" aria-label="Resumen en vivo"><Metric label="Observaciones C1" value={counts.observations} /><Metric label="SKU contados" value={counts.counted_skus} /><Metric label="Unidades físicas C1" value={counts.counted_units} /><Metric label="Unidades Disponible" value={reference.available_units} /><Metric label="C2 en cola" value={c2Execution.queued_missions ?? missionSummary.c2_pending} /><Metric label="Ubicaciones C2 pendientes" value={c2Execution.pending_subtasks} /><Metric label="Barridos de serie activos" value={c2Execution.serial_sweeps_active} /><Metric label="Excepciones C2" value={Number(c2Execution.blocked ?? 0) + Number(c2Execution.escalated ?? 0)} /><Metric label="C3 en curso" value={missionSummary.c3_active} /><Metric label="Físicos confirmados" value={missionSummary.physical_confirmed} /><Metric label="Pendientes sync" value={devices.pending_records} /></section>
     <section className="live-monitor-filter"><label className="field"><span>Buscar SKU, referencia o ubicación</span><input value={search} onChange={(event) => setSearch(event.target.value)} /></label><label className="field"><span>Estado de cobertura</span><select value={coverageStatus} onChange={(event) => setCoverageStatus(event.target.value)}><option value="TODOS">Todos</option><option value="CUBIERTA">Cubierta</option><option value="PENDIENTE_DE_COBERTURA">Pendiente de cobertura</option><option value="SERIE_SISTEMA_NO_CONTADA">Serie sistema no contada</option><option value="PARTIDA_SISTEMA_NO_CONTADA">Partida sistema no contada</option><option value="SERIE_FUERA_DE_DISPONIBLE">Serie fuera de disponible</option><option value="PARTIDA_FUERA_DE_DISPONIBLE">Partida fuera de disponible</option></select></label><label className="field"><span>Etapa de actividad</span><select value={stage} onChange={(event) => setStage(event.target.value)}><option value="TODOS">C1, C2 y C3</option><option value="C1">C1</option><option value="C2">C2</option><option value="C3">C3</option></select></label><button className="button-primary" type="button" onClick={() => void refresh()}>APLICAR FILTROS</button></section>
     <section className="live-monitor-section"><h2>Cobertura por SKU y referencia</h2><p>La identidad se conserva por serie o partida: dos filas con igual SKU no son duplicados si su referencia es distinta.</p><CoverageTable rows={coverage} /></section>
     <section className="live-monitor-section"><h2>Actividad de conteo</h2><ActivityList rows={activity} /></section>

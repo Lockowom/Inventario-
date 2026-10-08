@@ -41,6 +41,12 @@ export class SupabaseLiveMonitorRepository {
     return (data ?? []) as Record<string, unknown>[]
   }
 
+  public async c2Execution(inventoryId: string) {
+    const { data, error } = await clientOrThrow().rpc('get_c2_execution_metrics', { p_inventory_id: inventoryId })
+    if (error || !data) throw new Error('No fue posible cargar la ejecución C2.')
+    return data as Record<string, unknown>
+  }
+
   public async otaDevices() {
     const { data, error } = await clientOrThrow().rpc('get_live_monitor_ota_devices', { p_limit: 100 })
     if (error) throw new Error('No fue posible cargar los dispositivos OTA.')
@@ -54,6 +60,8 @@ export class SupabaseLiveMonitorRepository {
     const channel = client.channel(`live-monitor:${inventoryId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'count_records', filter: `inventory_id=eq.${inventoryId}` }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'reconciliation_cases', filter: `inventory_id=eq.${inventoryId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'recount_missions', filter: `inventory_id=eq.${inventoryId}` }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'recount_mission_subtasks', filter: `inventory_id=eq.${inventoryId}` }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_system_reference_items', filter: `inventory_id=eq.${inventoryId}` }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventory_freeze_guards', filter: `inventory_id=eq.${inventoryId}` }, refresh)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'inventories', filter: `id=eq.${inventoryId}` }, refresh)

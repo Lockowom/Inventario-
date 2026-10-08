@@ -16,7 +16,10 @@ vi.mock('../../src/services/supabase-reconciliation-repository',()=>({
    active:{
     id:'mission-1',case_id:'case-1',inventory_id:'inv-1',round:2,status:'ACTIVE',
     codigo:'SKU001P',descripcion:'Producto prueba',reference_type:'PARTIDA',reference_value:'LOTE-01',
-    known_locations:['A-21-03','B-02-01'],observations:[]
+    known_locations:['A-21-03','B-02-01'],observations:[],subtasks:[
+     {id:'subtask-a',location:'A-21-03',strategy:'BATCH_LOCATION_RECOUNT',status:'PENDING',logistic_unit:null,counted_quantity:null,exception_reason:null,created_at:'2026-10-08T10:00:00Z',started_at:null,completed_at:null,scanned_series_count:0,recent_series:[]},
+     {id:'subtask-b',location:'B-02-01',strategy:'BATCH_LOCATION_RECOUNT',status:'PENDING',logistic_unit:null,counted_quantity:null,exception_reason:null,created_at:'2026-10-08T10:00:00Z',started_at:null,completed_at:null,scanned_series_count:0,recent_series:[]}
+    ]
    }
   })}
  }
@@ -43,7 +46,7 @@ describe('F15 recount queue',()=>{
   expect(screen.getByText(/CONTEO CIEGO/)).toBeTruthy()
   expect(screen.queryByText(/Softland: 5/)).toBeNull()
   expect(screen.queryByText(/C1: 4/)).toBeNull()
-  expect(screen.getByRole('button',{name:'CONFIRMAR 0 · NO ENCONTRADO'})).toBeEnabled()
+  expect(screen.getByRole('button',{name:'CONFIRMAR 0'})).toBeEnabled()
   expect(screen.getByRole('button',{name:'FINALIZAR C2'})).toBeDisabled()
  })
 })
