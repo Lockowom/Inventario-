@@ -4,6 +4,9 @@ import { SupabaseLiveMonitorRepository } from '../../services/supabase-live-moni
 import { SupabaseReconciliationRepository, type LiveReconciliationWorkspace, type ReconciliationRow, type ReconciliationSummary } from '../../services/supabase-reconciliation-repository'
 import { InventoryLifecyclePanel } from '../supervision/inventory-lifecycle-panel'
 import { useRequiredActiveInventory } from './active-inventory-context'
+import { useSwipe } from '../../ui/gestures/use-gestures'
+import { useKeyboardShortcuts } from '../../ui/shortcuts/use-keyboard-shortcuts'
+import { useExperiencePreferences } from '../../ui/preferences/experience-preferences'
 
 type ControlCenterTab = 'RESUMEN' | 'ACTIVIDAD' | 'COBERTURA' | 'EQUIPO' | 'DIFERENCIAS' | 'C2_C3' | 'DICTAMEN' | 'HISTORIAL'
 const tabs: ReadonlyArray<{ id: ControlCenterTab; label: string }> = [
@@ -15,6 +18,7 @@ const reconciliation = new SupabaseReconciliationRepository()
 
 export function ControlCenterScreen({ role }: { role: AppRole | null }) {
   const { inventories, inventoryId, activeInventory, loading: inventoriesLoading, error: inventoryError, selectInventory } = useRequiredActiveInventory()
+  const { preferences } = useExperiencePreferences()
   const [tab, setTab] = useState<ControlCenterTab>('RESUMEN')
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
@@ -24,6 +28,7 @@ export function ControlCenterScreen({ role }: { role: AppRole | null }) {
   const [cases, setCases] = useState<ReconciliationRow[]>([])
   const [workspace, setWorkspace] = useState<LiveReconciliationWorkspace | null>(null)
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null)
+  const [realtime, setRealtime] = useState<'LIVE' | 'RECONNECTING'>('RECONNECTING')
   const manager = role === 'ANALISTA' || role === 'ADMIN'
 
   const refresh = useCallback(async () => {
@@ -49,15 +54,25 @@ export function ControlCenterScreen({ role }: { role: AppRole | null }) {
   useEffect(() => { void refresh() }, [refresh])
   useEffect(() => {
     if (!inventoryId || !manager) return
-    return monitor.subscribe(inventoryId, () => { void refresh() }, () => undefined)
+    setRealtime('LIVE')
+    return monitor.subscribe(inventoryId, () => { setRealtime('LIVE'); void refresh() }, () => setRealtime('RECONNECTING'))
     // Realtime is intentionally an invalidation signal only; all state is re-read from guarded RPCs.
   }, [inventoryId, manager, refresh])
 
   const title = useMemo(() => activeInventory ? `${activeInventory.name} · ${activeInventory.status}` : 'Sin inventario seleccionado', [activeInventory])
+  const moveTab = useCallback((direction: -1 | 1) => setTab((current) => {
+    const index = tabs.findIndex((item) => item.id === current)
+    return tabs[(index + direction + tabs.length) % tabs.length]?.id ?? current
+  }), [])
+  const touchNavigation = useSwipe({ enabled: preferences.gestures, onSwipeLeft: () => moveTab(1), onSwipeRight: () => moveTab(-1) })
+  useKeyboardShortcuts([
+    { key: 'r', handler: () => void refresh(), enabled: manager && Boolean(inventoryId) },
+    ...tabs.map((item, index) => ({ key: String(index + 1), handler: () => setTab(item.id), enabled: manager })),
+  ])
   if (!manager) return <section className="control-center-screen"><h1>CENTRO DE CONTROL DE INVENTARIO</h1><p className="form-warning">Esta vista está disponible sólo para ANALISTA y ADMIN.</p></section>
 
-  return <section className="control-center-screen" aria-labelledby="control-center-title">
-    <header><p className="eyebrow">CONTROL OPERATIVO · lectura protegida</p><h1 id="control-center-title">CENTRO DE CONTROL DE INVENTARIO</h1><p>Una sola vista para cobertura, actividad, conciliación y ciclos C1/C2/C3. Disponible es la base de comparación; no se ejecutan ajustes automáticos en Softland.</p></header>
+  return <section className="control-center-screen" aria-labelledby="control-center-title" {...touchNavigation}>
+    <header><p className="eyebrow">CONTROL OPERATIVO · lectura protegida</p><h1 id="control-center-title">CENTRO DE CONTROL DE INVENTARIO</h1><p>Una sola vista para cobertura, actividad, conciliación y ciclos C1/C2/C3. Disponible es la base de comparación; no se ejecutan ajustes automáticos en Softland.</p><span className={realtime === 'LIVE' ? 'control-center__realtime control-center__realtime--live' : 'control-center__realtime'}>● {realtime === 'LIVE' ? 'EN VIVO' : 'ACTUALIZACIÓN PROGRAMADA'}</span></header>
     <div className="control-center__context">
       <label className="field"><span>Inventario activo</span><select value={inventoryId} disabled={inventoriesLoading} onChange={(event) => selectInventory(event.target.value)}>{inventories.map((inventory) => <option key={inventory.id} value={inventory.id}>{inventory.name} · {inventory.status}</option>)}</select></label>
       <div><strong>{title}</strong><span>{refreshedAt ? `Actualizado ${refreshedAt.toLocaleString()}` : 'Esperando lectura protegida…'}</span></div>
@@ -67,7 +82,7 @@ export function ControlCenterScreen({ role }: { role: AppRole | null }) {
     {message && <p className="form-warning" role="status">{message}</p>}
     {!inventoriesLoading && !inventoryId && !inventoryError && <p className="form-warning">No hay inventarios autorizados para este usuario.</p>}
     <div className="control-center__tabs" role="tablist" aria-label="Secciones del Centro de Control">{tabs.map((item) => <button key={item.id} id={`control-tab-${item.id}`} type="button" role="tab" aria-selected={tab === item.id} aria-controls="control-center-panel" className={tab === item.id ? 'is-active' : ''} onClick={() => setTab(item.id)}>{item.label}</button>)}</div>
-    <div id="control-center-panel" role="tabpanel" aria-labelledby={`control-tab-${tab}`} className="control-center__panel">
+    <div id="control-center-panel" role="tabpanel" aria-labelledby={`control-tab-${tab}`} className="control-center__panel" key={tab}>
       {tab === 'RESUMEN' && <SummaryPanel inventoryId={inventoryId} role={role} summary={summary} reconciliationSummary={reconciliationSummary} onChanged={refresh} />}
       {tab === 'ACTIVIDAD' && <ActivityPanel rows={rows} />}
       {tab === 'COBERTURA' && <CoveragePanel rows={rows} />}
@@ -92,6 +107,6 @@ function MissionPanel({ rows }: { rows: Record<string, unknown>[] }) { return <s
 function CasesPanel({ rows }: { rows: ReconciliationRow[] }) { return <section><h2>DICTAMEN Y AJUSTES</h2><p>Los dictámenes quedan trazables; ningún resultado ejecuta ajustes automáticos de stock.</p>{rows.length ? <ul className="control-center__list">{rows.map((row) => <li key={row.id}><strong>{row.codigo} · {row.anomaly_type.replaceAll('_', ' ')} · {row.status.replaceAll('_', ' ')}</strong><span>Softland {row.system_quantity} · físico {row.confirmed_physical_quantity ?? row.physical_quantity} · {row.reference_value ?? 'sin referencia'}</span></li>)}</ul> : <p>No hay casos de conciliación para este inventario.</p>}</section> }
 function HistoryPanel({ reconciliationSummary, refreshedAt }: { reconciliationSummary: ReconciliationSummary | null; refreshedAt: Date | null }) { return <section><h2>HISTORIAL</h2><p>La evidencia detallada vive en los casos, misiones y cortes inmutables; este resumen no borra ni reescribe eventos.</p><dl className="control-center__history"><div><dt>Referencia Softland</dt><dd>{reconciliationSummary?.source_reference ? `v${reconciliationSummary.source_reference.reference_version} · ${reconciliationSummary.source_reference.row_count} filas` : 'Aún no cargada'}</dd></div><div><dt>Última materialización</dt><dd>{formatDate(reconciliationSummary?.last_materialized_at)}</dd></div><div><dt>Última lectura del centro</dt><dd>{refreshedAt ? refreshedAt.toLocaleString() : '—'}</dd></div></dl></section> }
 function SimpleList({ rows, line, detail, empty }: { rows: Record<string, unknown>[]; line: (row: Record<string, unknown>) => string; detail: (row: Record<string, unknown>) => string; empty: string }) { return rows.length ? <ul className="control-center__list">{rows.map((row, index) => <li key={String(row.id ?? row.device_id ?? `${index}-${line(row)}`)}><strong>{line(row)}</strong><span>{detail(row)}</span></li>)}</ul> : <p>{empty}</p> }
-function Metric({ label, value }: { label: string; value: unknown }) { return <article><span>{label}</span><strong>{value == null ? '—' : String(value)}</strong></article> }
+function Metric({ label, value }: { label: string; value: unknown }) { const display = value == null ? '—' : String(value); return <article><span>{label}</span><strong key={display}>{display}</strong></article> }
 function object(value: unknown): Record<string, unknown> { return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {} }
 function formatDate(value: unknown) { return typeof value === 'string' ? new Date(value).toLocaleString() : 'Sin fecha' }

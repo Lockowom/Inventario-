@@ -8,6 +8,10 @@ import { SupabaseSupervisionRepository } from '../../services/supabase-supervisi
 import { createCountingRuntime, createSyncCoordinator, getMasterSkuRepository } from '../counting/counting-runtime'
 import { emptyPhysicalCountDraft } from '../counting/form-state'
 import type { CaptureGate } from '../counting/counting-screen'
+import { OperationalFeedback, type FeedbackTone } from '../../ui/feedback/operational-feedback'
+import { interactionSounds } from '../../ui/sound/interaction-sound-service'
+import { useExperiencePreferences } from '../../ui/preferences/experience-preferences'
+import { useSwipe } from '../../ui/gestures/use-gestures'
 
 type Inventory={id:string;name:string;status:string}
 type Profile={user_id:string;display_name:string;role:'CONTADOR'|'ANALISTA'|'ADMIN';active:boolean}
@@ -27,6 +31,8 @@ export function RecountQueueScreen({ captureGate }: { captureGate?: CaptureGate 
  const [cantidad,setCantidad]=useState('')
  const [busy,setBusy]=useState(false)
  const [message,setMessage]=useState('Cargando contexto de reconteos…')
+ const [feedback,setFeedback]=useState<{tone:FeedbackTone;message:string}>({tone:'IDLE',message:''})
+ const {preferences}=useExperiencePreferences()
 
  const selectedInventory=useMemo(()=>inventories.find(item=>item.id===inventoryId)??null,[inventories,inventoryId])
  const runtime=useMemo(()=>context?createCountingRuntime(context):null,[context])
@@ -82,7 +88,8 @@ export function RecountQueueScreen({ captureGate }: { captureGate?: CaptureGate 
    setQueue(current=>current?{...current,active:next,queued_count:Math.max(0,current.queued_count-(next?1:0))}:current)
    setUbicacion('');setCantidad('')
    setMessage(next?'Misión C'+next.round+' asignada. Conteo ciego activo.':'No hay misiones disponibles para tu rol.')
-  }catch(error){setMessage(error instanceof Error?error.message:'No fue posible asignar una misión.')}
+   if(next){setFeedback({tone:'SUCCESS',message:'Misión asignada. Registra cada ubicación sin ver cantidades previas.'});interactionSounds.playRecountAssigned()}
+  }catch(error){const nextMessage=error instanceof Error?error.message:'No fue posible asignar una misión.';setMessage(nextMessage);setFeedback({tone:'ERROR',message:nextMessage});interactionSounds.playError()}
   finally{setBusy(false)}
  }
 
@@ -110,13 +117,15 @@ export function RecountQueueScreen({ captureGate }: { captureGate?: CaptureGate 
    setMission(updated);setQueue(nextQueue)
    setUbicacion('');setCantidad('')
    setMessage('Ubicación '+saved.record.ubicacion+' agregada. Continúa buscando la misma referencia o finaliza la misión.')
-  }catch(error){setMessage(error instanceof Error?error.message:'No fue posible registrar la observación.')}
+   setFeedback({tone:'SUCCESS',message:'Ubicación agregada al reconteo. El total se muestra sólo al finalizar.'});interactionSounds.playSaveSuccess()
+  }catch(error){const nextMessage=error instanceof Error?error.message:'No fue posible registrar la observación.';setMessage(nextMessage);setFeedback({tone:'ERROR',message:nextMessage});interactionSounds.playError()}
   finally{setBusy(false)}
  }
 
  async function finish(){
   if(captureGate?.blocked){setMessage(captureGate.message??'Captura bloqueada por Health Check.');return}
   if(!mission)return
+  if(!window.confirm(`¿Finalizar C${mission.round}? Esta acción cierra la misión y puede generar C3.`))return
   try{
    setBusy(true)
    const result=await reconciliation.completeMission(mission.id)
@@ -125,7 +134,8 @@ export function RecountQueueScreen({ captureGate }: { captureGate?: CaptureGate 
    setMessage(result.next_round===3
     ? 'C2 cerrado. C1 y C2 no coinciden: C3 fue creado automáticamente.'
     : 'C'+result.round+' cerrado. Físico confirmado: '+(result.confirmed_physical_quantity??result.total_quantity)+'.')
-  }catch(error){setMessage(error instanceof Error?error.message:'No fue posible finalizar la misión.')}
+   setFeedback({tone:result.next_round===3?'WARNING':'SUCCESS',message:result.next_round===3?'C2 finalizado. Se creó C3 para una verificación ciega.':'Misión finalizada y trazada.'});if(result.next_round===3)interactionSounds.playWarning();else interactionSounds.playSyncComplete()
+  }catch(error){const nextMessage=error instanceof Error?error.message:'No fue posible finalizar la misión.';setMessage(nextMessage);setFeedback({tone:'ERROR',message:nextMessage});interactionSounds.playError()}
   finally{setBusy(false)}
  }
 
@@ -141,9 +151,12 @@ export function RecountQueueScreen({ captureGate }: { captureGate?: CaptureGate 
    setMessage(result.next_round===3
     ? 'Ronda confirmada en 0. Como no coincide con la ronda anterior, se creó C3.'
     : 'C'+result.round+' confirmado en 0 unidades físicas.')
-  }catch(error){setMessage(error instanceof Error?error.message:'No fue posible confirmar la referencia como no encontrada.')}
+   setFeedback({tone:result.next_round===3?'WARNING':'SUCCESS',message:result.next_round===3?'Ronda confirmada en 0. Se creó C3.':'Resultado 0 confirmado y trazado.'});if(result.next_round===3)interactionSounds.playWarning();else interactionSounds.playSyncComplete()
+  }catch(error){const nextMessage=error instanceof Error?error.message:'No fue posible confirmar la referencia como no encontrada.';setMessage(nextMessage);setFeedback({tone:'ERROR',message:nextMessage});interactionSounds.playError()}
   finally{setBusy(false)}
  }
+
+ const missionSwipe=useSwipe({enabled:preferences.gestures&&Boolean(mission)&&!busy,onSwipeLeft:()=>setFeedback({tone:'WARNING',message:'Revisa las ubicaciones antes de finalizar.'}),onSwipeRight:()=>{if(mission?.observations.length)void finish()}})
 
  return <section className="recount-queue" aria-labelledby="recount-title">
   <header>
@@ -152,6 +165,7 @@ export function RecountQueueScreen({ captureGate }: { captureGate?: CaptureGate 
    <p>Una misión agrupa una referencia completa. Un SKU/lote puede aparecer en varias ubicaciones; el total se calcula sólo al finalizar.</p>
   </header>
   {captureGate?.blocked&&<p className="form-error" role="alert">{captureGate.message??'Captura bloqueada por Health Check.'}</p>}
+  <OperationalFeedback tone={feedback.tone} message={feedback.message}/>
 
   {inventories.length>0&&<label className="field"><span>Inventario abierto</span><select value={inventoryId} disabled={busy} onChange={event=>setInventoryId(event.target.value)}>{inventories.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
 
@@ -162,7 +176,7 @@ export function RecountQueueScreen({ captureGate }: { captureGate?: CaptureGate 
    <button className="button-primary" disabled={busy||captureGate?.blocked||!queue?.queued_count} onClick={()=>void claim()}>{busy?'CARGANDO…':'INICIAR SIGUIENTE'}</button>
   </div>}
 
-  {mission&&<article className="recount-mission">
+  {mission&&<article className="recount-mission" {...missionSwipe}>
    <h2>C{mission.round} · {mission.codigo}</h2>
    <p>{mission.descripcion}</p>
    <strong>{mission.reference_type==='PARTIDA'?'Partida/Lote: ':mission.reference_type==='SERIAL'?'Serie: ':'Referencia: '}{mission.reference_value??'SKU'}</strong>

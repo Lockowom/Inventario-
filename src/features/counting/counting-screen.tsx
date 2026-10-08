@@ -8,6 +8,10 @@ import { consumeRestoredScannerResult, subscribeToScannerRestoration } from '../
 import { emptyPhysicalCountDraft, resetAfterSuccessfulSave } from './form-state'
 import { getCapacityStatus } from './capacity-status'
 import type { SyncCoordinator } from '../../domain/sync/sync-coordinator'
+import { OperationalFeedback, type FeedbackTone } from '../../ui/feedback/operational-feedback'
+import { interactionSounds } from '../../ui/sound/interaction-sound-service'
+import { useExperiencePreferences } from '../../ui/preferences/experience-preferences'
+import { useSwipe } from '../../ui/gestures/use-gestures'
 
 export interface CountingRuntime extends SavePhysicalCountDependencies { context: ActiveCountingContext }
 export interface CaptureGate { blocked: boolean; message: string | null }
@@ -22,8 +26,10 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
   const [pending, setPending] = useState<number | null>(null)
   const [syncMessage, setSyncMessage] = useState('')
   const [syncing, setSyncing] = useState(false)
+  const [feedback, setFeedback] = useState<{ tone: FeedbackTone; message: string }>({ tone: 'IDLE', message: '' })
   const codeInput = useRef<HTMLInputElement>(null)
   const healthBlocked = captureGate?.blocked === true
+  const { preferences } = useExperiencePreferences()
   useEffect(() => {
     if (!runtime) return
     void runtime.masters.getMetadata(runtime.context.inventoryId).then((metadata) => setMasterAvailable(Boolean(metadata))).catch(() => setMasterAvailable(false))
@@ -74,9 +80,17 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     } catch { setSyncMessage('No fue posible sincronizar ahora. Sus conteos locales siguen protegidos.') } finally { setSyncing(false) }
   }
 
+  const capacity = pending === null ? null : pendingCapacity(pending)
+  const countSwipe = useSwipe({
+    enabled: preferences.gestures && !healthBlocked,
+    onSwipeLeft: () => setFeedback({ tone: 'WARNING', message: 'Revisa el conteo antes de confirmarlo.' }),
+    onSwipeRight: () => {
+      if (!runtime || masterAvailable !== true || saving || pending === null || capacity === 'BLOCKED') return
+      if (window.confirm('¿Confirmar y guardar este conteo?')) void save()
+    },
+  })
   if (!runtime) return <section className="counting-screen" aria-labelledby="counting-title"><p className="eyebrow">Fase 4 · Captura bloqueada</p><h1 id="counting-title">CONTEO FÍSICO</h1><p className="form-error" role="alert">{captureGate?.message ?? 'Captura no disponible: seleccione un inventario ABIERTO desde el contexto autenticado.'}</p><section className="sync-status" aria-label="Estado de sincronización pendiente"><p role="status">{syncMessage || startupSyncMessage || 'Los conteos locales pendientes permanecen protegidos y disponibles para sincronización.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runOutstandingSync()}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section></section>
   const activeRuntime = runtime
-  const capacity = pending === null ? null : pendingCapacity(pending)
   const disabled = healthBlocked || masterAvailable !== true || saving || pending === null || capacity === 'BLOCKED'
 
   async function resolveSku(code = draft.codigo) {
@@ -84,6 +98,8 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     setMaster(resolution.master)
     setDraft(resolution.draft)
     setMessage(resolution.error ?? '')
+    if (resolution.error) { setFeedback({ tone: 'ERROR', message: resolution.error }); interactionSounds.playError() }
+    else if (resolution.master) { setFeedback({ tone: 'SUCCESS', message: 'SKU validado contra el Maestro local.' }); interactionSounds.playScanSuccess() }
   }
   function updateCode(value: string) {
     setMaster(null)
@@ -97,7 +113,7 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
   async function scan(field: ScanField) {
     if (healthBlocked) return
     const result = await scanBarcodeField(field)
-    if (result.error) { setMessage(result.error); return }
+    if (result.error) { setMessage(result.error); setFeedback({ tone: 'ERROR', message: result.error }); interactionSounds.playError(); return }
     if (!result.value) return
     if (field === 'codigo') await resolveSku(result.value)
     else if (field === 'ubicacion') applyLocation(result.value)
@@ -106,11 +122,13 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
   async function save() {
     if (healthBlocked) { setMessage(captureGate?.message ?? 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.'); return }
     if (capacity === 'BLOCKED') { setMessage('Se alcanzó el límite de 50 conteos pendientes en este dispositivo. Sincronice antes de continuar.'); return }
-    setSaving(true); setMessage('')
+    setSaving(true); setMessage(''); setFeedback({ tone: 'WORKING', message: 'Validando y guardando localmente…' })
     try {
       const { savePhysicalCount } = await import('../../domain/count/save-physical-count')
       const saved = await savePhysicalCount(activeRuntime.context, draft, activeRuntime)
       setMessage('CONTEO GUARDADO')
+      setFeedback({ tone: navigator.onLine ? 'SYNCING' : 'OFFLINE', message: navigator.onLine ? 'Guardado localmente. Sincronizando sin bloquear la captura.' : 'Guardado localmente sin conexión. Se enviará automáticamente.' })
+      interactionSounds.playSaveSuccess()
       setPending(saved.pending)
       setDraft((current) => resetAfterSuccessfulSave(current))
       setMaster(null)
@@ -118,18 +136,20 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
       void runSync()
       requestAnimationFrame(() => codeInput.current?.focus())
     } catch (error: unknown) {
-      setMessage(error instanceof PhysicalCountValidationError || error instanceof Error ? error.message : 'No fue posible guardar localmente. Sus datos siguen en el formulario.')
+      const nextMessage = error instanceof PhysicalCountValidationError || error instanceof Error ? error.message : 'No fue posible guardar localmente. Sus datos siguen en el formulario.'
+      setMessage(nextMessage); setFeedback({ tone: 'ERROR', message: nextMessage }); interactionSounds.playError()
     } finally { setSaving(false) }
   }
 
   async function runSync(forceRetry = false) {
     if (!syncCoordinator || syncing) return
-    setSyncing(true)
+    setSyncing(true); setFeedback({ tone: 'SYNCING', message: 'Enviando conteos pendientes al servidor…' })
     try {
       const summary = await syncCoordinator.runInventorySync(activeRuntime.context.inventoryId, { forceRetry })
       setSyncMessage(summary.claimed === 0 ? (summary.diagnostic ? `Sincronización requiere revisión: ${summary.diagnostic}.` : 'No hay conteos elegibles para sincronizar.') : `Sincronización: ${summary.confirmed} confirmados, ${summary.rejected} requieren revisión, ${summary.failed} para reintentar.`)
+      if (summary.confirmed > 0 && summary.failed === 0) { setFeedback({ tone: 'SUCCESS', message: `${summary.confirmed} conteo(s) recibido(s) por el servidor.` }); interactionSounds.playSyncComplete() }
       setRefreshCounts((value) => value + 1)
-    } catch { setSyncMessage('No fue posible sincronizar ahora. Sus conteos locales siguen protegidos.') } finally { setSyncing(false) }
+    } catch { const nextMessage = 'No fue posible sincronizar ahora. Sus conteos locales siguen protegidos.'; setSyncMessage(nextMessage); setFeedback({ tone: 'OFFLINE', message: nextMessage }) } finally { setSyncing(false) }
   }
 
   return <section className="counting-screen" aria-labelledby="counting-title">
@@ -138,8 +158,9 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     {masterAvailable === false && <p className="form-error" role="alert">No existe un maestro SKU disponible en este dispositivo. Actualice el maestro antes de iniciar el conteo.</p>}
     <CapacityStatus pending={pending} capacity={capacity} />
     <section className="sync-status" aria-label="Estado de sincronización"><p role="status">{syncMessage || startupSyncMessage || 'Sincronización preparada. Los conteos locales permanecen disponibles sin conexión.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runSync(true)}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section>
+    <OperationalFeedback tone={feedback.tone} message={feedback.message} />
     {message && <p className={message === 'CONTEO GUARDADO' ? 'form-success' : 'form-error'} role="status">{message}</p>}
-    <div className="counting-form" aria-disabled={disabled}>
+    <div className="counting-form" aria-disabled={disabled} {...countSwipe}>
       <Field label="UBICACION"><TextInput value={draft.ubicacion} onChange={applyLocation} disabled={disabled} maxLength={LOCATION_MAX_LENGTH} pattern="(?:TECHO|(?:C2|[ABCDFGHI])-[0-9]{2}-[0-9]{2})" title="Formato permitido: TECHO, F-32-03 o C2-32-03" /><ScanButton field="ubicacion" onScan={scan} disabled={disabled} /></Field>
       <Field label="CODIGO"><TextInput inputRef={codeInput} value={draft.codigo} onChange={updateCode} onBlur={() => void resolveSku()} disabled={disabled} /><ScanButton field="codigo" onScan={scan} disabled={disabled} /></Field>
       <Field label="SERIE"><TextInput value={draft.serie ?? ''} onChange={(value) => setDraft((current) => ({ ...current, serie: value }))} disabled={disabled || master?.controlType === 'PARTIDA'} maxLength={19} /><ScanButton field="serie" onScan={scan} disabled={disabled || master?.controlType === 'PARTIDA'} /></Field>

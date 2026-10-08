@@ -4,7 +4,7 @@ import type { AuthChangeEvent } from '@supabase/supabase-js'
 import { getSupabaseClient } from './supabase'
 
 export type OtaUpdateState =
-  | { kind: 'IDLE' | 'UNAVAILABLE' | 'DEFERRED' | 'UNASSIGNED' | 'UP_TO_DATE'; message: string }
+  | { kind: 'IDLE' | 'UNAVAILABLE' | 'DEFERRED' | 'UNASSIGNED' | 'UP_TO_DATE' | 'CHECKING'; message: string }
   | { kind: 'DOWNLOADING' | 'READY'; message: string; version: string }
   | { kind: 'NATIVE_REQUIRED'; message: string; minNativeVersion: string }
   | { kind: 'ERROR'; message: string; canRollback: boolean }

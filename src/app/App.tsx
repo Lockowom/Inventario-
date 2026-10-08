@@ -31,6 +31,9 @@ import { bindOtaRetryEvents, otaUpdateService, type OtaUpdateState } from '../se
 import { OtaUpdatePanel } from '../features/ota/ota-update-panel'
 import { ActiveInventoryProvider } from '../features/control-center/active-inventory-context'
 import { ControlCenterScreen } from '../features/control-center/control-center-screen'
+import { ExperienceProvider } from '../ui/preferences/experience-preferences'
+import { ExperiencePanel } from '../ui/preferences/experience-panel'
+import { SoundRuntime } from '../ui/sound/sound-runtime'
 
 export function App() {
   if (isCertificationFixtureEnabled({ dev: import.meta.env.DEV, fixture: import.meta.env.VITE_CERTIFICATION_FIXTURE })) return <CertificationFixture />
@@ -141,7 +144,7 @@ function AuthenticatedRuntime() {
 
   useEffect(() => {
     let active = true
-    const refreshOta = () => { void otaUpdateService.check().then((next) => { if (active) setOtaState(next) }) }
+    const refreshOta = () => { setOtaState({ kind: 'CHECKING', message: 'Buscando una actualización OTA compatible…' }); void otaUpdateService.check().then((next) => { if (active) setOtaState(next) }) }
     refreshOta()
     const stopRetryEvents = bindOtaRetryEvents((listener) => authService.onAuthStateChange((event) => listener(event)), refreshOta)
     return () => { active = false; stopRetryEvents() }
@@ -178,10 +181,11 @@ function AuthenticatedRuntime() {
               ? <MasterSkuScreen />
               : <UserManagementScreen role={role} />
 
-  return <ActiveInventoryProvider><main className="app-shell app-shell--authenticated">
+  return <ExperienceProvider><SoundRuntime /><ActiveInventoryProvider><main className="app-shell app-shell--authenticated">
     <AppNavigation role={role} activeView={visibleView} onSelect={(view) => { if (isAppViewAllowed(role, view)) setActiveView(view) }} onSignOut={() => void authService.signOut()} />
     <section className="app-workspace" aria-label="Área de trabajo"><OtaUpdatePanel state={otaState} onApply={() => void otaUpdateService.apply().then((next) => { if (next) setOtaState(next) })} onRollback={() => void otaUpdateService.rollback()} />{content}</section>
-  </main></ActiveInventoryProvider>
+    <ExperiencePanel />
+  </main></ActiveInventoryProvider></ExperienceProvider>
 }
 
 function InfrastructureDiagnostic({ supabaseState }: { supabaseState: 'CONFIGURED' | 'NOT CONFIGURED' }) {
