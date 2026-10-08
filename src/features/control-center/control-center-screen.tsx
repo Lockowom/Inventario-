@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { AppRole } from '../../domain/auth/contracts'
 import { SupabaseLiveMonitorRepository } from '../../services/supabase-live-monitor-repository'
-import { SupabaseReconciliationRepository, type LiveReconciliationWorkspace, type ReconciliationRow, type ReconciliationSummary } from '../../services/supabase-reconciliation-repository'
+import { SupabaseReconciliationRepository, type ReconciliationRow, type ReconciliationSummary } from '../../services/supabase-reconciliation-repository'
+import { LiveReconciliationWorkspace } from '../reconciliation/live-reconciliation-workspace'
 import { InventoryLifecyclePanel } from '../supervision/inventory-lifecycle-panel'
 import { useRequiredActiveInventory } from './active-inventory-context'
 import { useSwipe } from '../../ui/gestures/use-gestures'
@@ -26,7 +27,6 @@ export function ControlCenterScreen({ role }: { role: AppRole | null }) {
   const [reconciliationSummary, setReconciliationSummary] = useState<ReconciliationSummary | null>(null)
   const [rows, setRows] = useState<Record<string, unknown>[]>([])
   const [cases, setCases] = useState<ReconciliationRow[]>([])
-  const [workspace, setWorkspace] = useState<LiveReconciliationWorkspace | null>(null)
   const [refreshedAt, setRefreshedAt] = useState<Date | null>(null)
   const [realtime, setRealtime] = useState<'LIVE' | 'RECONNECTING'>('RECONNECTING')
   const manager = role === 'ANALISTA' || role === 'ADMIN'
@@ -42,7 +42,7 @@ export function ControlCenterScreen({ role }: { role: AppRole | null }) {
       else if (tab === 'COBERTURA') setRows(await monitor.coverage(inventoryId))
       else if (tab === 'EQUIPO') setRows(await monitor.otaDevices())
       else if (tab === 'C2_C3') setRows(await monitor.missions(inventoryId))
-      else if (tab === 'DIFERENCIAS') setWorkspace(await reconciliation.liveWorkspace(inventoryId))
+      else if (tab === 'DIFERENCIAS') { /* The dedicated live workspace owns its guarded read and keyboard controls. */ }
       else setCases(await reconciliation.list(inventoryId))
       setMessage('')
       setRefreshedAt(new Date())
@@ -64,9 +64,9 @@ export function ControlCenterScreen({ role }: { role: AppRole | null }) {
     const index = tabs.findIndex((item) => item.id === current)
     return tabs[(index + direction + tabs.length) % tabs.length]?.id ?? current
   }), [])
-  const touchNavigation = useSwipe({ enabled: preferences.gestures, onSwipeLeft: () => moveTab(1), onSwipeRight: () => moveTab(-1) })
+  const touchNavigation = useSwipe({ enabled: preferences.gestures, ignoreSelector: '.live-reconciliation', onSwipeLeft: () => moveTab(1), onSwipeRight: () => moveTab(-1) })
   useKeyboardShortcuts([
-    { key: 'r', handler: () => void refresh(), enabled: manager && Boolean(inventoryId) },
+    { key: 'r', handler: () => void refresh(), enabled: manager && Boolean(inventoryId) && tab !== 'DIFERENCIAS' },
     ...tabs.map((item, index) => ({ key: String(index + 1), handler: () => setTab(item.id), enabled: manager })),
   ])
   if (!manager) return <section className="control-center-screen"><h1>CENTRO DE CONTROL DE INVENTARIO</h1><p className="form-warning">Esta vista está disponible sólo para ANALISTA y ADMIN.</p></section>
@@ -87,7 +87,7 @@ export function ControlCenterScreen({ role }: { role: AppRole | null }) {
       {tab === 'ACTIVIDAD' && <ActivityPanel rows={rows} />}
       {tab === 'COBERTURA' && <CoveragePanel rows={rows} />}
       {tab === 'EQUIPO' && <DevicePanel rows={rows} />}
-      {tab === 'DIFERENCIAS' && <DifferencePanel workspace={workspace} />}
+      {tab === 'DIFERENCIAS' && <DifferencePanel inventoryId={inventoryId} />}
       {tab === 'C2_C3' && <MissionPanel rows={rows} />}
       {tab === 'DICTAMEN' && <CasesPanel rows={cases} />}
       {tab === 'HISTORIAL' && <HistoryPanel reconciliationSummary={reconciliationSummary} refreshedAt={refreshedAt} />}
@@ -102,7 +102,7 @@ function SummaryPanel({ inventoryId, role, summary, reconciliationSummary, onCha
 function ActivityPanel({ rows }: { rows: Record<string, unknown>[] }) { return <section><h2>ACTIVIDAD DE CONTEO</h2><p>Eventos recibidos de C1, C2 y C3. No representa presencia en línea.</p><SimpleList rows={rows} line={(row) => `${String(row.stage)} · ${String(row.codigo)} · ${String(row.cantidad_contada)}`} detail={(row) => `${String(row.display_name)} · ${String(row.ubicacion)} · ${formatDate(row.received_at)}`} empty="Sin actividad recibida para este inventario." /></section> }
 function CoveragePanel({ rows }: { rows: Record<string, unknown>[] }) { return <section><h2>COBERTURA</h2><p>Una referencia no visitada durante C1 permanece pendiente; no es faltante hasta finalizar C1.</p><table className="control-center__table"><thead><tr><th>SKU</th><th>Referencia</th><th>Disponible</th><th>Físico</th><th>Estado</th></tr></thead><tbody>{rows.map((row) => <tr key={`${row.codigo}-${row.reference_type}-${row.reference_value ?? ''}`}><td>{String(row.codigo)}<small>{String(row.descripcion)}</small></td><td>{String(row.reference_value ?? '—')}<small>{String(row.reference_type)}</small></td><td>{String(row.available_quantity)}</td><td>{String(row.physical_quantity)}</td><td>{String(row.coverage_status).replaceAll('_', ' ')}</td></tr>)}</tbody></table>{!rows.length && <p>Sin referencias para este inventario.</p>}</section> }
 function DevicePanel({ rows }: { rows: Record<string, unknown>[] }) { return <section><h2>EQUIPO Y DISPOSITIVOS</h2><p>Señales OTA de Android QA. El canal lo asigna el servidor; el dispositivo no elige canal.</p><SimpleList rows={rows} line={(row) => `${String(row.display_name)} · ${String(row.channel_name ?? 'SIN ASIGNAR')}`} detail={(row) => `APK ${String(row.native_version)} · Bundle ${String(row.current_bundle_version ?? 'BASE')} · ${formatDate(row.last_seen_at)}`} empty="Aún no hay dispositivos OTA registrados." /></section> }
-function DifferencePanel({ workspace }: { workspace: LiveReconciliationWorkspace | null }) { return <section><h2>DIFERENCIAS</h2><p>Vista de comparación en vivo. Es evidencia para investigar, no una instrucción de ajuste.</p>{workspace && <><section className="control-center__metrics"><Metric label="SKU totales" value={workspace.metrics.total_skus} /><Metric label="Cuadrados" value={workspace.metrics.matched_items} /><Metric label="Con diferencia" value={workspace.metrics.difference_items} /><Metric label="Nuevas referencias" value={workspace.metrics.new_references} /><Metric label="Fuera de disponible" value={workspace.metrics.non_available_items} /></section><table className="control-center__table"><thead><tr><th>SKU</th><th>Referencia</th><th>Disponible</th><th>Físico</th><th>Diferencia</th><th>Estado</th></tr></thead><tbody>{workspace.rows.map((row) => <tr key={`${row.codigo}-${row.reference_type}-${row.reference_value ?? ''}`}><td>{row.codigo}<small>{row.descripcion}</small></td><td>{row.reference_value ?? '—'}<small>{row.reference_type}</small></td><td>{row.available_quantity}</td><td>{row.counted_quantity}</td><td>{row.difference_quantity}</td><td>{row.status.replaceAll('_', ' ')}</td></tr>)}</tbody></table></>}</section> }
+function DifferencePanel({ inventoryId }: { inventoryId: string }) { return inventoryId ? <LiveReconciliationWorkspace inventoryId={inventoryId} /> : <section><h2>DIFERENCIAS</h2><p>Seleccione un inventario autorizado para consultar la conciliación en vivo.</p></section> }
 function MissionPanel({ rows }: { rows: Record<string, unknown>[] }) { return <section><h2>MISIONES C2 / C3</h2><p>Reconteos ciegos: esta vista muestra el estado, no adelanta cantidades al contador.</p><SimpleList rows={rows} line={(row) => `C${String(row.round)} · ${String(row.codigo)} · ${String(row.status)}`} detail={(row) => `${String(row.assigned_display_name ?? 'En cola')} · ${String(row.observation_count)} ubicaciones · Total ${row.total_quantity == null ? '—' : String(row.total_quantity)}`} empty="No hay misiones C2/C3 para este inventario." /></section> }
 function CasesPanel({ rows }: { rows: ReconciliationRow[] }) { return <section><h2>DICTAMEN Y AJUSTES</h2><p>Los dictámenes quedan trazables; ningún resultado ejecuta ajustes automáticos de stock.</p>{rows.length ? <ul className="control-center__list">{rows.map((row) => <li key={row.id}><strong>{row.codigo} · {row.anomaly_type.replaceAll('_', ' ')} · {row.status.replaceAll('_', ' ')}</strong><span>Softland {row.system_quantity} · físico {row.confirmed_physical_quantity ?? row.physical_quantity} · {row.reference_value ?? 'sin referencia'}</span></li>)}</ul> : <p>No hay casos de conciliación para este inventario.</p>}</section> }
 function HistoryPanel({ reconciliationSummary, refreshedAt }: { reconciliationSummary: ReconciliationSummary | null; refreshedAt: Date | null }) { return <section><h2>HISTORIAL</h2><p>La evidencia detallada vive en los casos, misiones y cortes inmutables; este resumen no borra ni reescribe eventos.</p><dl className="control-center__history"><div><dt>Referencia Softland</dt><dd>{reconciliationSummary?.source_reference ? `v${reconciliationSummary.source_reference.reference_version} · ${reconciliationSummary.source_reference.row_count} filas` : 'Aún no cargada'}</dd></div><div><dt>Última materialización</dt><dd>{formatDate(reconciliationSummary?.last_materialized_at)}</dd></div><div><dt>Última lectura del centro</dt><dd>{refreshedAt ? refreshedAt.toLocaleString() : '—'}</dd></div></dl></section> }

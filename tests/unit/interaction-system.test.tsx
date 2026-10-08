@@ -36,6 +36,16 @@ describe('interaction system', () => {
     expect(right).not.toHaveBeenCalled()
   })
 
+  it('allows a nested surface to own its swipe gesture', () => {
+    const right = vi.fn()
+    function Probe() { const swipe = useSwipe({ onSwipeRight: right, ignoreSelector: '.nested-surface' }); return <div {...swipe}><div className="nested-surface">DETALLE</div></div> }
+    render(<Probe />)
+    const target = screen.getByText('DETALLE')
+    fireEvent.pointerDown(target, { pointerType: 'touch', clientX: 10, clientY: 20 })
+    fireEvent.pointerUp(target, { pointerType: 'touch', clientX: 90, clientY: 20 })
+    expect(right).not.toHaveBeenCalled()
+  })
+
   it('does not run shortcuts while an operator is typing', () => {
     const refresh = vi.fn()
     function Probe() { useKeyboardShortcuts([{ key: 'r', handler: refresh }]); return <input aria-label="Buscar" /> }
