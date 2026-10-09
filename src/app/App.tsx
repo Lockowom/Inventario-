@@ -163,7 +163,7 @@ function AuthenticatedRuntime() {
     : healthCaptureGate
   const visibleView = isAppViewAllowed(role, activeView) ? activeView : defaultAppViewForRole(role)
   const deviceNeedsReview = healthError !== null || healthReport?.overall === 'BLOCKED'
-  const backendStatus = healthReport?.checks.find((check) => check.key === 'BACKEND_CONNECTIVITY')?.status
+  const backendStatus = healthReport?.checks?.find((check) => check.key === 'BACKEND_CONNECTIVITY')?.status
   const deviceStatus = deviceNeedsReview ? 'REVISAR' : healthLoading ? 'COMPROBANDO' : backendStatus === 'WARN' || backendStatus === 'UNAVAILABLE' ? 'OFFLINE' : 'LISTO'
   const content = visibleView === 'device-status'
     ? <><DeviceComponentsPanel report={healthReport} loading={healthLoading} error={healthError} otaState={otaState} onOpenDiagnostic={() => void runHealth('FULL')} /><DeviceHealthScreen report={healthReport} loading={healthLoading} error={healthError} onRefresh={() => void runHealth('LIGHT')} onFullCheck={() => void runHealth('FULL')} /></>
