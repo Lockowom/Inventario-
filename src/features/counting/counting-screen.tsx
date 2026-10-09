@@ -7,6 +7,7 @@ import { scanBarcodeField, type ScanField } from '../../scanner/barcode-scanner'
 import { consumeRestoredScannerResult, subscribeToScannerRestoration } from '../../scanner/scanner-restoration'
 import { emptyPhysicalCountDraft, resetAfterSuccessfulSave } from './form-state'
 import { getCapacityStatus } from './capacity-status'
+import { getCountSyncUiModel, type CountSyncUiState } from './sync-ui-state'
 import type { SyncCoordinator } from '../../domain/sync/sync-coordinator'
 import { OperationalFeedback, type FeedbackTone } from '../../ui/feedback/operational-feedback'
 import { interactionSounds } from '../../ui/sound/interaction-sound-service'
@@ -24,8 +25,9 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
   const [saving, setSaving] = useState(false)
   const [refreshCounts, setRefreshCounts] = useState(0)
   const [pending, setPending] = useState<number | null>(null)
-  const [syncMessage, setSyncMessage] = useState('')
   const [syncing, setSyncing] = useState(false)
+  const [syncState, setSyncState] = useState<CountSyncUiState>('IDLE')
+  const [rejectedCount, setRejectedCount] = useState(0)
   const [feedback, setFeedback] = useState<{ tone: FeedbackTone; message: string }>({ tone: 'IDLE', message: '' })
   const syncRuns = useRef(0)
   const codeInput = useRef<HTMLInputElement>(null)
@@ -37,31 +39,41 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
 
   const runSync = useCallback(async (forceRetry = false) => {
     if (!syncCoordinator || !runtime) return
+    let deviceId: string
+    let pendingBefore: number
+    try {
+      deviceId = await runtime.counts.getOrCreateDeviceId(runtime.context.userId)
+      pendingBefore = await runtime.counts.countPendingByDevice(deviceId)
+    } catch {
+      setSyncState('ERROR')
+      return
+    }
+    setPending(pendingBefore)
+    if (pendingBefore === 0) {
+      setSyncing(false)
+      setSyncState('IDLE')
+      return
+    }
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
-      const offlineMessage = 'Sin conexión. El conteo permanece guardado localmente y se enviará al reconectar.'
-      setSyncMessage(offlineMessage)
-      setFeedback({ tone: 'OFFLINE', message: offlineMessage })
+      setSyncState('OFFLINE')
       return
     }
     syncRuns.current += 1
     setSyncing(true)
-    setSyncMessage('Enviando conteos pendientes al servidor…')
-    setFeedback({ tone: 'SYNCING', message: 'Enviando conteos pendientes al servidor…' })
+    setSyncState('SYNCING')
     try {
       const summary = await syncCoordinator.runInventorySync(runtime.context.inventoryId, { forceRetry })
-      const nextMessage = summary.confirmed > 0
-        ? `Servidor confirmado: ${summary.confirmed} conteo(s).`
-        : summary.diagnostic
-          ? `Sincronización requiere revisión: ${summary.diagnostic}.`
-          : 'No hay conteos elegibles para sincronizar.'
-      setSyncMessage(nextMessage)
-      if (summary.confirmed > 0 && summary.failed === 0) { setFeedback({ tone: 'SUCCESS', message: nextMessage }); interactionSounds.playSyncComplete() }
-      else if (summary.failed > 0) setFeedback({ tone: 'OFFLINE', message: 'Reintento pendiente. Sus conteos locales siguen protegidos.' })
+      const pendingAfter = await runtime.counts.countPendingByDevice(deviceId)
+      setPending(pendingAfter)
+      setRejectedCount(summary.rejected)
+      if (summary.rejected > 0) setSyncState('REJECTED')
+      else if (summary.failed > 0) setSyncState('RETRY_PENDING')
+      else if (pendingAfter === 0) setSyncState(summary.confirmed > 0 ? 'CONFIRMED' : 'IDLE')
+      else setSyncState('RETRY_PENDING')
+      if (summary.confirmed > 0 && summary.failed === 0) interactionSounds.playSyncComplete()
       setRefreshCounts((value) => value + 1)
     } catch {
-      const nextMessage = 'No fue posible sincronizar ahora. Sus conteos locales siguen protegidos y se reintentarán.'
-      setSyncMessage(nextMessage)
-      setFeedback({ tone: 'OFFLINE', message: nextMessage })
+      setSyncState('ERROR')
     } finally {
       syncRuns.current -= 1
       if (syncRuns.current === 0) setSyncing(false)
@@ -124,8 +136,8 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     setSyncing(true)
     try {
       const summary = await syncCoordinator.runOutstanding({ forceRetry: true })
-      setSyncMessage(summary.scopes === 0 ? 'No hay conteos elegibles para sincronizar.' : `Sincronización: ${summary.confirmed} confirmados, ${summary.rejected} requieren revisión, ${summary.failed} para reintentar.`)
-    } catch { setSyncMessage('No fue posible sincronizar ahora. Sus conteos locales siguen protegidos.') } finally { setSyncing(false) }
+      setSyncState(summary.rejected > 0 ? 'REJECTED' : summary.failed > 0 ? 'RETRY_PENDING' : 'IDLE')
+    } catch { setSyncState('ERROR') } finally { setSyncing(false) }
   }
 
   const capacity = pending === null ? null : pendingCapacity(pending)
@@ -137,7 +149,7 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
       if (window.confirm('¿Confirmar y guardar este conteo?')) void save()
     },
   })
-  if (!runtime) return <section className="counting-screen" aria-labelledby="counting-title"><p className="eyebrow">Fase 4 · Captura bloqueada</p><h1 id="counting-title">CONTEO FÍSICO</h1><p className="form-error" role="alert">{captureGate?.message ?? 'Captura no disponible: seleccione un inventario ABIERTO desde el contexto autenticado.'}</p><section className="sync-status" aria-label="Estado de sincronización pendiente"><p role="status">{syncMessage || startupSyncMessage || 'Los conteos locales pendientes permanecen protegidos y disponibles para sincronización.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runOutstandingSync()}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section></section>
+  if (!runtime) return <section className="counting-screen" aria-labelledby="counting-title"><p className="eyebrow">Fase 4 · Captura bloqueada</p><h1 id="counting-title">CONTEO FÍSICO</h1><p className="form-error" role="alert">{captureGate?.message ?? 'Captura no disponible: seleccione un inventario ABIERTO desde el contexto autenticado.'}</p><section className="sync-status" aria-label="Estado de sincronización pendiente"><p role="status">{startupSyncMessage || 'Los conteos locales pendientes permanecen protegidos y disponibles para sincronización.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runOutstandingSync()}>{syncing ? 'SINCRONIZANDO…' : 'REINTENTAR SINCRONIZACIÓN'}</button></section></section>
   const activeRuntime = runtime
   const invalidCode = draft.codigo.trim().length > 0 && master === null
   const disabled = healthBlocked || masterAvailable !== true || saving || pending === null || capacity === 'BLOCKED' || invalidCode
@@ -183,7 +195,8 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
       const { savePhysicalCount } = await import('../../domain/count/save-physical-count')
       const saved = await savePhysicalCount(activeRuntime.context, draft, activeRuntime)
       setMessage('CONTEO GUARDADO')
-      setFeedback({ tone: navigator.onLine ? 'SYNCING' : 'OFFLINE', message: navigator.onLine ? 'Guardado localmente. Sincronizando sin bloquear la captura.' : 'Guardado localmente sin conexión. Se enviará automáticamente.' })
+      setSyncState(navigator.onLine ? 'LOCAL_SAVED' : 'OFFLINE')
+      setFeedback({ tone: 'SUCCESS', message: 'Conteo guardado localmente.' })
       interactionSounds.playSaveSuccess()
       setPending(saved.pending)
       setDraft((current) => resetAfterSuccessfulSave(current))
@@ -202,7 +215,7 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     {healthBlocked && <p className="form-error" role="alert">{captureGate?.message ?? 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.'}</p>}
     {masterAvailable === false && <p className="form-error" role="alert">No existe un maestro SKU disponible en este dispositivo. Actualice el maestro antes de iniciar el conteo.</p>}
     <CapacityStatus pending={pending} capacity={capacity} />
-    <section className="sync-status" aria-label="Estado de sincronización"><p role="status">{syncMessage || startupSyncMessage || 'Sincronización preparada. Los conteos locales permanecen disponibles sin conexión.'}</p><button className="button-secondary" type="button" disabled={!syncCoordinator || syncing} onClick={() => void runSync(true)}>{syncing ? 'SINCRONIZANDO…' : 'SINCRONIZAR AHORA'}</button></section>
+    <SyncStatus state={syncState} pending={pending} rejected={rejectedCount} syncing={syncing} onRetry={() => void runSync(true)} />
     <OperationalFeedback tone={feedback.tone} message={feedback.message} />
     {message && <p className={message === 'CONTEO GUARDADO' ? 'form-success' : 'form-error'} role="status">{message}</p>}
     <div className="counting-form" aria-disabled={disabled} {...countSwipe}>
@@ -231,11 +244,21 @@ function ProductIdentification({ master, hasCode, invalid }: { master: MasterSku
   return <section className="counting-product-card" aria-live="polite" aria-label="Producto identificado"><strong>✓ PRODUCTO IDENTIFICADO</strong><span>{master.descripcion}</span><em>{master.controlType}</em></section>
 }
 
+function SyncStatus({ state, pending, rejected, syncing, onRetry }: { state: CountSyncUiState; pending: number | null; rejected: number; syncing: boolean; onRetry: () => void }) {
+  if (pending === null) return <section className="sync-status" aria-label="Estado de sincronización"><p role="status">Comprobando sincronización local…</p></section>
+  const model = getCountSyncUiModel(state, pending, rejected)
+  return <section className={`sync-status sync-status--${state.toLowerCase()}`} aria-label="Estado de sincronización">
+    <div><strong>{model.title}</strong><p role="status">{model.detail}</p></div>
+    {model.action === 'RETRY' && !syncing && <button className="button-secondary" type="button" onClick={onRetry}>REINTENTAR SINCRONIZACIÓN</button>}
+    {model.action === 'DETAIL' && <a href="#mis-conteos">VER DETALLE</a>}
+  </section>
+}
+
 function MyCounts({ runtime, refreshKey }: { runtime: CountingRuntime; refreshKey: number }) {
   const [search, setSearch] = useState('')
   const [counts, setCounts] = useState<LocalCountRecord[]>([])
   useEffect(() => { void runtime.counts.listOwnCounts({ inventoryId: runtime.context.inventoryId, userId: runtime.context.userId, search }).then(setCounts) }, [runtime, search, refreshKey])
-  return <section className="my-counts" aria-labelledby="my-counts-title"><h2 id="my-counts-title">MIS CONTEOS</h2><label className="field"><span>Buscar por código, serie, partida o ubicación</span><input value={search} onChange={(event) => setSearch(event.target.value)} /></label><ul>{counts.map((count) => <li key={count.clientCountId}><time>{new Date(count.capturedAt).toLocaleTimeString()}</time><strong>{count.ubicacion}</strong><span>{count.codigo} · {count.descripcion}</span><span>{count.serie ?? count.partida ?? 'Sin serie/partida'} · {count.cantidadContada}</span><em>{syncLabel(count)}</em>{count.lastSyncError && <small>{count.lastSyncError}</small>}</li>)}</ul>{counts.length === 0 && <p>No hay conteos locales para este inventario.</p>}</section>
+  return <section id="mis-conteos" className="my-counts" aria-labelledby="my-counts-title"><h2 id="my-counts-title">MIS CONTEOS</h2><label className="field"><span>Buscar por código, serie, partida o ubicación</span><input value={search} onChange={(event) => setSearch(event.target.value)} /></label><ul>{counts.map((count) => <li key={count.clientCountId}><time>{new Date(count.capturedAt).toLocaleTimeString()}</time><strong>{count.ubicacion}</strong><span>{count.codigo} · {count.descripcion}</span><span>{count.serie ?? count.partida ?? 'Sin serie/partida'} · {count.cantidadContada}</span><em>{syncLabel(count)}</em>{count.lastSyncError && <small>{count.lastSyncError}</small>}</li>)}</ul>{counts.length === 0 && <p>No hay conteos locales para este inventario.</p>}</section>
 }
 
 function syncLabel(count: LocalCountRecord): string {
@@ -249,7 +272,8 @@ function syncLabel(count: LocalCountRecord): string {
 function CapacityStatus({ pending, capacity }: { pending: number | null; capacity: PendingCapacity | null }) {
   if (pending === null) return <p role="status">Comprobando capacidad local…</p>
   const status = getCapacityStatus(pending)
-  if (capacity === 'BLOCKED' || capacity === 'CRITICAL') return <p className="form-error" role="alert">{status.message}</p>
-  if (capacity === 'WARNING') return <p className="form-warning" role="status">{status.message}</p>
-  return <p role="status">{status.message}</p>
+  const content = <><span>Capacidad local</span>{status.message}</>
+  if (capacity === 'BLOCKED' || capacity === 'CRITICAL') return <p className="form-error capacity-status" role="alert">{content}</p>
+  if (capacity === 'WARNING') return <p className="form-warning capacity-status" role="status">{content}</p>
+  return <p className="capacity-status" role="status">{content}</p>
 }

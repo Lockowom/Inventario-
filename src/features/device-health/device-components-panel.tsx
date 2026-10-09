@@ -53,7 +53,7 @@ export function DeviceComponentsPanel({ report, loading, error, otaState, onOpen
   ]
 
   return <section className="device-components" aria-labelledby="device-components-title">
-    <p className="eyebrow">Experiencia · estado del dispositivo</p><h1 id="device-components-title">COMPONENTES</h1>
+    <p className="eyebrow">Experiencia · protección silenciosa</p><h1 id="device-components-title">ESTADO DEL DISPOSITIVO</h1><h2>COMPONENTES</h2>
     <p>La protección se ejecuta en segundo plano. La captura sólo se bloquea ante un problema crítico.</p>
     <dl>{rows.map((row) => <div key={row.label}><dt>{row.label}<small>{row.value}</small>{row.label === 'Scanner' && row.state === 'DESCARGANDO' && <progress aria-label="Preparando scanner" />}</dt><dd className={`device-components__state device-components__state--${row.state.toLowerCase().replaceAll(' ', '-')}`}>{row.state}</dd></div>)}</dl>
     <button className="button-secondary" type="button" onClick={onOpenDiagnostic}>VER DIAGNÓSTICO COMPLETO</button>

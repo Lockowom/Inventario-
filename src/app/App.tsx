@@ -163,6 +163,8 @@ function AuthenticatedRuntime() {
     : healthCaptureGate
   const visibleView = isAppViewAllowed(role, activeView) ? activeView : defaultAppViewForRole(role)
   const deviceNeedsReview = healthError !== null || healthReport?.overall === 'BLOCKED'
+  const backendStatus = healthReport?.checks.find((check) => check.key === 'BACKEND_CONNECTIVITY')?.status
+  const deviceStatus = deviceNeedsReview ? 'REVISAR' : healthLoading ? 'COMPROBANDO' : backendStatus === 'WARN' || backendStatus === 'UNAVAILABLE' ? 'OFFLINE' : 'LISTO'
   const content = visibleView === 'device-status'
     ? <><DeviceComponentsPanel report={healthReport} loading={healthLoading} error={healthError} otaState={otaState} onOpenDiagnostic={() => void runHealth('FULL')} /><DeviceHealthScreen report={healthReport} loading={healthLoading} error={healthError} onRefresh={() => void runHealth('LIGHT')} onFullCheck={() => void runHealth('FULL')} /></>
     : visibleView === 'counting'
@@ -186,7 +188,7 @@ function AuthenticatedRuntime() {
               : <UserManagementScreen role={role} />
 
   return <ExperienceProvider><SoundRuntime /><ActiveInventoryProvider><main className="app-shell app-shell--authenticated">
-    <AppNavigation role={role} activeView={visibleView} onSelect={(view) => { if (isAppViewAllowed(role, view)) setActiveView(view) }} onDeviceStatus={() => setActiveView('device-status')} deviceNeedsReview={deviceNeedsReview} onSignOut={() => void authService.signOut()} />
+    <AppNavigation role={role} activeView={visibleView} onSelect={(view) => { if (isAppViewAllowed(role, view)) setActiveView(view) }} onDeviceStatus={() => setActiveView('device-status')} deviceNeedsReview={deviceNeedsReview} deviceStatus={deviceStatus} onSignOut={() => void authService.signOut()} />
     <section className="app-workspace" aria-label="Área de trabajo"><OtaUpdatePanel state={otaState} onApply={() => void otaUpdateService.apply().then((next) => { if (next) setOtaState(next) })} onRollback={() => void otaUpdateService.rollback()} />{deviceNeedsReview && visibleView !== 'device-status' && <section className="device-review-banner" role="alert"><strong>DISPOSITIVO REQUIERE REVISIÓN</strong><button className="button-secondary" type="button" onClick={() => setActiveView('device-status')}>VER DIAGNÓSTICO</button></section>}{content}</section>
     <ExperiencePanel />
   </main></ActiveInventoryProvider></ExperienceProvider>

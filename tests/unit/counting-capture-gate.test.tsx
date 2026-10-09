@@ -35,7 +35,7 @@ describe('CountingScreen Device Health capture gate', () => {
     expect(screen.getAllByRole('button', { name: /Escanear/i }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true)
     expect(screen.getByRole('heading', { name: 'MIS CONTEOS' })).toBeVisible()
     expect(screen.getByLabelText('Buscar por código, serie, partida o ubicación')).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'SINCRONIZAR AHORA' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'REINTENTAR SINCRONIZACIÓN' })).toBeEnabled()
     expect(screen.getByText('Pendiente de sincronización')).toBeVisible()
     expect(screen.getByText('Confirmado en servidor')).toBeVisible()
     expect(screen.getByText('Pendiente de reintento')).toBeVisible()
@@ -75,7 +75,7 @@ describe('CountingScreen Device Health capture gate', () => {
 
   it('keeps app-level runOutstanding available when authorization has no capture runtime', () => {
     render(<CountingScreen runtime={null} syncCoordinator={coordinator} captureGate={{ blocked: true, message: 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.' }} />)
-    expect(screen.getByRole('button', { name: 'SINCRONIZAR AHORA' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'REINTENTAR SINCRONIZACIÓN' })).toBeEnabled()
     expect(screen.getByText(/Captura bloqueada por Health Check/)).toBeVisible()
   })
 
@@ -87,7 +87,7 @@ describe('CountingScreen Device Health capture gate', () => {
     } as unknown as SyncCoordinator
 
     render(<CountingScreen runtime={runtime()} syncCoordinator={manualCoordinator} captureGate={{ blocked: false, message: null }} />)
-    const button = await screen.findByRole('button', { name: 'SINCRONIZAR AHORA' })
+    const button = await screen.findByRole('button', { name: 'REINTENTAR SINCRONIZACIÓN' })
     fireEvent.click(button)
     await waitFor(() => expect(runInventorySync).toHaveBeenCalledWith(inventoryId, { forceRetry: true }))
   })
@@ -103,6 +103,16 @@ describe('CountingScreen Device Health capture gate', () => {
     await waitFor(() => expect(runInventorySync).toHaveBeenCalledWith(inventoryId, { forceRetry: false }))
     fireEvent(window, new Event('online'))
     await waitFor(() => expect(runInventorySync).toHaveBeenCalledTimes(2))
+  })
+
+  it('shows a clean synchronized state and hides manual recovery when the durable pending count is zero', async () => {
+    const runInventorySync = vi.fn(async () => ({ claimed: 0, confirmed: 0, rejected: 0, failed: 0, conflicts: 0, diagnostic: null }))
+    const emptyCoordinator = { runInventorySync, runOutstanding: vi.fn() } as unknown as SyncCoordinator
+    render(<CountingScreen runtime={runtime(0)} syncCoordinator={emptyCoordinator} captureGate={{ blocked: false, message: null }} />)
+    await waitFor(() => expect(screen.getByText('TODO SINCRONIZADO')).toBeVisible())
+    expect(screen.queryByText('SINCRONIZANDO…')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'REINTENTAR SINCRONIZACIÓN' })).not.toBeInTheDocument()
+    expect(runInventorySync).not.toHaveBeenCalled()
   })
 
   it('keeps a restored scanner result durable while blocked, then applies it exactly once after READY', async () => {

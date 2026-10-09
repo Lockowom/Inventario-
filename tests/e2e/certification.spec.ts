@@ -40,7 +40,7 @@ test.describe('F9A certificación responsive y accesible', () => {
     await expect(page.getByText('Pendiente de sincronización').first()).toBeVisible()
     await expect(page.getByText('Confirmado en servidor')).toBeVisible()
     await expect(page.getByText('Pendiente de reintento')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'SINCRONIZAR AHORA' })).toBeEnabled()
+    await expect(page.getByRole('button', { name: 'REINTENTAR SINCRONIZACIÓN' })).toBeEnabled()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   })
 
