@@ -53,9 +53,42 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = [
       await database.execute('create index if not exists local_count_records_sync_eligible_idx on local_count_records (user_id, sync_status, next_retry_at, captured_at)')
     },
   },
+  {
+    version: 6,
+    up: async (database) => {
+      // F9B physical QA exposed a client-side timestamp parser defect after the
+      // server had already accepted the count. Requeue only this synthetic
+      // client-contract failure; replay is safe because client_count_id is
+      // idempotent server-side and will resolve as ALREADY_ACCEPTED.
+      await database.execute(
+        "update local_count_records set sync_status = 'FAILED', sync_started_at = null, next_retry_at = null, last_sync_error = 'SYNC_RESPONSE_COMPATIBILITY_RECOVERY' where sync_status = 'REJECTED' and last_sync_error = 'SYNC_RESPONSE_INCOMPATIBLE' and server_count_id is null"
+      )
+    },
+  },
+  {
+    version: 7,
+    up: async (database) => {
+      // Persisted only after a successful server verification. It restores
+      // permitted offline navigation without storing credentials or a token.
+      await database.execute("alter table local_counting_context add column role text check (role in ('CONTADOR', 'ANALISTA', 'ADMIN'))")
+    },
+  },
 ]
 
+const migrationRuns = new WeakMap<SqliteDatabase, Promise<void>>()
+
 export async function applySqliteMigrations(database: SqliteDatabase, migrations: readonly SqliteMigration[] = SQLITE_MIGRATIONS): Promise<void> {
+  const active = migrationRuns.get(database)
+  if (active) return active
+
+  const run = applySqliteMigrationsOnce(database, migrations).finally(() => {
+    if (migrationRuns.get(database) === run) migrationRuns.delete(database)
+  })
+  migrationRuns.set(database, run)
+  return run
+}
+
+async function applySqliteMigrationsOnce(database: SqliteDatabase, migrations: readonly SqliteMigration[]): Promise<void> {
   const ordered = [...migrations].sort((left, right) => left.version - right.version)
   if (ordered.length === 0 || ordered.some((migration, index) => migration.version !== index + 1)) throw new Error('La lista de migraciones SQLite no es contigua.')
   const current = (await database.query<SqliteVersionRow>('pragma user_version')).values[0]?.user_version ?? 0

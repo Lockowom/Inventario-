@@ -75,8 +75,17 @@ set local role anon;
 select throws_ok($$select public.get_inventory_supervision('82000000-0000-0000-0000-000000000001')$$, '42501', 'permission denied for function get_inventory_supervision', 'anon cannot execute supervision RPC');
 reset role;
 
+update public.inventories i
+set c1_completed_at=now(),
+    c1_completed_by='81000000-0000-0000-0000-000000000001',
+    c1_count_records=(select count(*)::integer from public.count_records c where c.inventory_id=i.id),
+    c1_counted_units=(select coalesce(sum(c.cantidad_contada),0)::bigint from public.count_records c where c.inventory_id=i.id),
+    c1_master_fingerprint=repeat('c',64),
+    c1_reference_fingerprint=repeat('d',64)
+where i.id='82000000-0000-0000-0000-000000000001';
+
 select set_config('request.jwt.claim.sub', '81000000-0000-0000-0000-000000000001', true); set local role authenticated;
-select lives_ok($$select public.close_inventory('82000000-0000-0000-0000-000000000001')$$, 'closed inventory remains consultable');
+select lives_ok($q$select public.close_inventory('82000000-0000-0000-0000-000000000001')$q$, 'F16-complete closed inventory remains consultable');
 select is((select public.get_inventory_supervision('82000000-0000-0000-0000-000000000001')->'inventory'->>'status'), 'CERRADO', 'closed inventory is still readable');
 select lives_ok($$select public.freeze_inventory('82000000-0000-0000-0000-000000000001')$$, 'frozen inventory remains read-only and consultable');
 select is((select public.get_inventory_supervision('82000000-0000-0000-0000-000000000001')->'inventory'->>'status'), 'CONGELADO', 'frozen state is returned as observation only');

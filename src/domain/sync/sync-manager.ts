@@ -11,6 +11,7 @@ export interface CountSyncGateway {
 }
 
 export interface SyncManagerContext { inventoryId: string; userId: string }
+export interface SyncRunOptions { forceRetry?: boolean }
 
 /**
  * Coordinates a local outbox. It has no SQL/Dexie/Supabase dependency: adapters
@@ -27,8 +28,8 @@ export class SyncManager {
     private readonly random: () => number = Math.random,
   ) {}
 
-  public run(): Promise<SyncRunSummary> {
-    this.inFlight ??= this.runInternal().finally(() => { this.inFlight = null })
+  public run(options: SyncRunOptions = {}): Promise<SyncRunSummary> {
+    this.inFlight ??= this.runInternal(options).finally(() => { this.inFlight = null })
     return this.inFlight
   }
 
@@ -40,7 +41,7 @@ export class SyncManager {
     await this.gateway.reportPending({ inventoryId: this.context.inventoryId, deviceId, pendingCount: await this.counts.countOutstandingByInventoryDevice(this.context.inventoryId, deviceId) })
   }
 
-  private async runInternal(): Promise<SyncRunSummary> {
+  private async runInternal(options: SyncRunOptions): Promise<SyncRunSummary> {
     const summary: SyncRunSummary = { claimed: 0, confirmed: 0, rejected: 0, failed: 0, conflicts: 0, diagnostic: null }
     if (!this.gateway) return summary
     const deviceId = await this.counts.getOrCreateDeviceId(this.context.userId)
@@ -53,7 +54,7 @@ export class SyncManager {
     }
     while (true) {
       const claimedAt = this.clock()
-      const claimed = await this.counts.claimNextSyncBatch({ inventoryId: this.context.inventoryId, userId: this.context.userId, max: SYNC_BATCH_SIZE, now: claimedAt.toISOString() })
+      const claimed = await this.counts.claimNextSyncBatch({ inventoryId: this.context.inventoryId, userId: this.context.userId, max: SYNC_BATCH_SIZE, now: claimedAt.toISOString(), forceRetry: options.forceRetry })
       if (claimed.length === 0) break
       summary.claimed += claimed.length
       try {

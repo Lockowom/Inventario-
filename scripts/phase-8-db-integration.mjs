@@ -33,14 +33,19 @@ async function rpcError(actorValue, name, body, expected) {
 }
 
 async function createInventory(owner, manager, label) {
-  const id = randomUUID(); const time = now(); const deviceId = randomUUID()
-  await must(service.from('inventories').insert({ id, name: `P8_${label}_${randomUUID()}`, status: 'ABIERTO', created_by: owner.id, prepared_at: time, prepared_by: owner.id, opened_at: time, opened_by: owner.id }), `inventory ${label}`)
+  const id = randomUUID(); const deviceId = randomUUID()
+  await must(service.from('inventories').insert({ id, name: `P8_${label}_${randomUUID()}`, status: 'BORRADOR', created_by: owner.id }), `inventory ${label}`)
   await must(service.from('inventory_assignments').insert([{ inventory_id: id, user_id: owner.id, assigned_by: owner.id }, { inventory_id: id, user_id: manager.id, assigned_by: owner.id }]), `assignments ${label}`)
-  await must(service.from('inventory_master_items').insert([
-    { inventory_id: id, codigo: '001234', descripcion: 'Legacy F8', control_type: 'LEGACY', source: 'TEST', created_by: owner.id },
-    { inventory_id: id, codigo: 'SERIALS', descripcion: 'Serial F8', control_type: 'SERIAL', source: 'TEST', created_by: owner.id },
-    { inventory_id: id, codigo: 'BATCHP', descripcion: 'Batch F8', control_type: 'PARTIDA', source: 'TEST', created_by: owner.id },
-  ]), `master ${label}`)
+  await rpc(admin, 'import_inventory_master', { target_inventory_id: id, import_items: [
+    { codigo: '001234', descripcion: 'Legacy F8' },
+    { codigo: 'SERIALS', descripcion: 'Serial F8' },
+    { codigo: 'BATCHP', descripcion: 'Batch F8' },
+  ], import_source: 'PHASE8_FIXTURE', import_identifier: `master-${label}` })
+  await rpc(admin, 'import_inventory_system_reference', { p_inventory_id: id, p_items: [
+    { codigo: '001234', quantity: 3, available_quantity: 3 },
+  ], p_source: 'PHASE8_FIXTURE', p_import_identifier: `reference-${label}` })
+  await rpc(owner, 'prepare_inventory', { target_inventory_id: id })
+  await rpc(owner, 'open_inventory', { target_inventory_id: id })
   await rpc(owner, 'register_sync_device', { p_device_id: deviceId, p_platform: 'WEB', p_app_version: 'phase8-ci', p_device_label: `P8 ${label}` })
   return { id, deviceId }
 }
@@ -105,6 +110,8 @@ await scenario('STATES', async () => {
   const notReadyCut = await rpc(manager, 'create_cut', { p_inventory_id: notReadyInventory.id, p_request_id: randomUUID() })
   const [notReadyRecord] = await rpc(manager, 'get_cut_items', { p_cut_id: notReadyCut.id, p_limit: 100, p_after_export_seq: null })
   await rpcError(manager, 'rectify_cut', { p_cut_id: notReadyCut.id, p_count_record_id: notReadyRecord.count_record_id, p_physical_payload: { ubicacion: 'A-01-01', codigo: '001234', cantidad_contada: 2 }, p_reason: 'not ready', p_request_id: randomUUID() }, 'Cut must be READY')
+  const c1 = await rpc(manager, 'finalize_c1_coverage', { p_inventory_id: primary.id, p_confirm_devices_synced: true })
+  fail(c1.c1_status === 'COMPLETADO', 'C1 did not complete before inventory closure.')
   const closed = await rpc(manager, 'close_inventory', { target_inventory_id: primary.id })
   fail(closed.status === 'CERRADO', 'Inventory did not close.')
   const closedRectification = await rpc(manager, 'rectify_cut', { p_cut_id: ready.id, p_count_record_id: recordB.count_record_id, p_physical_payload: { ubicacion: 'C-03-04', codigo: '001234', cantidad_contada: 4 }, p_reason: 'closed state', p_request_id: randomUUID() })
@@ -182,6 +189,9 @@ await scenario('AUTO_RESERVATIONS', async () => {
   const retryReservations = await service.from('artifact_generations').select('id', { count: 'exact', head: true }).eq('cut_id', ready.id).in('scope', ['CUT_SNAPSHOT', 'CUT_READY_BACKUP'])
   fail(!retryReservations.error && retryReservations.count === 2, 'READY retry duplicated reservations.')
   const freezeInventory = await createInventory(owner, manager, 'freeze')
+  await stageCount(owner, freezeInventory, { cantidad_contada: 3 })
+  const freezeC1 = await rpc(manager, 'finalize_c1_coverage', { p_inventory_id: freezeInventory.id, p_confirm_devices_synced: true })
+  fail(freezeC1.c1_status === 'COMPLETADO', 'Freeze fixture did not complete C1 before closure.')
   await rpc(manager, 'close_inventory', { target_inventory_id: freezeInventory.id }); await rpc(manager, 'freeze_inventory', { target_inventory_id: freezeInventory.id })
   const finalBackup = await must(service.from('artifact_generations').select('scope,status,as_of_at,requested_by,request_origin').eq('inventory_id', freezeInventory.id).eq('scope', 'FINAL_FROZEN_BACKUP').single(), 'final frozen backup')
   const frozenState = await must(service.from('inventories').select('frozen_at').eq('id', freezeInventory.id).single(), 'frozen state')

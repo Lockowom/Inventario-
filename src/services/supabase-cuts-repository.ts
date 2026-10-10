@@ -35,9 +35,16 @@ export class SupabaseCutsRepository {
   }
 
   public async cuts(inventoryId: string) {
-    const { data, error } = await clientOrThrow().rpc('list_inventory_cuts_v2', { p_inventory_id: inventoryId, p_limit: 50, p_before_cut_number: null })
+    const client = clientOrThrow()
+    const { data, error } = await client.rpc('list_inventory_cuts_v2', { p_inventory_id: inventoryId, p_limit: 50, p_before_cut_number: null })
     if (error) throw new Error('No fue posible cargar cortes autorizados.')
-    return (data ?? []) as Record<string, unknown>[]
+    const cuts = (data ?? []) as Record<string, unknown>[]
+    const userIds = [...new Set(cuts.map((cut) => typeof cut.created_by === 'string' ? cut.created_by : null).filter((id): id is string => Boolean(id)))]
+    if (userIds.length === 0) return cuts
+    const { data: profiles, error: profileError } = await client.from('profiles').select('user_id,display_name').in('user_id', userIds)
+    if (profileError) return cuts
+    const displayNames = new Map((profiles ?? []).map((profile) => [String(profile.user_id), String(profile.display_name)]))
+    return cuts.map((cut) => ({ ...cut, created_by_name: displayNames.get(String(cut.created_by ?? '')) ?? String(cut.created_by ?? '') }))
   }
 
   public async createCut(inventoryId: string, requestId: string) {

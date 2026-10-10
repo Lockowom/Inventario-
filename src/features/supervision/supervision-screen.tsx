@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { activityState, snapshotFilters, type SupervisionCursor, type SupervisionFilters } from '../../domain/supervision/contracts'
 import { SupabaseSupervisionRepository } from '../../services/supabase-supervision-repository'
 import { isSupabaseConfigured } from '../../services/supabase'
+import { InventoryLifecyclePanel } from './inventory-lifecycle-panel'
 
 const repository = new SupabaseSupervisionRepository()
 type Inventory = { id: string; name: string; status: string }
@@ -40,6 +41,12 @@ export function SupervisionScreen() {
       setSummary(data); setMessage('')
     } catch (error: unknown) { setMessage(error instanceof Error ? error.message : 'Supervisión no disponible.') }
   }
+  async function refreshLifecycleContext() {
+    const items = await repository.inventories() as Inventory[]
+    setInventories(items)
+    if (!items.some((item) => item.id === inventoryId)) setInventoryId(items[0]?.id ?? '')
+    await refreshSummary()
+  }
   function selectInventory(nextInventoryId: string) {
     setInventoryId(nextInventoryId); setRows([]); setNextCursor(null); setAppliedFilters(null)
   }
@@ -73,6 +80,7 @@ export function SupervisionScreen() {
     <header><p className="eyebrow">Fase 5 · observación operacional</p><h1 id="supervision-title">SUPERVISIÓN</h1><p>Actividad recibida por servidor; “pendientes conocidos” no cubre dispositivos totalmente offline.</p></header>
     <div className="supervision-actions"><label className="field"><span>Inventario</span><select value={inventoryId} onChange={(event) => selectInventory(event.target.value)}>{inventories.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.status}</option>)}</select></label><button className="button-secondary" type="button" onClick={() => void refreshSummary()}>ACTUALIZAR</button></div>
     {message && <p className="form-warning" role="status">{message}</p>}
+    {isManager&&inventoryId&&<InventoryLifecyclePanel inventoryId={inventoryId} role={profile!.role as 'ANALISTA'|'ADMIN'} onChanged={refreshLifecycleContext}/>}
     {profile?.role === 'CONTADOR' ? <OwnSummary summary={mine} /> : <>
       <section className="supervision-summary" aria-label="Resumen de inventario"><Metric label="Conteos recibidos" value={data?.received_counts} /><Metric label="Unidades contadas" value={data?.counted_units} /><Metric label="Contadores asignados" value={data?.assigned_counters} /><Metric label="Dispositivos conocidos" value={data?.known_devices} /><Metric label="Pendientes conocidos" value={data?.known_pending} /><Metric label="Última recepción" value={formatDate(data?.last_received_at)} /></section>
       <h2>Estado de contadores</h2><div className="supervision-cards">{counters.map((counter) => <article key={String(counter.user_id)}><strong>{String(counter.display_name)}</strong><span>{String(counter.role)} · {counter.active ? 'ACTIVO' : 'INACTIVO'}</span><span>{activityState(stringOrNull(counter.last_seen_at))}</span><span>{String(counter.received_counts)} conteos · {String(counter.counted_units)} unidades</span><span>Última captura: {formatDate(counter.last_captured_at)}</span><span>Última recepción: {formatDate(counter.last_received_at)}</span><span>Pendientes conocidos: {String(counter.known_pending)}</span></article>)}</div>

@@ -1,5 +1,8 @@
 apply plugin: 'com.android.application'
 
+def inven3VersionCode = (project.findProperty("INVEN3_VERSION_CODE") ?: "10000").toInteger()
+def inven3VersionName = project.findProperty("INVEN3_VERSION_NAME") ?: "1.0.0"
+
 android {
     namespace = "com.lockowom.inven3"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +10,8 @@ android {
         applicationId "com.lockowom.inven3"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode inven3VersionCode
+        versionName inven3VersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

@@ -1,0 +1,2 @@
+-- Historical QA baseline marker. The schema change is already present in QA.
+-- Kept as a no-op so local migration history matches the reviewed QA lineage.

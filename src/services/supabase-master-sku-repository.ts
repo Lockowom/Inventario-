@@ -12,9 +12,24 @@ export class SupabaseMasterSkuRepository implements MasterSkuRepository {
 
   public async listByInventory(inventoryId: string): Promise<MasterSku[]> {
     const client = requireClient()
-    const { data, error } = await client.from('inventory_master_items').select('inventory_id, codigo, descripcion, control_type, created_at').eq('inventory_id', inventoryId).order('codigo')
-    if (error) throw error
-    return (data ?? []).map(parseMasterSku)
+    const pageSize = 1000
+    const rows: Array<{ inventory_id: string; codigo: string; descripcion: string; control_type: string; created_at: string }> = []
+
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await client
+        .from('inventory_master_items')
+        .select('inventory_id, codigo, descripcion, control_type, created_at')
+        .eq('inventory_id', inventoryId)
+        .order('codigo')
+        .range(from, from + pageSize - 1)
+
+      if (error) throw error
+      const page = data ?? []
+      rows.push(...page)
+      if (page.length < pageSize) break
+    }
+
+    return rows.map(parseMasterSku)
   }
 
   public async getMetadata(inventoryId: string): Promise<MasterMetadata | null> {
@@ -35,9 +50,9 @@ export class SupabaseMasterSkuRepository implements MasterSkuRepository {
     if (error) throw error
   }
 
-  public async importPreview(inventoryId: string, items: ReadonlyArray<Pick<MasterSku, 'codigo' | 'descripcion'>>, importIdentifier: string): Promise<MasterMetadata> {
+  public async importPreview(inventoryId: string, items: ReadonlyArray<Pick<MasterSku, 'codigo' | 'descripcion'>>, importIdentifier: string, importSource: 'FILE' | 'PASTE' | 'LOAD_CENTER' = 'FILE'): Promise<MasterMetadata> {
     const client = requireClient()
-    const { data, error } = await client.rpc('import_inventory_master', { target_inventory_id: inventoryId, import_items: items, import_source: 'FILE', import_identifier: importIdentifier })
+    const { data, error } = await client.rpc('import_inventory_master', { target_inventory_id: inventoryId, import_items: items, import_source: importSource, import_identifier: importIdentifier })
     if (error) throw error
     const result = Array.isArray(data) ? data[0] : data
     if (!result) throw new Error('La importación no devolvió metadata.')
@@ -61,9 +76,27 @@ function requireClient() {
 }
 
 function parseMasterSku(value: { inventory_id: string; codigo: string; descripcion: string; control_type: string; created_at: string }): MasterSku {
-  return masterSkuSchema.parse({ inventoryId: value.inventory_id, codigo: value.codigo, descripcion: value.descripcion, controlType: value.control_type, cachedAt: value.created_at })
+  return masterSkuSchema.parse({
+    inventoryId: value.inventory_id,
+    codigo: value.codigo,
+    descripcion: value.descripcion,
+    controlType: value.control_type,
+    cachedAt: normalizePostgresTimestamp(value.created_at),
+  })
 }
 
 function parseMasterMetadata(value: { inventory_id: string; master_version: number; row_count: number; fingerprint: string; cached_at: string }): MasterMetadata {
-  return masterMetadataSchema.parse({ inventoryId: value.inventory_id, masterVersion: value.master_version, rowCount: value.row_count, fingerprint: value.fingerprint, cachedAt: value.cached_at })
+  return masterMetadataSchema.parse({
+    inventoryId: value.inventory_id,
+    masterVersion: value.master_version,
+    rowCount: value.row_count,
+    fingerprint: value.fingerprint,
+    cachedAt: normalizePostgresTimestamp(value.cached_at),
+  })
+}
+
+export function normalizePostgresTimestamp(value: string): string {
+  const parsed = new Date(value)
+  if (Number.isNaN(parsed.getTime())) throw new Error('Timestamp remoto inválido.')
+  return parsed.toISOString()
 }

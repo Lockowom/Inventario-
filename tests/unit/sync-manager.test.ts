@@ -26,8 +26,8 @@ class MemoryOutbox implements CountRepository {
   public async listOutstandingSyncScopes(scopeUserId: string) { return [...new Set(this.records.filter((item) => item.userId === scopeUserId && item.syncStatus !== 'CONFIRMED' && item.syncStatus !== 'REJECTED').map((item) => item.inventoryId))].map((inventoryId) => ({ inventoryId, userId: scopeUserId })) }
   public async countPendingByDevice(id: string) { void id; return this.records.filter((item) => item.syncStatus !== 'CONFIRMED' && item.syncStatus !== 'REJECTED').length }
   public async countOutstandingByInventoryDevice(scopeInventoryId: string, id: string) { return this.records.filter((item) => item.inventoryId === scopeInventoryId && item.deviceId === id && item.syncStatus !== 'CONFIRMED' && item.syncStatus !== 'REJECTED').length }
-  public async claimNextSyncBatch(input: { inventoryId: string; userId: string; max: number; now: string }) {
-    const claimed = this.records.filter((item) => item.inventoryId === input.inventoryId && item.userId === input.userId && (item.syncStatus === 'PENDING' || (item.syncStatus === 'FAILED' && (!item.nextRetryAt || item.nextRetryAt <= input.now)))).slice(0, input.max)
+  public async claimNextSyncBatch(input: { inventoryId: string; userId: string; max: number; now: string; forceRetry?: boolean }) {
+    const claimed = this.records.filter((item) => item.inventoryId === input.inventoryId && item.userId === input.userId && (item.syncStatus === 'PENDING' || (item.syncStatus === 'FAILED' && (input.forceRetry === true || !item.nextRetryAt || item.nextRetryAt <= input.now)))).slice(0, input.max)
     for (const item of claimed) { item.syncStatus = 'SYNCING'; item.syncStartedAt = input.now; item.lastSyncError = null }
     return claimed.map((item) => ({ ...item }))
   }
@@ -57,6 +57,26 @@ describe('SyncManager', () => {
     expect(result).toMatchObject({ claimed: 47, confirmed: 47, failed: 0 })
     expect(gatewayInstance.calls).toBe(3)
     expect(outbox.records.every((item) => item.syncStatus === 'CONFIRMED' && item.confirmedAt !== null)).toBe(true)
+  })
+
+  it('acepta timestamps PostgreSQL con offset y los normaliza a UTC', async () => {
+    const outbox = new MemoryOutbox([record(1)])
+    gatewayInstance = gateway((records) => records.map((item) => ({
+      client_count_id: item.clientCountId,
+      result_status: 'ACCEPTED',
+      server_count_id: serverId,
+      received_at: '2026-09-17T13:00:00.123456+00:00',
+      reason: null,
+    })))
+
+    const result = await new SyncManager({ inventoryId, userId }, outbox, gatewayInstance).run()
+
+    expect(result).toMatchObject({ confirmed: 1, rejected: 0 })
+    expect(outbox.records[0]).toMatchObject({
+      syncStatus: 'CONFIRMED',
+      confirmedAt: '2026-09-17T13:00:00.123Z',
+      serverCountId: serverId,
+    })
   })
 
   it('no confirma una respuesta parcial: deja el faltante REJECTED para revisión de contrato', async () => {
@@ -91,6 +111,31 @@ describe('SyncManager', () => {
     expect(outbox.records.every((item) => item.syncStatus === 'CONFIRMED')).toBe(true)
   })
 
+  it('programa una segunda pasada si entra trabajo durante una sincronización activa', async () => {
+    const outbox = new MemoryOutbox([record(1)])
+    let releaseFirstBatch: (() => void) | undefined
+    const firstBatch = new Promise<void>((resolve) => { releaseFirstBatch = resolve })
+    let firstBatchStarted: (() => void) | undefined
+    const firstStarted = new Promise<void>((resolve) => { firstBatchStarted = resolve })
+    gatewayInstance = gateway(async (records) => {
+      if (gatewayInstance.calls === 1) { firstBatchStarted?.(); await firstBatch }
+      return records.map((item) => ({ client_count_id: item.clientCountId, result_status: 'ACCEPTED', server_count_id: serverId, received_at: '2026-09-17T13:00:00.000Z', reason: null }))
+    })
+    const coordinator = new SyncCoordinator(userId, outbox, gatewayInstance)
+
+    const first = coordinator.runInventorySync(inventoryId)
+    await firstStarted
+    outbox.records.push(record(2))
+    const second = coordinator.runInventorySync(inventoryId)
+    releaseFirstBatch?.()
+
+    const result = await second
+    await first
+    expect(result).toMatchObject({ confirmed: 2, failed: 0 })
+    expect(gatewayInstance.calls).toBe(2)
+    expect(outbox.records.every((item) => item.syncStatus === 'CONFIRMED')).toBe(true)
+  })
+
   it('42501 se vuelve REJECTED visible, sin borrar el payload ni reintentar', async () => {
     const outbox = new MemoryOutbox([record(1)])
     gatewayInstance = gateway(() => { throw new SyncTransportError('TERMINAL_AUTHORIZATION', 'SYNC_AUTHORIZATION_BLOCKED') })
@@ -117,6 +162,33 @@ describe('SyncManager', () => {
     const retryAt = outbox.records[0]?.nextRetryAt
     expect(retryAt).toBeDefined()
     expect(retryAt !== null && retryAt !== undefined && retryAt > now.toISOString()).toBe(true)
+  })
+
+  it('auto-sync respeta backoff pero SINCRONIZAR AHORA fuerza reintento inmediato', async () => {
+    const now = new Date('2026-09-17T12:00:00.000Z')
+    const failed = {
+      ...record(1),
+      syncStatus: 'FAILED' as const,
+      syncAttempts: 2,
+      lastSyncError: 'SYNC_TRANSIENT_UNAVAILABLE',
+      nextRetryAt: '2026-09-17T12:05:00.000Z',
+    }
+    const outbox = new MemoryOutbox([failed])
+    gatewayInstance = gateway((records) => records.map((item) => ({
+      client_count_id: item.clientCountId,
+      result_status: 'ACCEPTED',
+      server_count_id: serverId,
+      received_at: '2026-09-17T12:00:10.000Z',
+      reason: null,
+    })))
+
+    const automatic = await new SyncManager({ inventoryId, userId }, outbox, gatewayInstance, () => now).run()
+    expect(automatic).toMatchObject({ claimed: 0, confirmed: 0 })
+    expect(outbox.records[0]?.syncStatus).toBe('FAILED')
+
+    const manual = await new SyncManager({ inventoryId, userId }, outbox, gatewayInstance, () => now).run({ forceRetry: true })
+    expect(manual).toMatchObject({ claimed: 1, confirmed: 1, failed: 0 })
+    expect(outbox.records[0]?.syncStatus).toBe('CONFIRMED')
   })
 
   it('reporta freeze guards sólo con pendientes de su inventario', async () => {

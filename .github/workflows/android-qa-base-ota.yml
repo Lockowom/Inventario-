@@ -1,0 +1,159 @@
+name: INVEN3 Android QA OTA Base
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Immutable commit SHA to build (must be the reviewed OTA-09 commit)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: inven3-android-qa-ota-base-${{ inputs.source_sha }}
+  cancel-in-progress: false
+
+jobs:
+  build-android-qa-base:
+    name: Sign Android QA OTA base
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment: qa
+    env:
+      INVEN3_REQUESTED_SHA: ${{ inputs.source_sha }}
+      VITE_RELEASE_ENV: qa
+      VITE_RELEASE_CHANNEL: beta
+      VITE_RELEASE_VERSION: 1.0.0
+      VITE_SUPABASE_URL: https://uazunvlxlszdyweddxtb.supabase.co
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.INVEN3_QA_ANON_KEY }}
+      INVEN3_QA_KEYSTORE_BASE64: ${{ secrets.INVEN3_QA_KEYSTORE_BASE64 }}
+      INVEN3_QA_KEYSTORE_PASSWORD: ${{ secrets.INVEN3_QA_KEYSTORE_PASSWORD }}
+      INVEN3_QA_KEY_ALIAS: ${{ secrets.INVEN3_QA_KEY_ALIAS }}
+      INVEN3_QA_KEY_PASSWORD: ${{ secrets.INVEN3_QA_KEY_PASSWORD }}
+    steps:
+      - name: Checkout requested immutable source
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ env.INVEN3_REQUESTED_SHA }}
+          fetch-depth: 1
+
+      - name: Verify exact SHA and QA-only release policy
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$INVEN3_REQUESTED_SHA"
+          node -e 'const p = require("./release-policy.json"); if (p.productionLocked !== true || p.defaultEnvironment !== "qa" || p.defaultChannel !== "beta") process.exit(1)'
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate QA signing material is available
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$INVEN3_QA_KEYSTORE_BASE64"
+          test -n "$INVEN3_QA_KEYSTORE_PASSWORD"
+          test -n "$INVEN3_QA_KEY_ALIAS"
+          test -n "$INVEN3_QA_KEY_PASSWORD"
+
+      - name: Typecheck, lint and tests
+        run: |
+          npm run typecheck
+          npm run lint
+          npm run test
+
+      - name: Release preflight with iOS explicitly deferred
+        run: npm run release:preflight -- --defer-ios
+
+      - name: Stamp immutable native build identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "INVEN3_NATIVE_BUILD_NUMBER=$((10000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+          echo "VITE_APP_BUILD=$(git rev-parse --short=8 HEAD).${GITHUB_RUN_NUMBER}" >> "$GITHUB_ENV"
+
+      - name: Build INVEN3 QA web bundle
+        run: |
+          npm run build
+          npm run release:audit-bundle
+
+      - name: Sync Android and verify native updater incorporation
+        shell: bash
+        run: |
+          set -euo pipefail
+          npx cap sync android
+          grep -q "capgo-capacitor-updater" android/capacitor.settings.gradle
+          grep -q "capgo-capacitor-updater" android/app/capacitor.build.gradle
+          node -e 'const c = require("./android/app/src/main/assets/capacitor.config.json"); const u = c.plugins?.CapacitorUpdater; if (u?.updateUrl !== "https://uazunvlxlszdyweddxtb.supabase.co/functions/v1/ota-updates" || u?.autoUpdate !== "off" || u?.allowSetDefaultChannel !== false) process.exit(1)'
+          grep -R -q "uazunvlxlszdyweddxtb.supabase.co" dist
+
+      - name: Build unsigned Android release APK
+        working-directory: android
+        shell: bash
+        run: |
+          ./gradlew assembleRelease \
+            -PINVEN3_VERSION_CODE="$INVEN3_NATIVE_BUILD_NUMBER" \
+            -PINVEN3_VERSION_NAME="1.0.0" \
+            --no-daemon
+
+      - name: Sign, align and verify persistent QA APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/release
+          KEYSTORE="$RUNNER_TEMP/inven3-qa-ota-base.jks"
+          ALIGNED_APK="$RUNNER_TEMP/inven3-qa-ota-base-aligned.apk"
+          APK="artifacts/release/INVEN3-qa-ota-base-1.0.0-${INVEN3_NATIVE_BUILD_NUMBER}.apk"
+          trap 'rm -f "$KEYSTORE" "$ALIGNED_APK"' EXIT
+          printf '%s' "$INVEN3_QA_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+          chmod 600 "$KEYSTORE"
+          UNSIGNED_APK="$(find android/app/build/outputs/apk/release -type f -name '*-unsigned.apk' -print -quit)"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -print | sort -V | tail -1)"
+          ZIPALIGN="$(find "$ANDROID_HOME/build-tools" -type f -name zipalign -print | sort -V | tail -1)"
+          test -s "$KEYSTORE" && test -n "$UNSIGNED_APK" && test -x "$APKSIGNER" && test -x "$ZIPALIGN"
+          "$ZIPALIGN" -f -v 4 "$UNSIGNED_APK" "$ALIGNED_APK" >/dev/null
+          "$APKSIGNER" sign --ks "$KEYSTORE" --ks-pass "pass:$INVEN3_QA_KEYSTORE_PASSWORD" --key-pass "pass:$INVEN3_QA_KEY_PASSWORD" --ks-key-alias "$INVEN3_QA_KEY_ALIAS" --out "$APK" "$ALIGNED_APK"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee artifacts/release/android-qa-ota-signature.txt
+          keytool -list -v -keystore "$KEYSTORE" -storepass "$INVEN3_QA_KEYSTORE_PASSWORD" -alias "$INVEN3_QA_KEY_ALIAS" | grep -E 'Alias name:|Owner:|Issuer:|Valid from:|SHA256:' | tee -a artifacts/release/android-qa-ota-signature.txt
+
+      - name: Verify APK identity and create immutable evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find artifacts/release -type f -name 'INVEN3-qa-ota-base-1.0.0-*.apk' -print -quit)"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt -print | sort -V | tail -1)"
+          "$AAPT" dump badging "$APK" | head -1 | tee artifacts/release/android-qa-ota-package.txt
+          grep -q "package: name='com.lockowom.inven3'" artifacts/release/android-qa-ota-package.txt
+          grep -q "versionCode='$INVEN3_NATIVE_BUILD_NUMBER'" artifacts/release/android-qa-ota-package.txt
+          grep -q "versionName='1.0.0'" artifacts/release/android-qa-ota-package.txt
+          sha256sum "$APK" | tee artifacts/release/INVEN3-qa-ota-base-sha256.txt
+          printf '{"gitSha":"%s","buildNumber":%s,"releaseEnvironment":"QA","releaseChannel":"qa-beta","nativeVersion":"1.0.0","applicationId":"com.lockowom.inven3","otaEndpoint":"https://uazunvlxlszdyweddxtb.supabase.co/functions/v1/ota-updates"}\n' "$(git rev-parse HEAD)" "$INVEN3_NATIVE_BUILD_NUMBER" > artifacts/release/INVEN3-qa-ota-base-metadata.json
+          cp android/app/src/main/assets/capacitor.config.json artifacts/release/android-qa-ota-capacitor-config.json
+
+      - name: Upload Android QA OTA base and evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: inven3-android-qa-ota-base-${{ github.run_number }}
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            artifacts/release/INVEN3-qa-ota-base-1.0.0-*.apk
+            artifacts/release/INVEN3-qa-ota-base-sha256.txt
+            artifacts/release/android-qa-ota-signature.txt
+            artifacts/release/android-qa-ota-package.txt
+            artifacts/release/android-qa-ota-capacitor-config.json
+            artifacts/release/INVEN3-qa-ota-base-metadata.json

@@ -14,7 +14,6 @@ import type { SqliteDatabase, SqliteResult } from '../../src/storage/mobile-sqli
 const inventoryId = '11111111-1111-4111-8111-111111111111'
 const otherInventoryId = '33333333-3333-4333-8333-333333333333'
 const userId = '22222222-2222-4222-8222-222222222222'
-const otherUserId = '44444444-4444-4444-8444-444444444444'
 const cached: CachedCountingContext = { userId, inventoryId, inventoryStatus: 'ABIERTO', verifiedAt: '2026-09-16T12:00:00.000Z' }
 
 class MemoryContextRepository implements CountingContextRepository {
@@ -24,8 +23,8 @@ class MemoryContextRepository implements CountingContextRepository {
   public async clear() { this.value = null }
 }
 
-function verifier(result: Awaited<ReturnType<CountingContextVerifier['verifyServer']>>, localUserId: string | null = userId): CountingContextVerifier {
-  return { verifyServer: async () => result, getLocalSessionUserId: async () => localUserId }
+function verifier(result: Awaited<ReturnType<CountingContextVerifier['verifyServer']>>): CountingContextVerifier {
+  return { verifyServer: async () => result }
 }
 
 describe('last known authorized counting context', () => {
@@ -53,18 +52,13 @@ describe('last known authorized counting context', () => {
     expect(cache.value).toBeNull()
   })
 
-  it('permite runtime offline sólo con backend UNAVAILABLE, cache válida y el mismo usuario local', async () => {
+  it('permite runtime offline con backend UNAVAILABLE y contexto server-verified persistido', async () => {
     const cache = new MemoryContextRepository(); cache.value = cached
     await expect(resolveCountingContext(verifier({ kind: 'UNAVAILABLE' }), cache)).resolves.toEqual({ kind: 'OFFLINE', context: { userId, inventoryId, inventoryStatus: 'ABIERTO' } })
   })
 
   it('bloquea indisponibilidad sin contexto persistido', async () => {
     await expect(resolveCountingContext(verifier({ kind: 'UNAVAILABLE' }), new MemoryContextRepository())).resolves.toEqual({ kind: 'BLOCKED', reason: 'CACHE_MISMATCH' })
-  })
-
-  it('bloquea indisponibilidad cuando la sesión local pertenece a otro usuario', async () => {
-    const cache = new MemoryContextRepository(); cache.value = cached
-    await expect(resolveCountingContext(verifier({ kind: 'UNAVAILABLE' }, otherUserId), cache)).resolves.toEqual({ kind: 'BLOCKED', reason: 'CACHE_MISMATCH' })
   })
 
   it('el logout limpia el contexto aunque la salida remota falle', async () => {
@@ -75,11 +69,11 @@ describe('last known authorized counting context', () => {
 })
 
 describe('adaptadores persistentes del contexto', () => {
-  it('SQLite v5 conserva el contexto a través de una nueva instancia', async () => {
+  it('SQLite v7 conserva el contexto a través de una nueva instancia', async () => {
     const database = new ContextSqliteDatabase()
     await new SqliteCountingContextRepository(database).save(cached)
     await expect(new SqliteCountingContextRepository(database).get()).resolves.toEqual(cached)
-    expect(database.userVersion).toBe(5)
+    expect(database.userVersion).toBe(7)
   })
 
   it('Dexie v4 conserva el contexto después de simular un reinicio de app', async () => {

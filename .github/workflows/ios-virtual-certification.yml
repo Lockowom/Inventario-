@@ -1,0 +1,49 @@
+name: iOS Virtual Certification
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-virtual-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ios-webkit-iphone:
+    name: iPhone 15 WebKit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install WebKit
+        run: npx playwright install --with-deps webkit
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run virtual iOS certification
+        run: npm run test:ios:virtual
+
+      - name: Upload virtual iPhone screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inven3-ios-virtual-iphone15
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            artifacts/ios-virtual/*.png
+            test-results/**

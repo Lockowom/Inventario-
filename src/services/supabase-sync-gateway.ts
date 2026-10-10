@@ -1,11 +1,11 @@
-import { Capacitor } from '@capacitor/core'
 import type { LocalCountRecord } from '../domain/count/contracts'
 import type { CountSyncGateway } from '../domain/sync/sync-manager'
 import { SyncTransportError, type SyncTransportErrorKind } from '../domain/sync/transport-error'
+import { getPlatformCapabilities } from '../platform/runtime-platform'
 import { getSupabaseClient } from './supabase'
 
 function platform(): 'ANDROID' | 'IOS' | 'WEB' {
-  const current = Capacitor.getPlatform()
+  const current = getPlatformCapabilities().platform
   return current === 'android' ? 'ANDROID' : current === 'ios' ? 'IOS' : 'WEB'
 }
 
