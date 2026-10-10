@@ -2,7 +2,9 @@ node_modules/
 dist/
 .env
 .env.local
+.env.qa.local
 !.env.example
+!.env.qa.example
 android/.gradle/
 android/app/build/
 ios/App/App/public/

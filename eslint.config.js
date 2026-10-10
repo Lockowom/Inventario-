@@ -7,7 +7,7 @@ import tseslint from 'typescript-eslint'
 export default tseslint.config(
   // The local Supabase CLI creates ephemeral runtime files here. They are not
   // application source and must not affect the repository lint result.
-  { ignores: ['dist', 'android', 'ios', 'node_modules', 'supabase/.temp/**'] },
+  { ignores: ['dist', 'android', 'ios', 'node_modules', 'supabase/.temp/**', 'src-tauri/target/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {

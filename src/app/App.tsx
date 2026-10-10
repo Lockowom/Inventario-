@@ -20,7 +20,7 @@ import { runDeviceHealthCheck } from '../features/device-health/device-health-ru
 import { createCaptureGate } from '../features/device-health/capture-gate'
 import { CertificationFixture } from './certification-fixture'
 import { isCertificationFixtureEnabled } from './certification-fixture-mode'
-import { releaseMetadata } from '../config/release-metadata'
+import { displayReleaseChannel, releaseMetadata } from '../config/release-metadata'
 import { ReconciliationScreen } from '../features/reconciliation/reconciliation-screen'
 import { RecountQueueScreen } from '../features/reconciliation/recount-queue-screen'
 import { UserManagementScreen } from '../features/user-management/user-management-screen'
@@ -198,6 +198,6 @@ function InfrastructureDiagnostic({ supabaseState }: { supabaseState: 'CONFIGURE
   const capabilities = getPlatformCapabilities()
   const platform = capabilities.platform
   const storage = capabilities.hasCertifiedDurableStorage ? 'READY' : 'PENDIENTE WIN-06'
-  const status = [['Plataforma', platform === 'web' ? 'Web' : platform], ['Storage', storage], ['Supabase', supabaseState], ['Entorno', releaseMetadata.environment.toUpperCase()], ['Canal', releaseMetadata.channel.toUpperCase()], ['Versión', releaseMetadata.displayVersion]] as const
+  const status = [['Plataforma', platform === 'web' ? 'Web' : platform], ['Storage', storage], ['Supabase', supabaseState], ['Entorno', releaseMetadata.environment.toUpperCase()], ['Canal', displayReleaseChannel(releaseMetadata)], ['Versión', releaseMetadata.displayVersion]] as const
   return <section className="diagnostic" aria-labelledby="app-title"><h1 id="app-title">INVEN3</h1><p className="diagnostic__subtitle">Modo build: {import.meta.env.DEV ? 'Development' : 'Production'}</p><dl className="status-grid">{status.map(([label, value]) => <div className="status-card" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>
 }

@@ -18,6 +18,11 @@ export interface ReleaseMetadata {
   isProduction: boolean
 }
 
+export function displayReleaseChannel(metadata: Pick<ReleaseMetadata, 'environment' | 'channel'>): string {
+  if (metadata.environment === 'qa' && metadata.channel === 'beta') return 'QA-BETA'
+  return metadata.channel.toUpperCase()
+}
+
 function normalizeEnvironment(value?: string): ReleaseEnvironment {
   const normalized = value?.trim().toLowerCase()
   if (normalized === 'qa' || normalized === 'production') return normalized

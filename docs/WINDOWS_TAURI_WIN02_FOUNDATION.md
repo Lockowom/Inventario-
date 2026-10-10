@@ -40,10 +40,12 @@ Build Tools detectadas, por lo que la toolchain nativa quedó validada.
 permanece desactivado: el único artefacto de esta fase es el ejecutable QA
 foundation, sin firma ni publicación.
 
-La CSP permite únicamente assets propios, el servidor local de desarrollo y
-el host QA de Supabase (`uazunvlxlszdyweddxtb.supabase.co`) con su WebSocket.
-No se habilitaron shell, filesystem, comandos, HTTP inseguro ni permisos
-adicionales: `capabilities/default.json` concede sólo `core:default`.
+La CSP permite assets propios, el servidor local de desarrollo y conexiones
+cifradas (`https:` / `wss:`) elegidas por el entorno Vite; no codifica host ni
+clave de Supabase. La política de release y Vite restringen el backend de QA a
+INVEN3-QA antes de construir. No se habilitaron shell, filesystem, comandos,
+HTTP inseguro ni permisos adicionales: `capabilities/default.json` concede
+sólo `core:default`.
 
 ## Runtime Windows
 
@@ -77,6 +79,23 @@ El login QA, restauración de sesión, roles y navegación deben introducirse y
 validarse manualmente por una persona autorizada; WIN-02 no automatiza ni lee
 credenciales. La aplicación queda abierta con `npm run tauri:dev` para esa
 prueba manual.
+
+## WIN-02.1 · Ejecución QA explícita
+
+Windows conserva el modo técnico Tauri/Vite de desarrollo, pero ahora inicia
+Vite con el modo `qa`: `npm run tauri:dev:qa` (el alias existente
+`npm run tauri:dev` usa el mismo comando QA porque esta fundación es sólo QA).
+El build Windows usa también `npm run build:qa` antes de compilar Rust.
+
+Vite carga sus variables ya existentes desde `.env.local` o, con mayor
+prioridad para este caso, `.env.qa.local`. El segundo archivo queda ignorado;
+`.env.qa.example` contiene únicamente los nombres de las variables públicas y
+la identidad de release. No se añade ninguna variable nueva, secreto de
+servidor, usuario ni valor de credencial al repositorio.
+
+En QA/Beta el diagnóstico etiqueta el canal como `QA-BETA`; esta es sólo una
+presentación de la pareja ya existente `VITE_RELEASE_ENV=qa` +
+`VITE_RELEASE_CHANNEL=beta`.
 
 ## Artefacto QA foundation
 
