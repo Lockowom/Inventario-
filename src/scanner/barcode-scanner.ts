@@ -1,51 +1,9 @@
-import { Capacitor } from '@capacitor/core'
-import { BarcodeFormat, BarcodeScanner } from '@capacitor-mlkit/barcode-scanning'
-import { forgetScannerIntent, rememberScannerIntent } from './scanner-restoration'
-import { setScannerComponentStatus } from './scanner-component-status'
+import { getPlatformAdapter } from '../platform/runtime-platform'
+import type { ScanField, ScanResult } from '../platform/contracts'
 
-export type ScanField = 'ubicacion' | 'codigo' | 'serie' | 'partida'
-export type ScanResult = { value: string | null; error: string | null }
+export type { ScanField, ScanResult } from '../platform/contracts'
 
 /** Native fullscreen scanner. It only fills a field; it never saves a count. */
 export async function scanBarcodeField(field: ScanField): Promise<ScanResult> {
-  // El campo se conserva en el contrato para que la UI pueda aplicar el resultado
-  // sin que el adaptador de cámara tenga conocimiento del formulario.
-  void field
-  const platform = Capacitor.getPlatform()
-  if (platform === 'web') {
-    setScannerComponentStatus({ kind: 'UNAVAILABLE', message: 'El scanner nativo no está disponible en la web.' })
-    return { value: null, error: 'El scanner nativo no está disponible en la web. Ingrese el valor manualmente.' }
-  }
-  try {
-    const support = await BarcodeScanner.isSupported()
-    if (!support.supported) {
-      setScannerComponentStatus({ kind: 'UNAVAILABLE', message: 'Este dispositivo no dispone de una cámara compatible.' })
-      return { value: null, error: 'Este dispositivo no dispone de una cámara compatible. Puede ingresar el valor manualmente.' }
-    }
-    if (platform === 'android') {
-      const module = await BarcodeScanner.isGoogleBarcodeScannerModuleAvailable()
-      if (!module.available) {
-        setScannerComponentStatus({ kind: 'PREPARING', message: 'Descargando y preparando el componente de scanner…' })
-        await BarcodeScanner.installGoogleBarcodeScannerModule()
-        return { value: null, error: 'El módulo de scanner de Google se está instalando. Cuando finalice, vuelva a intentar o ingrese el valor manualmente.' }
-      }
-    }
-    if (platform === 'ios') {
-      const permission = await BarcodeScanner.checkPermissions()
-      const granted = permission.camera === 'granted' || (await BarcodeScanner.requestPermissions()).camera === 'granted'
-      if (!granted) {
-        setScannerComponentStatus({ kind: 'UNAVAILABLE', message: 'Permiso de cámara denegado.' })
-        return { value: null, error: 'Permiso de cámara denegado. Puede habilitarlo en Ajustes o ingresar el valor manualmente.' }
-      }
-    }
-    setScannerComponentStatus({ kind: 'READY', message: 'Scanner listo.' })
-    rememberScannerIntent(field)
-    const result = await BarcodeScanner.scan({ formats: [BarcodeFormat.QrCode, BarcodeFormat.Code128], autoZoom: true })
-    forgetScannerIntent()
-    return { value: result.barcodes[0]?.displayValue?.trim() || null, error: null }
-  } catch (error: unknown) {
-    forgetScannerIntent()
-    setScannerComponentStatus({ kind: 'UNAVAILABLE', message: 'No fue posible abrir el scanner.' })
-    return { value: null, error: error instanceof Error ? `No fue posible escanear: ${error.message}` : 'El scanner se canceló o no está disponible. Puede ingresar el valor manualmente.' }
-  }
+  return getPlatformAdapter().scanner.scan(field)
 }

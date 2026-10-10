@@ -35,7 +35,7 @@ vi.mock('@capacitor-community/sqlite', () => ({
   },
 }))
 
-import { CapacitorSqliteDatabase } from '../../src/storage/mobile-sqlite/capacitor-sqlite-database'
+import { CapacitorSqliteDatabase } from '../../src/platform/capacitor/capacitor-sqlite-database'
 
 describe('CapacitorSqliteDatabase initialization', () => {
   it('serializes concurrent initialization into one native connection', async () => {

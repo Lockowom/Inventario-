@@ -1,4 +1,3 @@
-import { Capacitor } from '@capacitor/core'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { isSupabaseConfigured } from '../services/supabase'
 import { MasterSkuScreen } from '../features/master/master-sku-screen'
@@ -35,6 +34,7 @@ import { ControlCenterScreen } from '../features/control-center/control-center-s
 import { ExperienceProvider } from '../ui/preferences/experience-preferences'
 import { ExperiencePanel } from '../ui/preferences/experience-panel'
 import { SoundRuntime } from '../ui/sound/sound-runtime'
+import { getPlatformCapabilities } from '../platform/runtime-platform'
 
 export function App() {
   if (isCertificationFixtureEnabled({ dev: import.meta.env.DEV, fixture: import.meta.env.VITE_CERTIFICATION_FIXTURE })) return <CertificationFixture />
@@ -195,7 +195,7 @@ function AuthenticatedRuntime() {
 }
 
 function InfrastructureDiagnostic({ supabaseState }: { supabaseState: 'CONFIGURED' | 'NOT CONFIGURED' }) {
-  const platform = Capacitor.getPlatform()
+  const platform = getPlatformCapabilities().platform
   const status = [['Plataforma', platform === 'web' ? 'Web' : platform], ['Storage', 'READY'], ['Supabase', supabaseState], ['Entorno', releaseMetadata.environment.toUpperCase()], ['Canal', releaseMetadata.channel.toUpperCase()], ['Versión', releaseMetadata.displayVersion]] as const
   return <section className="diagnostic" aria-labelledby="app-title"><h1 id="app-title">INVEN3</h1><p className="diagnostic__subtitle">Modo build: {import.meta.env.DEV ? 'Development' : 'Production'}</p><dl className="status-grid">{status.map(([label, value]) => <div className="status-card" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>
 }

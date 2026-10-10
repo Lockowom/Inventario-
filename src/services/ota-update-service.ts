@@ -1,6 +1,6 @@
-import { Capacitor } from '@capacitor/core'
-import { CapacitorUpdater } from '@capgo/capacitor-updater'
 import type { AuthChangeEvent } from '@supabase/supabase-js'
+import type { CurrentUpdateBundle } from '../platform/contracts'
+import { getPlatformAdapter } from '../platform/runtime-platform'
 import { getSupabaseClient } from './supabase'
 
 export type OtaUpdateState =
@@ -10,7 +10,7 @@ export type OtaUpdateState =
   | { kind: 'ERROR'; message: string; canRollback: boolean }
 
 type OtaManifest = { update: null | { version: string; minNativeVersion: string; url: string; sha256: string }; enrollment?: string }
-type CurrentOtaBundle = Awaited<ReturnType<typeof CapacitorUpdater.current>>
+type CurrentOtaBundle = CurrentUpdateBundle
 
 const deferredForSession = (): OtaUpdateState => ({ kind: 'DEFERRED', message: 'La verificación OTA se realizará al recuperar sesión o conexión.' })
 const deferredForNetwork = (): OtaUpdateState => ({ kind: 'DEFERRED', message: 'Sin conexión. La actualización se verificará automáticamente al volver online.' })
@@ -64,8 +64,7 @@ export class OtaUpdateService {
   private lastKnownCurrent: CurrentOtaBundle | undefined
 
   public async notifyLaunchReady(): Promise<void> {
-    if (Capacitor.getPlatform() !== 'android' || !Capacitor.isPluginAvailable('CapacitorUpdater')) return
-    await CapacitorUpdater.notifyAppReady()
+    await getPlatformAdapter().updater.notifyLaunchReady()
   }
 
   public check(): Promise<OtaUpdateState> {
@@ -77,20 +76,21 @@ export class OtaUpdateService {
   }
 
   private async performCheck(): Promise<OtaUpdateState> {
-    if (Capacitor.getPlatform() !== 'android' || !Capacitor.isPluginAvailable('CapacitorUpdater')) return { kind: 'UNAVAILABLE', message: 'Actualizaciones OTA disponibles sólo desde la futura APK base Android QA.' }
+    const updater = getPlatformAdapter().updater
+    if (!updater.isAvailable()) return { kind: 'UNAVAILABLE', message: 'Actualizaciones OTA disponibles sólo desde la futura APK base Android QA.' }
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return deferredForNetwork()
     let current: CurrentOtaBundle | undefined
     try {
-      current = await CapacitorUpdater.current()
+      current = await updater.current()
       this.lastKnownCurrent = current
-      const device = await CapacitorUpdater.getDeviceId()
+      const deviceId = await updater.getDeviceId()
       const client = getSupabaseClient()
       if (!client) return deferredForSession()
       const session = await client.auth.getSession()
       if (session.error) return isNetworkFailure(session.error) ? deferredForNetwork() : deferredForSession()
       if (!session.data.session) return deferredForSession()
       const { data, error } = await client.functions.invoke<OtaManifest>('ota-updates', {
-        body: { deviceId: device.deviceId, nativeVersion: current.native, currentBundleVersion: current.bundle.version, eventType: 'CHECKED' },
+        body: { deviceId, nativeVersion: current.native, currentBundleVersion: current.bundle.version, eventType: 'CHECKED' },
       })
       if (error) {
         if (isUnauthorized(error)) return deferredForSession()
@@ -101,9 +101,9 @@ export class OtaUpdateService {
       if (!data.update) return { kind: 'UNASSIGNED', message: 'QA-BETA · SIN ACTUALIZACIÓN DISPONIBLE' }
       if (compareVersions(current.native, data.update.minNativeVersion) < 0) return { kind: 'NATIVE_REQUIRED', minNativeVersion: data.update.minNativeVersion, message: `Esta operación requiere APK Android ${data.update.minNativeVersion} o superior.` }
       if (compareVersions(data.update.version, current.bundle.version) <= 0) return { kind: 'UP_TO_DATE', message: 'El bundle OTA ya está actualizado.' }
-      const downloaded = await CapacitorUpdater.download({ version: data.update.version, url: data.update.url, checksum: data.update.sha256 })
-      await client.functions.invoke('ota-updates', { body: { deviceId: device.deviceId, nativeVersion: current.native, currentBundleVersion: current.bundle.version, eventType: 'DOWNLOADED' } })
-      await CapacitorUpdater.set(downloaded)
+      const downloaded = await updater.download({ version: data.update.version, url: data.update.url, checksum: data.update.sha256 })
+      await client.functions.invoke('ota-updates', { body: { deviceId, nativeVersion: current.native, currentBundleVersion: current.bundle.version, eventType: 'DOWNLOADED' } })
+      await updater.set(downloaded)
       return { kind: 'READY', version: data.update.version, message: `Actualización ${data.update.version} preparada. Aplíquela cuando sea seguro reiniciar.` }
     } catch (error: unknown) {
       if (isUnauthorized(error)) return deferredForSession()
@@ -114,9 +114,10 @@ export class OtaUpdateService {
   }
 
   public async apply(): Promise<OtaUpdateState | null> {
-    if (Capacitor.getPlatform() !== 'android' || !Capacitor.isPluginAvailable('CapacitorUpdater')) return null
+    const updater = getPlatformAdapter().updater
+    if (!updater.isAvailable()) return null
     try {
-      await CapacitorUpdater.reload()
+      await updater.reload()
       return null
     } catch (error: unknown) {
       console.error('OTA_APPLY_FAILED', error)
@@ -125,9 +126,10 @@ export class OtaUpdateService {
   }
 
   public async rollback(): Promise<void> {
-    if (!this.rollbackAllowed || Capacitor.getPlatform() !== 'android' || !Capacitor.isPluginAvailable('CapacitorUpdater')) return
-    await CapacitorUpdater.reset({ toLastSuccessful: true })
-    await CapacitorUpdater.reload()
+    const updater = getPlatformAdapter().updater
+    if (!this.rollbackAllowed || !updater.isAvailable()) return
+    await updater.resetToLastSuccessful()
+    await updater.reload()
   }
 
   private realError(message: string, current: CurrentOtaBundle | undefined): OtaUpdateState {

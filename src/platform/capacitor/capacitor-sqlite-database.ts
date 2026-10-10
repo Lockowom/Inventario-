@@ -1,6 +1,7 @@
 import { CapacitorSQLite, SQLiteConnection, type SQLiteDBConnection } from '@capacitor-community/sqlite'
-import type { SqliteDatabase, SqliteResult } from './sqlite-database'
+import type { SqliteDatabase, SqliteResult } from '../../storage/mobile-sqlite/sqlite-database'
 
+/** Native SQLite implementation kept in the Capacitor infrastructure boundary. */
 export class CapacitorSqliteDatabase implements SqliteDatabase {
   private connection: SQLiteDBConnection | undefined
   private initialization: Promise<void> | undefined
@@ -22,7 +23,6 @@ export class CapacitorSqliteDatabase implements SqliteDatabase {
 
     await previous
     const connection = this.requireConnection()
-
     try {
       await connection.beginTransaction()
       const result = await operation()
