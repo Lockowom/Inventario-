@@ -28,6 +28,8 @@ export interface PlatformCapabilities {
   supportsNativeScanner: boolean
   supportsNativeUpdater: boolean
   supportsUsbKeyboardScanner: boolean
+  /** True only after the platform's local storage has been certified for inventory capture. */
+  hasCertifiedDurableStorage: boolean
 }
 
 export interface StorageAdapter {

@@ -3,6 +3,7 @@ import type { DeviceHealthCheckKey, DeviceHealthReport, HealthCheckStatus } from
 import { releaseMetadata } from '../../config/release-metadata'
 import type { OtaUpdateState } from '../../services/ota-update-service'
 import { getScannerComponentStatus, subscribeScannerComponentStatus, type ScannerComponentStatus } from '../../scanner/scanner-component-status'
+import { getPlatformCapabilities } from '../../platform/runtime-platform'
 
 type ComponentState = 'LISTO' | 'LISTA' | 'ACTUALIZADO' | 'ONLINE' | 'OFFLINE' | 'DESCARGANDO' | 'ACTUALIZACIÓN DISPONIBLE' | 'NO DISPONIBLE' | 'REQUIERE APK' | 'REVISAR'
 
@@ -39,13 +40,14 @@ export function DeviceComponentsPanel({ report, loading, error, otaState, onOpen
   onOpenDiagnostic: () => void
 }) {
   const scanner = statusFor(report, 'SCANNER_AVAILABLE')
+  const platform = getPlatformCapabilities()
   const [scannerRuntime, setScannerRuntime] = useState<ScannerComponentStatus | null>(() => getScannerComponentStatus())
   useEffect(() => subscribeScannerComponentStatus(setScannerRuntime), [])
   const ota: ComponentState = otaState?.kind === 'NATIVE_REQUIRED' ? 'REQUIERE APK' : otaState?.kind === 'READY' ? 'ACTUALIZACIÓN DISPONIBLE' : 'LISTO'
   const health: ComponentState = error || report?.overall === 'BLOCKED' ? 'REVISAR' : loading ? 'DESCARGANDO' : report ? 'LISTO' : 'REVISAR'
   const rows: Array<{ label: string; value: string; state: ComponentState }> = [
     { label: 'Scanner', value: scannerRuntime?.message ?? (scanner === 'WARN' ? 'Preparando componente; la digitación manual sigue disponible.' : 'Lector de códigos'), state: runtimeScannerState(scannerRuntime, scanner) },
-    { label: 'Base local', value: 'Outbox durable', state: checkState(statusFor(report, 'LOCAL_DATABASE'), 'LISTA') },
+    { label: 'Base local', value: platform.hasCertifiedDurableStorage ? 'Outbox durable' : 'SQLite Windows pendiente WIN-06', state: platform.hasCertifiedDurableStorage ? checkState(statusFor(report, 'LOCAL_DATABASE'), 'LISTA') : 'REVISAR' },
     { label: 'Maestro', value: 'Snapshot local', state: checkState(statusFor(report, 'MASTER_SNAPSHOT'), 'ACTUALIZADO') },
     { label: 'Backend', value: 'Conectividad QA', state: checkState(statusFor(report, 'BACKEND_CONNECTIVITY'), 'ONLINE', 'OFFLINE') },
     { label: 'OTA', value: otaState?.kind === 'READY' ? 'Actualización web lista para aplicar' : releaseMetadata.displayVersion, state: ota },

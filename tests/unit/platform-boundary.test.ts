@@ -13,10 +13,10 @@ function sourceFiles(directory: string): string[] {
 }
 
 describe('WIN-01 platform boundary', () => {
-  it('keeps Capacitor and Capgo imports inside platform adapters', () => {
+  it('keeps Capacitor, Capgo and Tauri imports inside platform adapters', () => {
     const directNativeImports = sourceFiles(root)
       .filter((path) => relative(platformRoot, path).startsWith('..'))
-      .filter((path) => /from ['"]@(capacitor(?:-community)?|capgo)\//.test(readFileSync(path, 'utf8')))
+      .filter((path) => /from ['"]@(capacitor(?:-community)?|capgo|tauri-apps)\//.test(readFileSync(path, 'utf8')))
     expect(directNativeImports).toEqual([])
   })
 

@@ -133,6 +133,7 @@ export class CapacitorPlatformAdapter implements PlatformAdapter {
     get supportsNativeScanner() { return platform() === 'android' || platform() === 'ios' },
     get supportsNativeUpdater() { return platform() === 'android' && Capacitor.isPluginAvailable('CapacitorUpdater') },
     supportsUsbKeyboardScanner: false,
+    hasCertifiedDurableStorage: true,
   }
   public readonly storage = new CapacitorStorageAdapter()
   public readonly scanner = new CapacitorScannerAdapter()

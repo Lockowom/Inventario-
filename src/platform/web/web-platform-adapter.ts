@@ -54,7 +54,7 @@ class UnavailableUpdateAdapter {
 }
 
 export class WebPlatformAdapter implements PlatformAdapter {
-  public readonly capabilities = { platform: 'web', isNative: false, isNativeAndroid: false, supportsNativeScanner: false, supportsNativeUpdater: false, supportsUsbKeyboardScanner: false } as const
+  public readonly capabilities = { platform: 'web', isNative: false, isNativeAndroid: false, supportsNativeScanner: false, supportsNativeUpdater: false, supportsUsbKeyboardScanner: false, hasCertifiedDurableStorage: true } as const
   public readonly storage = new WebStorageAdapter()
   public readonly scanner = new WebScannerAdapter()
   public readonly lifecycle = new WebLifecycleAdapter()
