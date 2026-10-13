@@ -4,8 +4,10 @@ import { describe, expect, it } from 'vitest'
 
 const migrationPath = path.join(process.cwd(), 'supabase/migrations/20261013113403_cut2_01_canonical_pre_cut2.sql')
 const hardeningMigrationPath = path.join(process.cwd(), 'supabase/migrations/20261013132014_cut2_01_validation_hardening.sql')
+const previewMigrationPath = path.join(process.cwd(), 'supabase/migrations/20261013143428_cut2_02_read_only_preview.sql')
 const migration = () => fs.readFileSync(migrationPath, 'utf8').replace(/\r\n/g, '\n')
 const hardeningMigration = () => fs.readFileSync(hardeningMigrationPath, 'utf8').replace(/\r\n/g, '\n')
+const previewMigration = () => fs.readFileSync(previewMigrationPath, 'utf8').replace(/\r\n/g, '\n')
 
 describe('CUT2-01 canonical local model contract', () => {
   it('keeps the model additive and preserves the legacy cut mode', () => {
@@ -53,6 +55,20 @@ describe('CUT2-01 canonical local model contract', () => {
     expect(sql).toContain('cut2_reference_is_critical')
     expect(sql).toContain('rp_release_batches_ready_immutable')
     expect(sql).not.toContain('create_rolling_cut_v2')
+    expect(sql).not.toContain('service_role')
+  })
+
+  it('defines a security-scoped, read-only CUT2 preview without enabling the rolling workflow', () => {
+    const sql = previewMigration()
+    expect(sql).toContain('create or replace function public.preview_rolling_cut_v2')
+    expect(sql).toContain('stable')
+    expect(sql).toContain('Not authorized for rolling cut preview')
+    expect(sql).toContain("'preview_fingerprint'")
+    expect(sql).toContain('revoke all on function public.preview_rolling_cut_v2')
+    expect(sql).not.toContain('create_rolling_cut_v2')
+    expect(sql).not.toContain('insert into public.recount_missions')
+    expect(sql).not.toMatch(/\b(insert|update|delete)\s+(into\s+)?public\./i)
+    expect(sql).not.toContain('rp_release_batches')
     expect(sql).not.toContain('service_role')
   })
 })
