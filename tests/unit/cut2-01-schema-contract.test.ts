@@ -1,0 +1,45 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import { describe, expect, it } from 'vitest'
+
+const migrationPath = path.join(process.cwd(), 'supabase/migrations/20261013113403_cut2_01_canonical_pre_cut2.sql')
+const migration = () => fs.readFileSync(migrationPath, 'utf8').replace(/\r\n/g, '\n')
+
+describe('CUT2-01 canonical local model contract', () => {
+  it('keeps the model additive and preserves the legacy cut mode', () => {
+    const sql = migration()
+    expect(sql).toContain("add column cut_mode public.cut2_cut_mode not null default 'LEGACY_SNAPSHOT'")
+    expect(sql).toContain('legacy cuts continue to use their existing snapshot flow')
+    expect(sql).not.toContain('drop table public.inventory_cuts')
+    expect(sql).not.toContain('drop table public.count_records')
+  })
+
+  it('defines warehouse-scoped canonical reference identity and collision protection', () => {
+    const sql = migration()
+    expect(sql).toContain('create table public.warehouses')
+    expect(sql).toContain('add column warehouse_id uuid')
+    expect(sql).toContain('create or replace function public.normalize_reference_key')
+    expect(sql).toContain("Reference fields cannot contain ::")
+    expect(sql).toContain('unique (inventory_id, warehouse_id, reference_type, normalized_reference_key)')
+  })
+
+  it('models auditability before activation of rolling cuts', () => {
+    const sql = migration()
+    for (const table of [
+      'inventory_sealed_references', 'reference_tolerance_decisions', 'reference_findings',
+      'orphan_references', 'rp_release_batches', 'rp_release_audits',
+      'rp_release_rectifications', 'inventory_close_backups', 'notification_policies',
+    ]) expect(sql).toContain(`create table public.${table}`)
+    expect(sql).toContain('verify_rp_release_integrity_metadata')
+    expect(sql).toContain('validate_inventory_close_backup')
+    expect(sql).toContain('CUT2 immutable history cannot be updated or deleted')
+  })
+
+  it('keeps direct Data API writes closed and enables RLS for every new operational table', () => {
+    const sql = migration()
+    expect(sql).toContain('alter table public.inventory_sealed_references enable row level security')
+    expect(sql).toContain('revoke all on public.operational_hours')
+    expect(sql).toContain('from authenticated;')
+    expect(sql).not.toContain('service_role')
+  })
+})
