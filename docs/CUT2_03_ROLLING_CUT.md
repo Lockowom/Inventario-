@@ -35,6 +35,12 @@ referencias no seleccionadas continúan en C1. Un C2 creado por rolling cut se
 puede reclamar mientras C1 global siga abierto; el gate F16 de C2 legacy no se
 modifica.
 
+El acceso temprano a ese C2 no elimina la regla de independencia: desde
+`CUT2-03D`, el usuario que aportó evidencia C1 para la referencia no puede verla
+en su cola ni reclamarla. Un segundo CONTADOR autorizado sí puede reclamar la
+misión ciega. La misión no expone cantidades C1, Disponible ni diferencia
+esperada; la separación se aplica en las RPC de cola y reclamo, no sólo en UI.
+
 ## Idempotencia y auditoría
 
 `rolling_cut_requests` fija `inventory_id + request_id`, fingerprint de preview

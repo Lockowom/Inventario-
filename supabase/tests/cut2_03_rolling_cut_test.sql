@@ -1,15 +1,19 @@
 begin;
-select plan(21);
+select plan(22);
 
 insert into auth.users (id,aud,role,email,encrypted_password,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
  ('e3010000-0000-0000-0000-000000000001','authenticated','authenticated','cut03-admin@example.invalid','', '{}'::jsonb,'{}'::jsonb,now(),now()),
- ('e3010000-0000-0000-0000-000000000002','authenticated','authenticated','cut03-counter@example.invalid','', '{}'::jsonb,'{}'::jsonb,now(),now());
+ ('e3010000-0000-0000-0000-000000000002','authenticated','authenticated','cut03-counter@example.invalid','', '{}'::jsonb,'{}'::jsonb,now(),now()),
+ ('e3010000-0000-0000-0000-000000000003','authenticated','authenticated','cut03-c2-counter@example.invalid','', '{}'::jsonb,'{}'::jsonb,now(),now());
 insert into public.profiles(user_id,display_name,role,user_type) values
  ('e3010000-0000-0000-0000-000000000001','CUT03 Admin','ADMIN','PERMANENT'),
- ('e3010000-0000-0000-0000-000000000002','CUT03 Counter','CONTADOR','PERMANENT');
+ ('e3010000-0000-0000-0000-000000000002','CUT03 Counter','CONTADOR','PERMANENT'),
+ ('e3010000-0000-0000-0000-000000000003','CUT03 C2 Counter','CONTADOR','PERMANENT');
 insert into public.inventories(id,name,status,created_by,prepared_at,prepared_by,opened_at,opened_by)
 values('e3020000-0000-0000-0000-000000000001','CUT03','ABIERTO','e3010000-0000-0000-0000-000000000001',now(),'e3010000-0000-0000-0000-000000000001',now(),'e3010000-0000-0000-0000-000000000001');
-insert into public.inventory_assignments(inventory_id,user_id,assigned_by) values('e3020000-0000-0000-0000-000000000001','e3010000-0000-0000-0000-000000000002','e3010000-0000-0000-0000-000000000001');
+insert into public.inventory_assignments(inventory_id,user_id,assigned_by) values
+ ('e3020000-0000-0000-0000-000000000001','e3010000-0000-0000-0000-000000000002','e3010000-0000-0000-0000-000000000001'),
+ ('e3020000-0000-0000-0000-000000000001','e3010000-0000-0000-0000-000000000003','e3010000-0000-0000-0000-000000000001');
 insert into public.inventory_master_items(inventory_id,codigo,descripcion,control_type,source,created_by) values
  ('e3020000-0000-0000-0000-000000000001','SKU-OK','OK','LEGACY','CUT03','e3010000-0000-0000-0000-000000000001'),
  ('e3020000-0000-0000-0000-000000000001','SKU-DIFF','Diff','LEGACY','CUT03','e3010000-0000-0000-0000-000000000001'),
@@ -40,8 +44,11 @@ select is((select count(*) from public.generated_files where inventory_id='e3020
 select is((select count(*) from public.rp_release_batches where inventory_id='e3020000-0000-0000-0000-000000000001'),0::bigint,'T27: no RP release generated');
 select is((select c1_completed_at is null from public.inventories where id='e3020000-0000-0000-0000-000000000001'),true,'T29: C1 global remains open');
 select set_config('request.jwt.claim.sub','e3010000-0000-0000-0000-000000000002',true); set local role authenticated;
-select is((public.get_my_recount_queue('e3020000-0000-0000-0000-000000000001')->>'queued_count')::integer,1,'T24: C2 from rolling cut is visible while global C1 remains open');
-select is(public.claim_next_recount_mission('e3020000-0000-0000-0000-000000000001')->>'round','2','T24: counter can claim rolling C2 without global C1 completion');
+select is((public.get_my_recount_queue('e3020000-0000-0000-0000-000000000001')->>'queued_count')::integer,0,'T24: C1 source counter cannot view or reclaim its own rolling C2');
+reset role;
+select set_config('request.jwt.claim.sub','e3010000-0000-0000-0000-000000000003',true); set local role authenticated;
+select is((public.get_my_recount_queue('e3020000-0000-0000-0000-000000000001')->>'queued_count')::integer,1,'T24: rolling C2 is visible to a distinct authorized C2 counter while C1 remains open');
+select is(public.claim_next_recount_mission('e3020000-0000-0000-0000-000000000001')->>'round','2','T24: distinct counter can claim rolling C2 without global C1 completion');
 reset role;
 select set_config('request.jwt.claim.sub','e3010000-0000-0000-0000-000000000001',true); set local role authenticated;
 select is((public.create_rolling_cut_v2('e3020000-0000-0000-0000-000000000001','e3060000-0000-0000-0000-000000000001',current_setting('cut2.fp'),'{"normalized_reference_keys":["SKU-DIFF","SKU-OK"]}'::jsonb)->>'cut_id'),current_setting('cut2.cut'),'T04: request retry returns the same cut');
