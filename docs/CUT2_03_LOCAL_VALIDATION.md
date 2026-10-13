@@ -61,6 +61,15 @@ Evidencia final: cut `573d8672-f9e6-4af2-b0d3-325328c432b4`, `sealed=1`,
 `snapshots=1`, `late_count=0`, `audit=2` (un evento de referencia y uno de
 corte). No se insertó el conteo tardío ni se alteró el snapshot.
 
+## Fingerprint del preview ejecutado
+
+Fixture local `CUT03-FP`: el CONTADOR registró un C1 aceptado para `SKU-FP` con
+cantidad 5. Un intento de corte con fingerprint anterior respondió
+`PREVIEW_STALE` y fue revertido. Con el preview recalculado, el rolling cut
+`49f22a53-e667-423d-9c4b-f520e0b7d3c6` confirmó con `snapshot_count=1`,
+`c2_count=0`; la evidencia del snapshot suma `qty=5`. Así se confirma que el
+conteo previo entra en el snapshot solamente después de la revalidación actual.
+
 ## Pendiente obligatorio para cerrar el gate
 
 Esta ejecución no realizó el conjunto completo de experimentos de dos conexiones
