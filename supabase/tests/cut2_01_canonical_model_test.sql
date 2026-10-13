@@ -63,8 +63,7 @@ select 'c2090000-0000-0000-0000-000000000001', id, warehouse_id, 'READY', 'rp.xl
 insert into public.rp_release_audits (release_id, inventory_id, warehouse_id, reference_count, release_fingerprint, xlsx_file_name, xlsx_sha256, xlsx_size_bytes, sidecar_sha256, algorithm_version, created_by)
 select 'c2090000-0000-0000-0000-000000000001', id, warehouse_id, 1, repeat('d',64), 'rp.xlsx', repeat('b',64), 512, repeat('c',64), 'CUT2_V2_3', 'c2010000-0000-0000-0000-000000000001' from public.inventories where id='c2020000-0000-0000-0000-000000000001';
 select is(public.verify_rp_release_integrity_metadata('c2090000-0000-0000-0000-000000000001'), 'VERIFIED', 'BE: sidecar schema and release metadata verify');
-update public.rp_release_batches set sidecar_sha256=repeat('e',64) where id='c2090000-0000-0000-0000-000000000001';
-select is(public.verify_rp_release_integrity_metadata('c2090000-0000-0000-0000-000000000001'), 'INTEGRITY_FAILURE', 'BF: sidecar hash mismatch blocks official release');
+select throws_ok($$update public.rp_release_batches set sidecar_sha256=repeat('e',64) where id='c2090000-0000-0000-0000-000000000001'$$, '55000', 'CUT2 ready RP release cannot be updated or deleted', 'BF: official release delivery metadata is immutable');
 select throws_ok($$update public.rp_release_audits set xlsx_size_bytes=513 where release_id='c2090000-0000-0000-0000-000000000001'$$, '55000', 'CUT2 immutable history cannot be updated or deleted', 'release sidecar is append-only');
 
 select * from finish();

@@ -3,7 +3,9 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const migrationPath = path.join(process.cwd(), 'supabase/migrations/20261013113403_cut2_01_canonical_pre_cut2.sql')
+const hardeningMigrationPath = path.join(process.cwd(), 'supabase/migrations/20261013132014_cut2_01_validation_hardening.sql')
 const migration = () => fs.readFileSync(migrationPath, 'utf8').replace(/\r\n/g, '\n')
+const hardeningMigration = () => fs.readFileSync(hardeningMigrationPath, 'utf8').replace(/\r\n/g, '\n')
 
 describe('CUT2-01 canonical local model contract', () => {
   it('keeps the model additive and preserves the legacy cut mode', () => {
@@ -40,6 +42,17 @@ describe('CUT2-01 canonical local model contract', () => {
     expect(sql).toContain('alter table public.inventory_sealed_references enable row level security')
     expect(sql).toContain('revoke all on public.operational_hours')
     expect(sql).toContain('from authenticated;')
+    expect(sql).not.toContain('service_role')
+  })
+
+  it('hardens orphan, critical finding, and official release invariants without enabling rolling cuts', () => {
+    const sql = hardeningMigration()
+    expect(sql).toContain('add column block_seal boolean not null default true')
+    expect(sql).toContain('add column block_rp boolean not null default true')
+    expect(sql).toContain('reference_findings_critical_taxonomy_check')
+    expect(sql).toContain('cut2_reference_is_critical')
+    expect(sql).toContain('rp_release_batches_ready_immutable')
+    expect(sql).not.toContain('create_rolling_cut_v2')
     expect(sql).not.toContain('service_role')
   })
 })
