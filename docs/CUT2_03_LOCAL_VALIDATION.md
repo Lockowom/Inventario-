@@ -49,10 +49,25 @@ preexistentes y ajenas al corte: inmutabilidad de
 - aislamiento operativo C1/C2 del mismo usuario y reclamo por contador distinto;
 - regresión completa de la suite heredada, incluido contrato `LEGACY_SNAPSHOT`.
 
+## Concurrencia con conexiones PostgreSQL independientes
+
+La dirección **SEAL gana** de COUNT-vs-SEAL fue ejecutada contra PostgreSQL local
+en dos conexiones independientes. La sesión ADMIN mantuvo abierta la transacción
+del rolling cut y la sesión CONTADOR intentó `sync_counts` sobre la misma
+referencia. Tras el commit del seal, el conteo devolvió
+`REJECTED:REFERENCE_SEALED`.
+
+Evidencia final: cut `573d8672-f9e6-4af2-b0d3-325328c432b4`, `sealed=1`,
+`snapshots=1`, `late_count=0`, `audit=2` (un evento de referencia y uno de
+corte). No se insertó el conteo tardío ni se alteró el snapshot.
+
 ## Pendiente obligatorio para cerrar el gate
 
-Esta ejecución no realizó los experimentos de dos conexiones PostgreSQL reales
-solicitados para COUNT-vs-SEAL, SEAL-vs-SEAL ni selecciones solapadas. Tampoco
+Esta ejecución no realizó el conjunto completo de experimentos de dos conexiones
+PostgreSQL: falta COUNT-gana, SEAL-vs-SEAL y selecciones solapadas. COUNT-gana
+debe revalidar con fingerprint nuevo después del commit del conteo; reutilizar
+el anterior debe responder `PREVIEW_STALE` y no se considera evidencia válida.
+Tampoco
 añadió las fixtures de certificación independientes requeridas para PARTIDA
 match/mismatch/multi-ubicación, SERIAL match/mismatch/duplicado, UOM, huérfano,
 Disponible negativo, finding crítico y dos bodegas. Tampoco existe una medición
