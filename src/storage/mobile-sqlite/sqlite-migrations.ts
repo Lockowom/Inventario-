@@ -73,6 +73,14 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = [
       await database.execute("alter table local_counting_context add column role text check (role in ('CONTADOR', 'ANALISTA', 'ADMIN'))")
     },
   },
+  {
+    version: 8,
+    up: async (database) => {
+      // Legacy rows deliberately remain NULL: this is missing UOM evidence,
+      // never an implicit claim that the physical UOM matched the system.
+      await database.execute('alter table local_count_records add column physical_uom text')
+    },
+  },
 ]
 
 const migrationRuns = new WeakMap<SqliteDatabase, Promise<void>>()

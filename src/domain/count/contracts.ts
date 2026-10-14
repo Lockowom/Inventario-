@@ -10,6 +10,7 @@ export const SERIAL_REQUIRED_ERROR = 'Favor introducir la serie. Si el producto 
 export const SERIAL_LENGTH_ERROR = 'La serie ingresada supera el máximo permitido de 19 caracteres. Diríjase al Analista de Inventario con el producto para su revisión.'
 export const BATCH_REQUIRED_ERROR = 'Favor introducir el lote/partida. Si el producto no está etiquetado o no tiene un lote visible, favor hablar con el Analista de Inventario.'
 export const QUANTITY_ERROR = 'La cantidad contada debe ser mayor a 0. Ingrese al menos 1 unidad.'
+export const PHYSICAL_UOM_ERROR = 'La unidad física debe usar hasta 32 caracteres: letras, números, punto, guion o barra.'
 
 export const countSyncStatusSchema = z.enum(['PENDING', 'SYNCING', 'CONFIRMED', 'FAILED', 'REJECTED'])
 export type CountSyncStatus = z.infer<typeof countSyncStatusSchema>
@@ -23,6 +24,7 @@ export const physicalCountDraftSchema = z.object({
   fechaVencimiento: z.string().optional().nullable(),
   talla: z.string().optional(),
   color: z.string().optional(),
+  physicalUom: z.string().optional(),
   cantidadContada: z.string(),
 })
 export type PhysicalCountDraft = z.infer<typeof physicalCountDraftSchema>
@@ -36,6 +38,9 @@ export const validatedPhysicalCountSchema = z.object({
   fechaVencimiento: z.string().date().nullable(),
   talla: z.string().nullable(),
   color: z.string().nullable(),
+  // Optional on read for queues created before CUT2-03K. New C1 writes always
+  // include the field (possibly null, which remains missing evidence).
+  physicalUom: z.string().nullable().optional(),
   cantidadContada: z.number().int().positive(),
   descripcion: z.string().min(1),
   controlType: masterControlTypeSchema,
@@ -93,6 +98,8 @@ export function validatePhysicalCountDraft(draftInput: PhysicalCountDraft, maste
   const partida = normalizeCountText(draft.partida)
   const cantidadRaw = draft.cantidadContada.trim()
   const rawDate = normalizeCountText(draft.fechaVencimiento)
+  const physicalUom = normalizeCountText(draft.physicalUom)?.toUpperCase() ?? null
+  if (physicalUom && (physicalUom.length > 32 || !/^[A-Z0-9._/-]+$/.test(physicalUom))) throw new PhysicalCountValidationError('physicalUom', PHYSICAL_UOM_ERROR)
   if (rawDate && !/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) throw new PhysicalCountValidationError('fechaVencimiento', 'La fecha de vencimiento debe ser una fecha válida.')
   if (rawDate) {
     const parsedDate = new Date(`${rawDate}T00:00:00.000Z`)
@@ -120,6 +127,7 @@ export function validatePhysicalCountDraft(draftInput: PhysicalCountDraft, maste
     fechaVencimiento: rawDate,
     talla: normalizeCountText(draft.talla),
     color: normalizeCountText(draft.color),
+    physicalUom,
     cantidadContada,
     descripcion: normalizeMasterDescription(master.descripcion),
     controlType: master.controlType,
