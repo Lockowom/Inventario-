@@ -91,3 +91,18 @@ CUT2-04.
 
 `BLOCKED_FOR_CUT2_ROLLING_CUT_LOCAL` hasta completar las pruebas anteriores con
 evidencia reproducible y revisión de rendimiento local.
+
+## Recuperación local CUT2-03H
+
+El bloqueo del 2026-10-14 fue de disponibilidad local, no funcional: el contexto
+`desktop-linux` era correcto y `DOCKER_HOST` estaba vacío, pero la distribución
+WSL `docker-desktop` estaba detenida y el named pipe
+`dockerDesktopLinuxEngine` no existía. No se ejecutó `wsl --shutdown`, ni se
+reinició Windows, servicios o contenedores manualmente. Se inició Docker Desktop
+por su AppID registrado y se esperó al backend.
+
+Resultado: Docker Client/Server `29.8.1`, `docker-desktop` en ejecución,
+`supabase_db_inven3` healthy. Posteriormente `supabase db reset --local
+--no-seed --yes` y la suite completa pgTAP terminaron PASS: 34 archivos / 561
+pruebas. La recuperación no modifica el estado del gate: las matrices de
+concurrencia, identidades y rendimiento siguen pendientes de evidencia.
