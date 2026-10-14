@@ -52,3 +52,25 @@ identity.  Existing UOM/finding post-seal visibility remains in the preview.
 - pre-seal critical finding, manager-only authority, and resolution audit;
 - warehouse isolation;
 - post-seal finding linkage and UOM audit evidence.
+
+## CUT2-03L certification evidence
+
+The complete local certification on 2026-10-14 added the identity matrix
+`supabase/tests/cut2_03l_identity_matrix_test.sql` (31 pgTAP assertions).
+Together with the 18 pre-seal guard assertions, it proves the following
+before the final regression gate:
+
+| Control | Result | Evidence |
+| --- | --- | --- |
+| Explicit UOM match | PASS | physical `UN` and system `UN` remain eligible |
+| UOM mismatch | PASS | physical `CJ` against `UN` blocks without sealing |
+| Missing UOM evidence | PASS | shown as `MISSING_EVIDENCE`, strict policy blocks |
+| Mixed UOM | PASS | shown as `UOM_CONFLICT`; quantities are not summed |
+| Critical pre-seal finding | PASS | open finding blocks; manager resolution restores eligibility |
+| Warehouse isolation | PASS | a finding in A does not block the same identity in B |
+| Post-seal finding link | PASS | canonical finding is linked once on seal and audited |
+| Partida and serial identities | PASS | match has no C2; mismatch has C2; duplicate serial blocks |
+
+The two-session seal races and the 10,000-identity performance run are recorded
+in `docs/CUT2_03_LOCAL_VALIDATION.md`. They were local-only and rolled back or
+used disposable local fixtures; no remote environment was touched.

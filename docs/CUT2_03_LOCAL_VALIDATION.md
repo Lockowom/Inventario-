@@ -126,3 +126,74 @@ Resultado: Docker Client/Server `29.8.1`, `docker-desktop` en ejecución,
 --no-seed --yes` y la suite completa pgTAP terminaron PASS: 34 archivos / 561
 pruebas. La recuperación no modifica el estado del gate: las matrices de
 concurrencia, identidades y rendimiento siguen pendientes de evidencia.
+
+## CUT2-03L — evidencia de certificación previa al gate final
+
+Fecha: 2026-10-14
+Checkpoint de entrada: `aa73351e6ebf367edc1aca9f700ace8797cec794`
+
+Esta ejecución sustituyó las matrices que antes figuraban como pendientes por
+pruebas reproducibles locales. No hubo acceso a QA remoto, producción, iOS,
+Windows/Tauri, OTA, despliegues ni push.
+
+El reset final reconstruyó las migraciones locales, pero dejó servicios
+auxiliares de Supabase inestables y el runner pgTAP dejó de responder. Por
+integridad, esta evidencia no sustituye la repetición de la suite global en un
+entorno local saludable y no habilita aún el gate final.
+
+| Control | Resultado | Evidencia |
+| --- | --- | --- |
+| UOM MATCH / MISMATCH / MISSING / CONFLICT | PASS | `cut2_03k_preseal_guards_test.sql` (18) |
+| Finding crítico / resolución / aislamiento / vínculo | PASS | `cut2_03k_preseal_guards_test.sql` (18) |
+| Count-before-preview / stale fingerprint / seal-wins | PASS | `cut2_03_rolling_cut_test.sql` (22) y carrera local |
+| Seal vs seal | PASS | dos sesiones PostgreSQL; 1 sello, 1 `PREVIEW_STALE`, 1 snapshot, 0 `SEALING` |
+| Selecciones X+Y vs Y+Z | PASS | dos sesiones PostgreSQL; X=1, Y=1, Z=0, 2 snapshots, 0 `SEALING` |
+| Partida match / mismatch / multi-ubicación | PASS | `cut2_03l_identity_matrix_test.sql` (31) |
+| Serial match / mismatch / duplicado | PASS | `cut2_03l_identity_matrix_test.sql` (31) |
+| Orphan / saldo negativo / multi-bodega | PASS | `cut2_03l_identity_matrix_test.sql` (31) |
+| C1 continúa / separación de originador / C2 ciego | PASS | `cut2_03_rolling_cut_test.sql` (22) |
+| Offline, outbox y clientes antiguos | PASS | contrato aditivo de `sync_counts` y regresiones CUT2-03K/CUT2-03 |
+| Legacy snapshot y artefactos RP | PASS | suite heredada CUT2 |
+
+### Carreras ejecutadas
+
+**Seal vs seal.** Dos conexiones independientes intentaron sellar
+`CUT-CONC-SS-01` con el mismo fingerprint. La primera creó el cut
+`e4fd7ba7-c6b2-4613-9a07-5ce68c1de89b`; la segunda recibió
+`PREVIEW_STALE`. Estado final: `sealed=1`, `snapshots=1`, `C2=0`,
+`CUT_EVENTS=2`, `SEALING=0`.
+
+**Selección solapada.** Dos conexiones intentaron `X+Y` y `Y+Z`. Ganó X+Y con
+cut `1a386506-c10e-4918-a0fc-f3407f6e147b`; la segunda recibió
+`PREVIEW_STALE`. Estado final: X=1, Y=1, Z=0, snapshots=2, C2=0 y
+`SEALING=0`. No existe éxito parcial de Z.
+
+### Rendimiento local sintético
+
+El dataset se generó dentro de transacciones que terminaron en `ROLLBACK`:
+10.000 identidades sintéticas, mezcla LEGACY/PARTIDA/SERIAL, multi-ubicación,
+UOM explícita y referencias selladas/casos de control. No se conservaron datos
+de prueba.
+
+| Camino `EXPLAIN (ANALYZE, BUFFERS)` | Planning | Execution | Rows/loops | Scan / índice | Buffers | Observación |
+| --- | ---: | ---: | --- | --- | ---: | --- |
+| Preview/revalidación | 0.043 ms | 1333.187 ms | 1 / 1 | Result (función completa) | 15687 hit | Recorre las 10k identidades para reconstruir el fingerprint; sin N+1. |
+| Lookup canónico | 0.160 ms | 0.065 ms | 1 / 1 | `inventory_system_reference_items_live_lookup_idx` | 3 hit | Lookup puntual indexado. |
+| UOM pre-seal | 0.212 ms | 20.278 ms | 0 / 1 | GroupAggregate + seq scan 10k | 264 hit | Agregación completa intencional, sin loop explosivo. |
+| Finding pre-seal | 0.233 ms | 0.044 ms | 0 / 1 | Seq scan tabla mínima | 1 hit | No había findings sintéticos abiertos en esta corrida. |
+| Conflicto sellado | 0.217 ms | 0.077 ms | 0 / 1 | Seq scan tabla mínima | 1 hit | La ruta real está además cubierta por las carreras. |
+| Materialización de snapshot | 1.335 ms | 115.326 ms | 1 / 1 | Hash join + dos seq scans 10k | 423 hit | Selección por clave canónica calculada; coste lineal controlado. |
+| C2 lookup/generación | 0.808 ms | 0.062 ms | 1 / 1 | Nested loop | 2 hit | Caso/misión sintéticos encontrados una vez. |
+| `sync_counts` guard sellado | 0.055 ms | 7.297 ms | 1 / 1 | Function scan | 569 hit | Rechazo contra una referencia sellada, sin inserción C1. |
+
+No se añadió índice ni migración por estas mediciones: no apareció N+1,
+deadlock, lectura repetitiva ni coste que justifique cambiar el plan de datos.
+
+### Cambios de certificación
+
+- Se añadió `supabase/tests/cut2_03l_identity_matrix_test.sql` con 31
+  aserciones conductuales para partidas, series, huérfanos, saldo negativo y
+  aislamiento de bodega.
+- No se crearon migraciones de esquema.
+- Las advertencias históricas del linter/advisor se documentan separadamente;
+  no hay hallazgos de seguridad nuevos de CUT2-03K.
