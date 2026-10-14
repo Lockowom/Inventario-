@@ -92,6 +92,26 @@ CUT2-04.
 `BLOCKED_FOR_CUT2_ROLLING_CUT_LOCAL` hasta completar las pruebas anteriores con
 evidencia reproducible y revisión de rendimiento local.
 
+## Hallazgo reproducible CUT2-03J — guards pre-seal no representables
+
+La inspección directa de la base local demuestra un defecto de modelo que bloquea
+la certificación de `UOM_MISMATCH` y `CRITICAL_FINDING_OPEN` antes de sellar:
+
+- `public.count_records` no tiene columna de UOM; por lo tanto un conteo físico
+  normal no puede expresar `UN` frente a `CJ`.
+- `public.uom_resolution_cases.reference_id` y
+  `public.reference_findings.reference_id` apuntan a una
+  `inventory_sealed_references` ya existente.
+- El preview CUT2-02 consulta ambos guards mediante joins con referencias ya
+  selladas. Para una identidad candidata nueva, no existe una fila a la que
+  anclar el caso o finding antes de `create_rolling_cut_v2`.
+
+En consecuencia, no se puede construir por el flujo real una fixture que haga
+que una identidad OPEN_C1 sea bloqueada por UOM o finding crítico sin insertar
+un estado artificial posterior al seal. Eso contradice el requisito de bloquear
+el rolling cut previo. El gate permanece bloqueado hasta introducir un modelo
+pre-seal explícito (fuera del alcance autorizado de esta certificación).
+
 ## Recuperación local CUT2-03H
 
 El bloqueo del 2026-10-14 fue de disponibilidad local, no funcional: el contexto
