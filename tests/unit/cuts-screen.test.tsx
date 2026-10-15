@@ -15,11 +15,13 @@ describe('detalle de corte paginado', () => {
     const cutsRepository = {
       inventories: vi.fn().mockResolvedValue([{ id: 'inventory-a', name: 'A', status: 'ABIERTO' }]),
       myProfile: vi.fn().mockResolvedValue({ role: 'ANALISTA', active: true }),
-      cuts: vi.fn().mockResolvedValue([{ id: 'cut-a', cut_number: 1, status: 'SNAPSHOT_CREATED', record_count: 102, first_export_seq: 1, last_export_seq: 102 }]),
+      cuts: vi.fn().mockResolvedValue([{ id: 'cut-a', cut_number: 1, status: 'SNAPSHOT_CREATED', record_count: 102, first_export_seq: 1, last_export_seq: 102, created_by: 'analyst-id', created_by_name: 'QA ANALISTA', created_at: '2026-09-26T05:57:21Z' }]),
       createCut: vi.fn(), items: vi.fn().mockResolvedValueOnce(firstPage).mockResolvedValueOnce(secondPage), correctionContext: vi.fn(), correct: vi.fn(),
     } as unknown as SupabaseCutsRepository
     render(<CutsScreen cutsRepository={cutsRepository} />)
     await flushReact()
+    expect(screen.getByText('QA ANALISTA')).toBeInTheDocument()
+    expect(screen.getByText(/UTC$/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'VER DETALLE' }))
     await flushReact()
     expect(screen.getByText('#1 · SKU · 1')).toBeInTheDocument()

@@ -72,7 +72,7 @@ select lives_ok($$update public.profiles set display_name = 'Admin actualizado' 
 reset role;
 select set_config('request.jwt.claim.sub', '30000000-0000-0000-0000-000000000002', true); set local role authenticated;
 select lives_ok('select public.open_inventory(''40000000-0000-0000-0000-000000000001'')', 'assigned ANALISTA can open a prepared inventory');
-select lives_ok('select public.close_inventory(''40000000-0000-0000-0000-000000000001'')', 'assigned ANALISTA can close an open inventory');
+select throws_ok('select public.close_inventory(''40000000-0000-0000-0000-000000000001'')', '23514', 'C1 must be finalized before inventory closure', 'assigned ANALISTA cannot bypass the F16 C1 closure gate');
 reset role;
 insert into public.inventory_freeze_guards (inventory_id, device_id, pending_count) values ('40000000-0000-0000-0000-000000000001', '50000000-0000-0000-0000-000000000001', 1);
 select set_config('request.jwt.claim.sub', '30000000-0000-0000-0000-000000000002', true); set local role authenticated;

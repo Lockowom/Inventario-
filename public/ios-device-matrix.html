@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>INVEN3 · iPhone Device Matrix</title>
+<style>
+:root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#090c0a;color:#f4f7f5}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% -15%,rgba(67,211,156,.14),transparent 42rem),#090c0a}
+header{position:sticky;top:0;z-index:50;display:flex;gap:24px;align-items:end;justify-content:space-between;padding:22px 28px;border-bottom:1px solid #263029;background:rgba(9,12,10,.94);backdrop-filter:blur(14px)}
+.eyebrow{font-size:12px;letter-spacing:.18em;text-transform:uppercase;color:#4bd69e;font-weight:800}
+h1{margin:5px 0 0;font-size:30px}
+.controls{display:flex;gap:10px;align-items:end;flex-wrap:wrap}
+label{font-size:12px;color:#9da9a1;font-weight:700}
+select,button{margin-top:6px;border:1px solid #344038;border-radius:12px;background:#101411;color:#f4f7f5;padding:10px 12px;font:inherit}
+button{background:#43d39c;color:#07100c;border-color:#43d39c;font-weight:800;cursor:pointer}
+.summary{padding:20px 28px 0;color:#aeb8b1;line-height:1.5}
+.matrix{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:22px;padding:24px 28px 44px}
+.card{border:1px solid #263029;border-radius:22px;background:#121613;padding:16px;min-width:0}
+.card-head{display:flex;justify-content:space-between;gap:10px;align-items:start;margin-bottom:14px}
+.model{font-size:17px;font-weight:850}
+.meta{font-size:11px;color:#89978e;line-height:1.45;text-align:right}
+.badge{display:inline-block;margin-top:6px;padding:3px 7px;border:1px solid #315542;border-radius:999px;color:#54dda7;font-size:10px;font-weight:800}
+.device-wrap{height:510px;display:grid;place-items:start center;overflow:hidden}
+.phone{--pw:205px;--ph:444px;--radius:34px;position:relative;width:var(--pw);height:var(--ph);border-radius:var(--radius);background:#050605;border:1px solid #46504a;box-shadow:0 18px 38px rgba(0,0,0,.46),inset 0 0 0 5px #111512;padding:7px}
+.screen{position:relative;width:100%;height:100%;overflow:hidden;border-radius:calc(var(--radius) - 7px);background:#0b0d0c}
+.status{position:absolute;z-index:6;top:0;left:0;right:0;height:28px;padding:5px 11px 0;display:flex;justify-content:space-between;align-items:center;font-size:7px;font-weight:900;pointer-events:none}
+.cutout{position:absolute;z-index:7;top:7px;left:50%;transform:translateX(-50%);background:#000;pointer-events:none}
+.notch{width:83px;height:22px;border-radius:0 0 13px 13px}
+.island{width:70px;height:19px;border-radius:14px}
+.viewport-stage{position:absolute;left:0;right:0;top:29px;bottom:12px;overflow:hidden;background:#0b0d0c}
+.viewport-scale{position:absolute;left:50%;top:0;transform-origin:top center;transform:translateX(-50%) scale(var(--scale));width:calc(var(--vw) * 1px);height:calc(var(--vh) * 1px)}
+.viewport-frame{display:block;border:0;width:calc(var(--vw) * 1px);height:calc(var(--vh) * 1px);background:#0b0d0c}
+.home{position:absolute;z-index:8;bottom:4px;left:50%;transform:translateX(-50%);height:3px;width:72px;border-radius:999px;background:#e9ecea}
+.card[data-generation="18"]{border-color:#315542;background:linear-gradient(180deg,rgba(67,211,156,.045),#121613 32%)}
+@media(max-width:700px){header{position:static;align-items:start;flex-direction:column}.matrix{grid-template-columns:1fr;padding:18px}.summary{padding:18px 18px 0}.device-wrap{height:500px}}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="eyebrow">INVEN3 · iOS Responsive QA</div>
+    <h1>iPhone Device Matrix · 11 → 18</h1>
+  </div>
+  <div class="controls">
+    <div><label for="scenario">Pantalla</label><br>
+      <select id="scenario">
+        <option value="health-ready">Health Check · Ready</option>
+        <option value="counting-health-offline">Conteo · Offline</option>
+        <option value="cuts-ready">Cortes · Ready</option>
+        <option value="layout">Supervisión / Maestro</option>
+        <option value="health-blocked">Health Check · Bloqueado</option>
+      </select>
+    </div>
+    <div><label for="generation">Generación</label><br>
+      <select id="generation">
+        <option value="all">Todas</option>
+        <option value="11">11</option><option value="12">12</option><option value="13">13</option>
+        <option value="14">14</option><option value="15">15</option><option value="16">16</option>
+        <option value="17">17</option><option value="18">18</option>
+      </select>
+    </div>
+    <button id="reload">RECARGAR TODOS</button>
+  </div>
+</header>
+<div class="summary">23 perfiles visuales en paralelo. Esta matriz compara densidad, jerarquía, cortes, safe areas y overflow. La certificación WebKit multi-dispositivo corre por separado.</div>
+<main class="matrix" id="matrix"></main>
+<script>
+const models=[
+  {g:11,n:'iPhone 11',d:'6.1"',r:'828×1792',w:198,h:430,vw:414,vh:896,c:'notch'},
+  {g:11,n:'iPhone 11 Pro',d:'5.8"',r:'1125×2436',w:190,h:420,vw:375,vh:812,c:'notch'},
+  {g:11,n:'iPhone 11 Pro Max',d:'6.5"',r:'1242×2688',w:208,h:450,vw:414,vh:896,c:'notch'},
+  {g:12,n:'iPhone 12',d:'6.1"',r:'1170×2532',w:198,h:432,vw:390,vh:844,c:'notch'},
+  {g:12,n:'iPhone 12 Pro',d:'6.1"',r:'1170×2532',w:198,h:432,vw:390,vh:844,c:'notch'},
+  {g:12,n:'iPhone 12 Pro Max',d:'6.7"',r:'1284×2778',w:210,h:458,vw:428,vh:926,c:'notch'},
+  {g:13,n:'iPhone 13',d:'6.1"',r:'1170×2532',w:198,h:432,vw:390,vh:844,c:'notch'},
+  {g:13,n:'iPhone 13 Pro',d:'6.1"',r:'1170×2532',w:198,h:432,vw:390,vh:844,c:'notch'},
+  {g:13,n:'iPhone 13 Pro Max',d:'6.7"',r:'1284×2778',w:210,h:458,vw:428,vh:926,c:'notch'},
+  {g:14,n:'iPhone 14',d:'6.1"',r:'1170×2532',w:198,h:432,vw:390,vh:844,c:'notch'},
+  {g:14,n:'iPhone 14 Pro',d:'6.1"',r:'1179×2556',w:198,h:434,vw:393,vh:852,c:'island'},
+  {g:14,n:'iPhone 14 Pro Max',d:'6.7"',r:'1290×2796',w:210,h:460,vw:430,vh:932,c:'island'},
+  {g:15,n:'iPhone 15',d:'6.1"',r:'1179×2556',w:198,h:434,vw:393,vh:852,c:'island'},
+  {g:15,n:'iPhone 15 Pro',d:'6.1"',r:'1179×2556',w:198,h:434,vw:393,vh:852,c:'island'},
+  {g:15,n:'iPhone 15 Pro Max',d:'6.7"',r:'1290×2796',w:210,h:460,vw:430,vh:932,c:'island'},
+  {g:16,n:'iPhone 16',d:'6.1"',r:'1179×2556',w:198,h:434,vw:393,vh:852,c:'island'},
+  {g:16,n:'iPhone 16 Pro',d:'6.3"',r:'1206×2622',w:202,h:440,vw:402,vh:874,c:'island'},
+  {g:16,n:'iPhone 16 Pro Max',d:'6.9"',r:'1320×2868',w:216,h:470,vw:440,vh:956,c:'island'},
+  {g:17,n:'iPhone 17',d:'6.3"',r:'1206×2622',w:202,h:440,vw:402,vh:874,c:'island'},
+  {g:17,n:'iPhone 17 Pro',d:'6.3"',r:'1206×2622',w:202,h:440,vw:402,vh:874,c:'island'},
+  {g:17,n:'iPhone 17 Pro Max',d:'6.9"',r:'1320×2868',w:216,h:470,vw:440,vh:956,c:'island'},
+  {g:18,n:'iPhone 18 Pro',d:'6.3"',r:'1206×2622',w:202,h:440,vw:402,vh:874,c:'island',badge:'2026'},
+  {g:18,n:'iPhone 18 Pro Max',d:'6.9"',r:'1320×2868',w:216,h:470,vw:440,vh:956,c:'island',badge:'2026'}
+]
+const matrix=document.getElementById('matrix');
+const scenario=document.getElementById('scenario');
+const generation=document.getElementById('generation');
+
+function render(){
+  const fixture=scenario.value;
+  const filter=generation.value;
+  matrix.innerHTML='';
+  for(const m of models){
+    if(filter!=='all' && String(m.g)!==filter) continue;
+    const card=document.createElement('section');
+    card.className='card';
+    card.dataset.generation=m.g;
+    card.innerHTML=`
+      <div class="card-head">
+        <div><div class="model">${m.n}</div>${m.badge?'<span class="badge">ACTUAL '+m.badge+'</span>':''}</div>
+        <div class="meta">${m.d}<br>${m.r}</div>
+      </div>
+      <div class="device-wrap">
+        <div class="phone" style="--pw:${m.w}px;--ph:${m.h}px">
+          <div class="screen">
+            <div class="status"><span>9:41</span><span>●●● 5G ▰</span></div>
+            <div class="cutout ${m.c}"></div>
+            <div class="viewport-stage">
+              <div class="viewport-scale" style="--vw:${m.vw};--vh:${m.vh};--scale:${Math.min((m.w-14)/m.vw,(m.h-48)/m.vh).toFixed(4)}">
+                <iframe loading="eager" class="viewport-frame" title="${m.n}" src="/?fixture=${encodeURIComponent(fixture)}&iosMatrix=1&model=${encodeURIComponent(m.n)}"></iframe>
+              </div>
+            </div>
+            <div class="home"></div>
+          </div>
+        </div>
+      </div>`;
+    matrix.appendChild(card);
+  }
+}
+scenario.addEventListener('change',render);
+generation.addEventListener('change',render);
+document.getElementById('reload').addEventListener('click',render);
+render();
+</script>
+</body>
+</html>

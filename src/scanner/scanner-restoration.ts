@@ -1,12 +1,10 @@
-import { App, type RestoredListenerEvent } from '@capacitor/app'
-import { Capacitor, type PluginListenerHandle } from '@capacitor/core'
-import type { ScanField } from './barcode-scanner'
+import type { RestoredScannerEvent, RestoredScannerResult, ScanField } from '../platform/contracts'
 
 const FIELD_KEY = 'inven3.pending-scan-field'
 const RESULT_KEY = 'inven3.restored-scan-result'
 
 export interface ScannerIntentStore { getItem(key: string): string | null; setItem(key: string, value: string): void; removeItem(key: string): void }
-export interface RestoredScanResult { field: ScanField | null; value: string | null; error: string | null }
+export type RestoredScanResult = RestoredScannerResult
 
 function store(): ScannerIntentStore | null { return typeof localStorage === 'undefined' ? null : localStorage }
 export function rememberScannerIntent(field: ScanField, target = store()): void { target?.setItem(FIELD_KEY, field) }
@@ -25,7 +23,7 @@ export function consumeRestoredScannerResult(target = store()): RestoredScanResu
   } catch { return null }
 }
 
-export function processRestoredScannerResult(event: RestoredListenerEvent, target = store()): RestoredScanResult | null {
+export function processRestoredScannerResult(event: RestoredScannerEvent, target = store()): RestoredScanResult | null {
   if (event.pluginId !== 'BarcodeScanner' || event.methodName !== 'scan') return null
   const field = target?.getItem(FIELD_KEY) as ScanField | null
   target?.removeItem(FIELD_KEY)
@@ -41,13 +39,4 @@ function scannerValue(data: unknown): string | null {
   if (!data || typeof data !== 'object' || !Array.isArray((data as { barcodes?: unknown }).barcodes)) return null
   const first = (data as { barcodes: Array<{ displayValue?: unknown }> }).barcodes[0]
   return typeof first?.displayValue === 'string' && first.displayValue.trim() ? first.displayValue.trim() : null
-}
-
-export async function subscribeToScannerRestoration(listener: (result: RestoredScanResult) => void): Promise<() => Promise<void>> {
-  if (Capacitor.getPlatform() !== 'android') return async () => undefined
-  const handle: PluginListenerHandle = await App.addListener('appRestoredResult', (event) => {
-    const result = processRestoredScannerResult(event)
-    if (result) listener(result)
-  })
-  return async () => handle.remove()
 }

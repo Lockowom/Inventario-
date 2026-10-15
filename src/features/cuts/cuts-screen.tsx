@@ -5,6 +5,7 @@ import type { ArtifactGeneration, CutItem, CutRectification, RectificationsRepos
 import { isSupabaseConfigured } from '../../services/supabase'
 import { SupabaseCutsRepository, type PhysicalCorrection } from '../../services/supabase-cuts-repository'
 import { SupabaseRectificationsRepository } from '../../services/supabase-rectifications-repository'
+import { useActiveInventory } from '../control-center/active-inventory-context'
 
 const repository = new SupabaseCutsRepository()
 const rectificationRepository = new SupabaseRectificationsRepository()
@@ -13,14 +14,17 @@ type Profile = { role: 'CONTADOR' | 'ANALISTA' | 'ADMIN' }
 const blankCorrection: PhysicalCorrection = { ubicacion: '', codigo: '', cantidad_contada: 1 }
 
 export function CutsScreen({ cutsRepository = repository, rectificationsRepository = rectificationRepository }: { cutsRepository?: SupabaseCutsRepository; rectificationsRepository?: RectificationsRepository }) {
+  const activeInventory = useActiveInventory()
+  const hasInjectedRepository = cutsRepository !== repository
+  const canLoadCuts = isSupabaseConfigured || hasInjectedRepository
   const [inventories, setInventories] = useState<Inventory[]>([])
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [inventoryId, setInventoryId] = useState('')
+  const [localInventoryId, setLocalInventoryId] = useState('')
   const [cuts, setCuts] = useState<Record<string, unknown>[]>([])
   const [items, setItems] = useState<Record<string, unknown>[]>([])
   const [selectedCutId, setSelectedCutId] = useState<string | null>(null)
   const [nextItemCursor, setNextItemCursor] = useState<number | null>(null)
-  const [message, setMessage] = useState(isSupabaseConfigured ? 'Cargando cortes autorizados…' : 'Cortes no configurados.')
+  const [message, setMessage] = useState(canLoadCuts ? 'Cargando cortes autorizados…' : 'Cortes no configurados.')
   const [requestId, setRequestId] = useState('')
   const [creating, setCreating] = useState(false)
   const [generatingCutId, setGeneratingCutId] = useState<string | null>(null)
@@ -31,16 +35,26 @@ export function CutsScreen({ cutsRepository = repository, rectificationsReposito
   const [rectifications, setRectifications] = useState<CutRectification[]>([])
   const [artifacts, setArtifacts] = useState<ArtifactGeneration[]>([])
   const [inventoryArtifacts, setInventoryArtifacts] = useState<ArtifactGeneration[]>([])
+  const inventoryId = activeInventory?.inventoryId ?? localInventoryId
+  const selectInventory = (nextId: string) => activeInventory ? activeInventory.selectInventory(nextId) : setLocalInventoryId(nextId)
   const isManager = profile?.role === 'ANALISTA' || profile?.role === 'ADMIN'
   const selected = useMemo(() => inventories.find((inventory) => inventory.id === inventoryId), [inventories, inventoryId])
   const selectedCut = useMemo(() => cuts.find((cut) => String(cut.id) === selectedCutId) ?? null, [cuts, selectedCutId])
 
   useEffect(() => {
-    if (!isSupabaseConfigured) return
+    if (!canLoadCuts) return
+    if (activeInventory) {
+      setInventories(activeInventory.inventories)
+      void cutsRepository.myProfile().then((nextProfile) => {
+        setProfile(nextProfile as Profile)
+        if (!activeInventory.loading) setMessage(activeInventory.inventoryId ? '' : activeInventory.error ?? 'No existen inventarios autorizados.')
+      }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : 'Cortes no disponibles.'))
+      return
+    }
     void Promise.all([cutsRepository.inventories(), cutsRepository.myProfile()]).then(([nextInventories, nextProfile]) => {
-      setInventories(nextInventories as Inventory[]); setInventoryId(nextInventories[0]?.id ?? ''); setProfile(nextProfile as Profile); setMessage(nextInventories.length ? '' : 'No existen inventarios autorizados.')
+      setInventories(nextInventories as Inventory[]); setLocalInventoryId(nextInventories[0]?.id ?? ''); setProfile(nextProfile as Profile); setMessage(nextInventories.length ? '' : 'No existen inventarios autorizados.')
     }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : 'Cortes no disponibles.'))
-  }, [cutsRepository])
+  }, [activeInventory, canLoadCuts, cutsRepository])
   useEffect(() => { if (inventoryId && isManager) void refreshCuts() // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [inventoryId, isManager])
 
@@ -103,8 +117,8 @@ export function CutsScreen({ cutsRepository = repository, rectificationsReposito
   return <section className="cuts-screen" aria-labelledby="cuts-title">
     <header><p className="eyebrow">Fases 6–8 · snapshot y evidencia</p><h1 id="cuts-title">CORTES</h1><p>Un corte no es un cierre: sólo congela los conteos que el servidor ya recibió.</p></header>
     {message && <p className="form-warning" role="status">{message}</p>}
-    <label className="field"><span>Inventario</span><select value={inventoryId} onChange={(event) => { setInventoryId(event.target.value); setItems([]); setSelectedCutId(null); setNextItemCursor(null) }}>{inventories.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.status}</option>)}</select></label>
-    {isManager ? <><button className="button-primary cuts-create" type="button" disabled={!inventoryId || creating || !selected || !['ABIERTO', 'CERRADO'].includes(selected.status)} onClick={() => void makeCut()}>{creating ? 'CREANDO CORTE…' : 'HACER CORTE'}</button><p className="cuts-note">La misma solicitud conserva su identificador mientras está en curso; el servidor también evita duplicados.</p><h2>Historial de cortes</h2><ul className="cuts-list">{cuts.map((cut) => <li key={String(cut.id)}><strong>CORTE {String(cut.cut_number).padStart(3, '0')} · {String(cut.status)}</strong><span>{String(cut.record_count)} registros · EXPORT_SEQ {String(cut.first_export_seq)}–{String(cut.last_export_seq)}</span><button className="button-secondary" type="button" onClick={() => void showItems(String(cut.id))}>VER DETALLE</button>{String(cut.status) === 'SNAPSHOT_CREATED' && <button className="button-primary" type="button" disabled={generatingCutId !== null} onClick={() => void generateRp(String(cut.id))}>{generatingCutId === String(cut.id) ? 'GENERANDO RP…' : 'GENERAR RP XLSX'}</button>}{['FILE_GENERATED','VALIDATED'].includes(String(cut.status)) && <span className="cuts-note">Procesamiento RP recuperable en curso.</span>}{String(cut.status) === 'READY' && <button className="button-primary" type="button" onClick={() => void downloadRp(String(cut.id))}>DESCARGAR RP XLSX</button>}</li>)}</ul>{items.length > 0 && <section className="cut-detail"><h2>Detalle inmutable</h2><ul>{items.map((item) => <li key={String(item.count_record_id)}>#{String(item.export_seq)} · {String((item.snapshot as Record<string, unknown>).codigo)} · {String((item.snapshot as Record<string, unknown>).cantidad_contada)}</li>)}</ul>{nextItemCursor !== null && <button className="button-secondary" type="button" onClick={() => void loadMoreItems()}>CARGAR MÁS</button>}</section>}{selectedCut && String(selectedCut.status) === 'READY' && <><RectificationPanel inventoryId={inventoryId} cut={{ id: String(selectedCut.id), cut_number: Number(selectedCut.cut_number), status: String(selectedCut.status) }} items={items as CutItem[]} rectifications={rectifications} role={profile!.role} repository={rectificationsRepository} onChanged={refreshF8AndCuts} /><ArtifactPanel artifacts={artifacts} finalArtifacts={inventoryArtifacts} rectifications={rectifications} role={profile!.role} inventoryFrozen={selected?.status === 'CONGELADO'} repository={rectificationsRepository} onChanged={refreshF8AndCuts} /></>}</> : <p className="cuts-note">CONTADOR no puede hacer ni listar cortes ni gestionar evidencias F8.</p>}
+    <label className="field"><span>Inventario</span><select value={inventoryId} onChange={(event) => { selectInventory(event.target.value); setItems([]); setSelectedCutId(null); setNextItemCursor(null) }}>{inventories.map((item) => <option value={item.id} key={item.id}>{item.name} · {item.status}</option>)}</select></label>
+    {isManager ? <><button className="button-primary cuts-create" type="button" disabled={!inventoryId || creating || !selected || !['ABIERTO', 'CERRADO'].includes(selected.status)} onClick={() => void makeCut()}>{creating ? 'CREANDO CORTE…' : 'HACER CORTE'}</button><p className="cuts-note">La misma solicitud conserva su identificador mientras está en curso; el servidor también evita duplicados.</p><h2>Historial de cortes</h2><ul className="cuts-list">{cuts.map((cut) => <li key={String(cut.id)}><strong>CORTE {String(cut.cut_number).padStart(3, '0')} · {String(cut.status)}</strong><span>{String(cut.record_count)} registros · EXPORT_SEQ {String(cut.first_export_seq)}–{String(cut.last_export_seq)}</span><span className="cuts-trace">Creado por <strong>{cutCreator(cut)}</strong> · <time dateTime={cutCreatedAtIso(cut)}>{formatCutCreatedAt(cut)}</time></span><button className="button-secondary" type="button" onClick={() => void showItems(String(cut.id))}>VER DETALLE</button>{String(cut.status) === 'SNAPSHOT_CREATED' && <button className="button-primary" type="button" disabled={generatingCutId !== null} onClick={() => void generateRp(String(cut.id))}>{generatingCutId === String(cut.id) ? 'GENERANDO RP…' : 'GENERAR RP XLSX'}</button>}{['FILE_GENERATED','VALIDATED'].includes(String(cut.status)) && <span className="cuts-note">Procesamiento RP recuperable en curso.</span>}{String(cut.status) === 'READY' && <button className="button-primary" type="button" onClick={() => void downloadRp(String(cut.id))}>DESCARGAR RP XLSX</button>}</li>)}</ul>{items.length > 0 && <section className="cut-detail"><h2>Detalle inmutable</h2><ul>{items.map((item) => <li key={String(item.count_record_id)}>#{String(item.export_seq)} · {String((item.snapshot as Record<string, unknown>).codigo)} · {String((item.snapshot as Record<string, unknown>).cantidad_contada)}</li>)}</ul>{nextItemCursor !== null && <button className="button-secondary" type="button" onClick={() => void loadMoreItems()}>CARGAR MÁS</button>}</section>}{selectedCut && String(selectedCut.status) === 'READY' && <><RectificationPanel inventoryId={inventoryId} cut={{ id: String(selectedCut.id), cut_number: Number(selectedCut.cut_number), status: String(selectedCut.status) }} items={items as CutItem[]} rectifications={rectifications} role={profile!.role} repository={rectificationsRepository} onChanged={refreshF8AndCuts} /><ArtifactPanel artifacts={artifacts} finalArtifacts={inventoryArtifacts} rectifications={rectifications} role={profile!.role} inventoryFrozen={selected?.status === 'CONGELADO'} repository={rectificationsRepository} onChanged={refreshF8AndCuts} /></>}</> : <p className="cuts-note">CONTADOR no puede hacer ni listar cortes ni gestionar evidencias F8.</p>}
     <section className="correction-panel"><h2>Corrección pre-corte</h2><p>Disponible sólo para un registro propio no cortado, o para gestión autorizada. Los registros ya cortados requieren una fase posterior de rectificación.</p><label className="field"><span>ID del registro recibido</span><input value={countId} onChange={(event) => setCountId(event.target.value)} /></label><button className="button-secondary" type="button" disabled={!countId} onClick={() => void loadCorrection()}>CARGAR REGISTRO</button>{context && <CorrectionForm correction={correction} update={update} reason={reason} setReason={setReason} onSave={saveCorrection} revisions={(context.revisions as Record<string, unknown>[]) ?? []} />}</section>
   </section>
 }
@@ -114,4 +128,7 @@ function CorrectionForm({ correction, update, reason, setReason, onSave, revisio
   return <div className="correction-form">{fields.map((key) => <label className="field" key={key}><span>{key.replaceAll('_', ' ').toUpperCase()}</span><input type={key === 'cantidad_contada' ? 'number' : key === 'fecha_vencimiento' ? 'date' : 'text'} min={key === 'cantidad_contada' ? 1 : undefined} value={String(correction[key] ?? '')} onChange={(event) => update(key, event.target.value)} /></label>)}<label className="field"><span>MOTIVO OBLIGATORIO</span><textarea value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} /></label><button className="button-primary" type="button" disabled={!reason.trim()} onClick={() => void onSave()}>GUARDAR CORRECCIÓN</button><h3>Revisiones</h3><ul>{revisions.length ? revisions.map((revision) => <li key={String(revision.id)}>V{String(revision.revision_number)} · {String(revision.reason)} · {String(revision.created_at)}</li>) : <li>Sin revisiones anteriores.</li>}</ul></div>
 }
 function text(value: unknown) { return value === null || value === undefined ? '' : String(value) }
+function cutCreator(cut: Record<string, unknown>) { return String(cut.created_by_name || cut.created_by || 'Usuario no disponible') }
+function cutCreatedAtIso(cut: Record<string, unknown>) { const value = cut.created_at; if (typeof value !== 'string') return undefined; const date = new Date(value); return Number.isNaN(date.getTime()) ? undefined : date.toISOString() }
+function formatCutCreatedAt(cut: Record<string, unknown>) { const iso = cutCreatedAtIso(cut); if (!iso) return 'fecha no disponible'; return `${new Intl.DateTimeFormat('es-CL', { dateStyle: 'short', timeStyle: 'short', hour12: false, timeZone: 'UTC' }).format(new Date(iso))} UTC` }
 function itemExportSeq(item: Record<string, unknown> | undefined) { return item && typeof item.export_seq === 'number' ? item.export_seq : null }

@@ -66,11 +66,11 @@ export class DexieCountRepository implements CountRepository {
       .filter((record) => record.inventoryId === inventoryId && isOutstanding(record.syncStatus)).length
   }
 
-  public async claimNextSyncBatch(input: { inventoryId: string; userId: string; max: number; now: string }): Promise<LocalCountRecord[]> {
+  public async claimNextSyncBatch(input: { inventoryId: string; userId: string; max: number; now: string; forceRetry?: boolean }): Promise<LocalCountRecord[]> {
     let claimed: LocalCountRecord[] = []
     await this.database.transaction('rw', this.database.localCountRecords, async () => {
       const candidates = (await this.database.localCountRecords.where('[inventoryId+userId]').equals([input.inventoryId, input.userId]).sortBy('capturedAt'))
-        .filter((record) => record.syncStatus === 'PENDING' || (record.syncStatus === 'FAILED' && (!record.nextRetryAt || record.nextRetryAt <= input.now)))
+        .filter((record) => record.syncStatus === 'PENDING' || (record.syncStatus === 'FAILED' && (input.forceRetry === true || !record.nextRetryAt || record.nextRetryAt <= input.now)))
         .slice(0, input.max)
       for (const record of candidates) await this.database.localCountRecords.update(record.clientCountId, { syncStatus: 'SYNCING', syncStartedAt: input.now, lastSyncError: null })
       claimed = candidates.map((record) => localCountRecordSchema.parse({ ...record, syncStatus: 'SYNCING', syncStartedAt: input.now, lastSyncError: null }))

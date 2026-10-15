@@ -1,0 +1,10 @@
+begin;
+select plan(6);
+select ok((select relrowsecurity from pg_class where oid='public.reconciliation_events'::regclass),'event ledger enforces RLS');
+select is(has_table_privilege('authenticated','public.reconciliation_events','INSERT'),false,'authenticated cannot append events directly');
+select is(has_table_privilege('authenticated','public.reconciliation_events','UPDATE'),false,'authenticated cannot rewrite events');
+select is(has_table_privilege('authenticated','public.reconciliation_events','DELETE'),false,'authenticated cannot delete events');
+select is(has_table_privilege('anon','public.reconciliation_events','SELECT'),false,'anon cannot read event ledger');
+select is(has_function_privilege('authenticated','app_private.append_reconciliation_event(uuid,uuid,text,uuid,jsonb)','EXECUTE'),false,'client cannot invoke internal event writer');
+select * from finish();
+rollback;

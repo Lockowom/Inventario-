@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  inventories: vi.fn(), myProfile: vi.fn(), supervision: vi.fn(), mine: vi.fn(), search: vi.fn(),
+  inventories: vi.fn(), myProfile: vi.fn(), supervision: vi.fn(), mine: vi.fn(), search: vi.fn(), lifecycle: vi.fn(),
 }))
 
 vi.mock('../../src/services/supabase', () => ({ isSupabaseConfigured: true, getSupabaseClient: vi.fn() }))
@@ -13,6 +13,13 @@ vi.mock('../../src/services/supabase-supervision-repository', () => ({
     supervision = mocks.supervision
     mine = mocks.mine
     search = mocks.search
+  },
+}))
+vi.mock('../../src/services/supabase-inventory-lifecycle-repository', () => ({
+  SupabaseInventoryLifecycleRepository: class {
+    get = mocks.lifecycle
+    finalizeC1 = vi.fn()
+    close = vi.fn()
   },
 }))
 
@@ -31,6 +38,13 @@ describe('supervision search refresh behavior', () => {
     mocks.supervision.mockResolvedValue({ summary: {}, counters: [], devices: [], possible_duplicate_serials: [] })
     mocks.mine.mockResolvedValue({})
     mocks.search.mockResolvedValueOnce(rows).mockResolvedValueOnce([])
+    mocks.lifecycle.mockResolvedValue({
+      inventory_id:'inventory-a',name:'A',inventory_status:'ABIERTO',c1_status:'EN_CURSO',
+      c1_completed_at:null,c1_completed_by:null,c1_count_records:null,c1_counted_units:null,
+      c1_master_fingerprint:null,c1_reference_fingerprint:null,
+      open_cases:0,resolved_cases:0,queued_missions:0,active_missions:0,
+      can_finalize_c1:true,can_close_inventory:false,
+    })
   })
   afterEach(() => { vi.useRealTimers(); vi.clearAllMocks() })
 

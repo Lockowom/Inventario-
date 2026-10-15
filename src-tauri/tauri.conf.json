@@ -1,0 +1,31 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "INVEN3 QA Windows Foundation",
+  "version": "1.0.0",
+  "identifier": "com.lockowom.inven3.qa.windows",
+  "build": {
+    "beforeDevCommand": "npm run dev:qa -- --host 127.0.0.1 --port 5173 --strictPort",
+    "devUrl": "http://127.0.0.1:5173",
+    "beforeBuildCommand": "npm run build:qa",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "INVEN3 QA",
+        "width": 1366,
+        "height": 768,
+        "minWidth": 1024,
+        "minHeight": 640,
+        "resizable": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' http://127.0.0.1:5173 ws://127.0.0.1:5173 https: wss:; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline' http://127.0.0.1:5173; script-src 'self' 'unsafe-inline' http://127.0.0.1:5173; font-src 'self' data:; worker-src 'self' blob:;"
+    }
+  },
+  "bundle": {
+    "active": false
+  }
+}

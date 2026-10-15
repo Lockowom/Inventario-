@@ -13,8 +13,8 @@ describe('contrato de conteo físico', () => {
     expect(actual).toMatchObject({ ubicacion: 'F-32-03', codigo: '00001', descripcion: 'Producto certificado', cantidadContada: 3, fechaVencimiento: '2026-12-31', piezaProducto: 'pieza' })
   })
 
-  it.each(['C2-32-03', 'A-00-00', 'I-99-99'])('acepta ubicación %s', (ubicacion) => expect(validatePhysicalCountDraft({ ...base, ubicacion }, master('LEGACY')).ubicacion).toBe(ubicacion))
-  it.each(['E-32-03', 'C2-2-03', 'F-32-003', 'F-32-3'])('rechaza ubicación %s con el mensaje aprobado', (ubicacion) => expect(() => validatePhysicalCountDraft({ ...base, ubicacion }, master('LEGACY'))).toThrow(LOCATION_ERROR))
+  it.each(['TECHO', 'techo', 'C2-32-03', 'A-00-00', 'E-32-03', 'I-99-99'])('acepta ubicación %s', (ubicacion) => expect(validatePhysicalCountDraft({ ...base, ubicacion }, master('LEGACY')).ubicacion).toBe(ubicacion.toUpperCase()))
+  it.each(['Z-32-03', 'C2-2-03', 'F-32-003', 'F-32-3'])('rechaza ubicación %s con el mensaje aprobado', (ubicacion) => expect(() => validatePhysicalCountDraft({ ...base, ubicacion }, master('LEGACY'))).toThrow(LOCATION_ERROR))
 
   it('aplica las reglas SERIAL: serie obligatoria, máximo 19, partida ignorada y cantidad 1', () => {
     expect(() => validatePhysicalCountDraft(base, master('SERIAL'))).toThrow(SERIAL_REQUIRED_ERROR)

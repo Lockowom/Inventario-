@@ -1,15 +1,15 @@
 import type { CachedCountingContext, CountingContextRepository } from '../ports/counting-context-repository'
 import type { ActiveCountingContext } from './save-physical-count'
+import type { AppRole } from '../auth/contracts'
 
 export type ServerCountingContextResult =
-  | { kind: 'AUTHORIZED'; context: ActiveCountingContext; verifiedAt: string }
+  | { kind: 'AUTHORIZED'; context: ActiveCountingContext; verifiedAt: string; role?: AppRole }
   | { kind: 'NOT_AUTHORIZED' }
   | { kind: 'AMBIGUOUS' }
   | { kind: 'UNAVAILABLE' }
 
 export interface CountingContextVerifier {
   verifyServer(): Promise<ServerCountingContextResult>
-  getLocalSessionUserId(): Promise<string | null>
 }
 
 export type ResolvedCountingContext =
@@ -17,11 +17,11 @@ export type ResolvedCountingContext =
   | { kind: 'OFFLINE'; context: ActiveCountingContext }
   | { kind: 'BLOCKED'; reason: Exclude<ServerCountingContextResult['kind'], 'AUTHORIZED'> | 'CACHE_MISMATCH' }
 
-/** Server answers win. Cache is only a last-known authorization for a same-user outage. */
+/** Server answers win. During an outage, the durable server-verified cache is the offline authorization lease. */
 export async function resolveCountingContext(verifier: CountingContextVerifier, cache: CountingContextRepository): Promise<ResolvedCountingContext> {
   const server = await verifier.verifyServer()
   if (server.kind === 'AUTHORIZED') {
-    const cached: CachedCountingContext = { userId: server.context.userId, inventoryId: server.context.inventoryId, inventoryStatus: 'ABIERTO', verifiedAt: server.verifiedAt }
+    const cached: CachedCountingContext = { userId: server.context.userId, inventoryId: server.context.inventoryId, inventoryStatus: 'ABIERTO', verifiedAt: server.verifiedAt, role: server.role }
     await cache.save(cached)
     return { kind: 'ONLINE', context: server.context }
   }
@@ -29,7 +29,7 @@ export async function resolveCountingContext(verifier: CountingContextVerifier, 
     await cache.clear()
     return { kind: 'BLOCKED', reason: server.kind }
   }
-  const [cached, localUserId] = await Promise.all([cache.get(), verifier.getLocalSessionUserId()])
-  if (!cached || !localUserId || cached.userId !== localUserId) return { kind: 'BLOCKED', reason: 'CACHE_MISMATCH' }
+  const cached = await cache.get()
+  if (!cached) return { kind: 'BLOCKED', reason: 'CACHE_MISMATCH' }
   return { kind: 'OFFLINE', context: { userId: cached.userId, inventoryId: cached.inventoryId, inventoryStatus: 'ABIERTO' } }
 }

@@ -1,11 +1,11 @@
-import { Capacitor } from '@capacitor/core'
 import type { LocalCountRecord } from '../domain/count/contracts'
 import type { CountSyncGateway } from '../domain/sync/sync-manager'
 import { SyncTransportError, type SyncTransportErrorKind } from '../domain/sync/transport-error'
+import { getPlatformCapabilities } from '../platform/runtime-platform'
 import { getSupabaseClient } from './supabase'
 
 function platform(): 'ANDROID' | 'IOS' | 'WEB' {
-  const current = Capacitor.getPlatform()
+  const current = getPlatformCapabilities().platform
   return current === 'android' ? 'ANDROID' : current === 'ios' ? 'IOS' : 'WEB'
 }
 
@@ -68,7 +68,7 @@ export class SupabaseSyncGateway implements CountSyncGateway {
       p_device_label: deviceLabel,
       p_records: input.records.map((record) => ({
         client_count_id: record.clientCountId, ubicacion: record.ubicacion, codigo: record.codigo, serie: record.serie, partida: record.partida,
-        pieza_producto: record.piezaProducto, fecha_vencimiento: record.fechaVencimiento, talla: record.talla, color: record.color,
+        pieza_producto: record.piezaProducto, fecha_vencimiento: record.fechaVencimiento, talla: record.talla, color: record.color, physical_uom: record.physicalUom,
         cantidad_contada: record.cantidadContada, captured_at: record.capturedAt,
       })),
       })

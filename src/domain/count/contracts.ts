@@ -1,12 +1,16 @@
 import { z } from 'zod'
 import { masterControlTypeSchema, normalizeMasterCode, normalizeMasterDescription, type MasterSku } from '../master/contracts'
 
-export const LOCATION_PATTERN = /^(A|B|C|C2|D|F|G|H|I)-[0-9]{2}-[0-9]{2}$/
-export const LOCATION_ERROR = 'Ubicación mal digitada. Verifique el formato y el pasillo. Ejemplos válidos: F-32-03 o C2-32-03.'
+export const LOCATION_PATTERN = /^(?:TECHO|(A|B|C|C2|D|E|F|G|H|I)-[0-9]{2}-[0-9]{2})$/
+export const LOCATION_MAX_LENGTH = 8
+/** Allows an incomplete but structurally valid value while the operator types. */
+export const LOCATION_TYPING_PATTERN = /^(?:T(?:E(?:C(?:H(?:O)?)?)?)?|(?:C2?|[ABDEFGHI]?)(?:-?\d{0,2})?(?:-?\d{0,2})?)$/
+export const LOCATION_ERROR = 'Ubicación mal digitada. Use TECHO o el formato de pasillo F-32-03 / C2-32-03.'
 export const SERIAL_REQUIRED_ERROR = 'Favor introducir la serie. Si el producto no está etiquetado o no tiene una serie visible, favor hablar con el Analista de Inventario.'
 export const SERIAL_LENGTH_ERROR = 'La serie ingresada supera el máximo permitido de 19 caracteres. Diríjase al Analista de Inventario con el producto para su revisión.'
 export const BATCH_REQUIRED_ERROR = 'Favor introducir el lote/partida. Si el producto no está etiquetado o no tiene un lote visible, favor hablar con el Analista de Inventario.'
 export const QUANTITY_ERROR = 'La cantidad contada debe ser mayor a 0. Ingrese al menos 1 unidad.'
+export const PHYSICAL_UOM_ERROR = 'La unidad física debe usar hasta 32 caracteres: letras, números, punto, guion o barra.'
 
 export const countSyncStatusSchema = z.enum(['PENDING', 'SYNCING', 'CONFIRMED', 'FAILED', 'REJECTED'])
 export type CountSyncStatus = z.infer<typeof countSyncStatusSchema>
@@ -20,6 +24,7 @@ export const physicalCountDraftSchema = z.object({
   fechaVencimiento: z.string().optional().nullable(),
   talla: z.string().optional(),
   color: z.string().optional(),
+  physicalUom: z.string().optional(),
   cantidadContada: z.string(),
 })
 export type PhysicalCountDraft = z.infer<typeof physicalCountDraftSchema>
@@ -33,6 +38,9 @@ export const validatedPhysicalCountSchema = z.object({
   fechaVencimiento: z.string().date().nullable(),
   talla: z.string().nullable(),
   color: z.string().nullable(),
+  // Optional on read for queues created before CUT2-03K. New C1 writes always
+  // include the field (possibly null, which remains missing evidence).
+  physicalUom: z.string().nullable().optional(),
   cantidadContada: z.number().int().positive(),
   descripcion: z.string().min(1),
   controlType: masterControlTypeSchema,
@@ -69,6 +77,11 @@ export class PhysicalCountValidationError extends Error {
 }
 
 export function normalizeLocation(value: string): string { return value.trim().toUpperCase() }
+/** Prevents invalid scanner/manual fragments from overwriting the current location. */
+export function normalizeLocationInput(value: string): string | null {
+  const normalized = value.toUpperCase()
+  return normalized.length <= LOCATION_MAX_LENGTH && LOCATION_TYPING_PATTERN.test(normalized) ? normalized : null
+}
 export function normalizeCountText(value: string | undefined | null): string | null {
   const normalized = value?.trim() ?? ''
   return normalized === '' ? null : normalized
@@ -85,6 +98,8 @@ export function validatePhysicalCountDraft(draftInput: PhysicalCountDraft, maste
   const partida = normalizeCountText(draft.partida)
   const cantidadRaw = draft.cantidadContada.trim()
   const rawDate = normalizeCountText(draft.fechaVencimiento)
+  const physicalUom = normalizeCountText(draft.physicalUom)?.toUpperCase() ?? null
+  if (physicalUom && (physicalUom.length > 32 || !/^[A-Z0-9._/-]+$/.test(physicalUom))) throw new PhysicalCountValidationError('physicalUom', PHYSICAL_UOM_ERROR)
   if (rawDate && !/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) throw new PhysicalCountValidationError('fechaVencimiento', 'La fecha de vencimiento debe ser una fecha válida.')
   if (rawDate) {
     const parsedDate = new Date(`${rawDate}T00:00:00.000Z`)
@@ -112,6 +127,7 @@ export function validatePhysicalCountDraft(draftInput: PhysicalCountDraft, maste
     fechaVencimiento: rawDate,
     talla: normalizeCountText(draft.talla),
     color: normalizeCountText(draft.color),
+    physicalUom,
     cantidadContada,
     descripcion: normalizeMasterDescription(master.descripcion),
     controlType: master.controlType,

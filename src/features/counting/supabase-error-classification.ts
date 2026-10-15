@@ -52,7 +52,9 @@ function isExplicitTransportFailure(error: unknown, status: number | undefined):
 export function classifyAuthError(error: unknown): CountingContextFailure {
   const status = valueOf(error, 'status')
   const code = stringOf(error, 'code')
+  const name = stringOf(error, 'name')
   if (status === 401 || status === 403 || (code !== undefined && invalidSessionCodes.has(code))) return { kind: 'NOT_AUTHORIZED' }
+  if (name === 'AuthRetryableFetchError') return { kind: 'UNAVAILABLE' }
   if (typeof status === 'number' && isUnavailableStatus(status)) return { kind: 'UNAVAILABLE' }
   if (isExplicitTransportFailure(error, typeof status === 'number' ? status : undefined)) return { kind: 'UNAVAILABLE' }
   return { kind: 'AMBIGUOUS' }

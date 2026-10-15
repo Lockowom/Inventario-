@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "product": "INVEN3",
+  "releaseVersion": "1.0.0",
+  "defaultEnvironment": "qa",
+  "defaultChannel": "beta",
+  "qaSupabaseProjectRef": "uazunvlxlszdyweddxtb",
+  "productionLocked": true,
+  "native": {
+    "androidVersionName": "1.0.0",
+    "androidBaseVersionCode": 10000,
+    "iosMarketingVersion": "1.0.0",
+    "iosBaseBuildNumber": 10000
+  }
+}

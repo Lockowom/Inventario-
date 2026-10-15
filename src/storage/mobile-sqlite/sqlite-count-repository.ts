@@ -5,13 +5,13 @@ import type { SqliteDatabase } from './sqlite-database'
 import { applySqliteMigrations } from './sqlite-migrations'
 
 interface CountRow extends Record<string, unknown> {
-  id: string; client_count_id: string; inventory_id: string; user_id: string; device_id: string; ubicacion: string; codigo: string; serie: string | null; partida: string | null; pieza_producto: string | null; fecha_vencimiento: string | null; talla: string | null; color: string | null; cantidad_contada: number; descripcion: string; control_type: LocalCountRecord['controlType']; captured_at: string; created_at: string; sync_status: LocalCountRecord['syncStatus']; sync_attempts: number; last_sync_error: string | null; sync_started_at?: string | null; next_retry_at?: string | null; confirmed_at?: string | null; server_count_id?: string | null; last_sync_at?: string | null
+  id: string; client_count_id: string; inventory_id: string; user_id: string; device_id: string; ubicacion: string; codigo: string; serie: string | null; partida: string | null; pieza_producto: string | null; fecha_vencimiento: string | null; talla: string | null; color: string | null; physical_uom?: string | null; cantidad_contada: number; descripcion: string; control_type: LocalCountRecord['controlType']; captured_at: string; created_at: string; sync_status: LocalCountRecord['syncStatus']; sync_attempts: number; last_sync_error: string | null; sync_started_at?: string | null; next_retry_at?: string | null; confirmed_at?: string | null; server_count_id?: string | null; last_sync_at?: string | null
 }
 interface DeviceRow extends Record<string, unknown> { device_id: string }
 interface TotalRow extends Record<string, unknown> { total: number }
 interface ScopeRow extends Record<string, unknown> { inventory_id: string }
 
-const INSERT_COUNT = 'insert into local_count_records (id, client_count_id, inventory_id, user_id, device_id, ubicacion, codigo, serie, partida, pieza_producto, fecha_vencimiento, talla, color, cantidad_contada, descripcion, control_type, captured_at, created_at, sync_status, sync_attempts, last_sync_error, sync_started_at, next_retry_at, confirmed_at, server_count_id, last_sync_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+const INSERT_COUNT = 'insert into local_count_records (id, client_count_id, inventory_id, user_id, device_id, ubicacion, codigo, serie, partida, pieza_producto, fecha_vencimiento, talla, color, physical_uom, cantidad_contada, descripcion, control_type, captured_at, created_at, sync_status, sync_attempts, last_sync_error, sync_started_at, next_retry_at, confirmed_at, server_count_id, last_sync_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
 const OUTSTANDING_STATUSES = "('PENDING', 'SYNCING', 'FAILED')"
 
 export class SqliteCountRepository implements CountRepository {
@@ -88,11 +88,11 @@ export class SqliteCountRepository implements CountRepository {
     return Number(result.values[0]?.total ?? 0)
   }
 
-  public async claimNextSyncBatch(input: { inventoryId: string; userId: string; max: number; now: string }): Promise<LocalCountRecord[]> {
+  public async claimNextSyncBatch(input: { inventoryId: string; userId: string; max: number; now: string; forceRetry?: boolean }): Promise<LocalCountRecord[]> {
     await this.initialize()
     let claimed: LocalCountRecord[] = []
     await this.database.transaction(async () => {
-      const candidates = await this.database.query<CountRow>("select * from local_count_records where inventory_id = ? and user_id = ? and (sync_status = 'PENDING' or (sync_status = 'FAILED' and (next_retry_at is null or next_retry_at <= ?))) order by captured_at asc limit ?", [input.inventoryId, input.userId, input.now, input.max])
+      const candidates = await this.database.query<CountRow>("select * from local_count_records where inventory_id = ? and user_id = ? and (sync_status = 'PENDING' or (sync_status = 'FAILED' and (? = 1 or next_retry_at is null or next_retry_at <= ?))) order by captured_at asc limit ?", [input.inventoryId, input.userId, input.forceRetry ? 1 : 0, input.now, input.max])
       for (const row of candidates.values) await this.database.execute("update local_count_records set sync_status = 'SYNCING', sync_started_at = ?, last_sync_error = null where client_count_id = ? and sync_status in ('PENDING', 'FAILED')", [input.now, row.client_count_id])
       claimed = candidates.values.map((row) => localCountRecordSchema.parse({ ...parseRow(row), syncStatus: 'SYNCING', syncStartedAt: input.now, lastSyncError: null }))
     })
@@ -103,7 +103,11 @@ export class SqliteCountRepository implements CountRepository {
     await this.initialize()
     const result = await this.database.query<TotalRow>("select count(*) as total from local_count_records where inventory_id = ? and user_id = ? and sync_status = 'SYNCING' and sync_started_at <= ?", [input.inventoryId, input.userId, input.before])
     const recovered = Number(result.values[0]?.total ?? 0)
-    if (recovered) await this.database.execute("update local_count_records set sync_status = 'FAILED', sync_attempts = sync_attempts + 1, sync_started_at = null, next_retry_at = ?, last_sync_error = 'SYNC_RECOVERED_AFTER_CRASH', last_sync_at = ? where inventory_id = ? and user_id = ? and sync_status = 'SYNCING' and sync_started_at <= ?", [input.now, input.now, input.inventoryId, input.userId, input.before])
+    if (recovered) {
+      await this.database.transaction(async () => {
+        await this.database.execute("update local_count_records set sync_status = 'FAILED', sync_attempts = sync_attempts + 1, sync_started_at = null, next_retry_at = ?, last_sync_error = 'SYNC_RECOVERED_AFTER_CRASH', last_sync_at = ? where inventory_id = ? and user_id = ? and sync_status = 'SYNCING' and sync_started_at <= ?", [input.now, input.now, input.inventoryId, input.userId, input.before])
+      })
+    }
     return recovered
   }
 
@@ -130,9 +134,9 @@ export class SqliteCountRepository implements CountRepository {
 }
 
 function recordValues(record: LocalCountRecord): unknown[] {
-  return [record.id, record.clientCountId, record.inventoryId, record.userId, record.deviceId, record.ubicacion, record.codigo, record.serie, record.partida, record.piezaProducto, record.fechaVencimiento, record.talla, record.color, record.cantidadContada, record.descripcion, record.controlType, record.capturedAt, record.createdAt, record.syncStatus, record.syncAttempts, record.lastSyncError, record.syncStartedAt, record.nextRetryAt, record.confirmedAt, record.serverCountId, record.lastSyncAt]
+  return [record.id, record.clientCountId, record.inventoryId, record.userId, record.deviceId, record.ubicacion, record.codigo, record.serie, record.partida, record.piezaProducto, record.fechaVencimiento, record.talla, record.color, record.physicalUom, record.cantidadContada, record.descripcion, record.controlType, record.capturedAt, record.createdAt, record.syncStatus, record.syncAttempts, record.lastSyncError, record.syncStartedAt, record.nextRetryAt, record.confirmedAt, record.serverCountId, record.lastSyncAt]
 }
 
 function parseRow(row: CountRow): LocalCountRecord {
-  return localCountRecordSchema.parse({ id: row.id, clientCountId: row.client_count_id, inventoryId: row.inventory_id, userId: row.user_id, deviceId: row.device_id, ubicacion: row.ubicacion, codigo: row.codigo, serie: row.serie, partida: row.partida, piezaProducto: row.pieza_producto, fechaVencimiento: row.fecha_vencimiento, talla: row.talla, color: row.color, cantidadContada: row.cantidad_contada, descripcion: row.descripcion, controlType: row.control_type, capturedAt: row.captured_at, createdAt: row.created_at, syncStatus: row.sync_status, syncAttempts: row.sync_attempts, lastSyncError: row.last_sync_error, syncStartedAt: row.sync_started_at ?? null, nextRetryAt: row.next_retry_at ?? null, confirmedAt: row.confirmed_at ?? null, serverCountId: row.server_count_id ?? null, lastSyncAt: row.last_sync_at ?? null })
+  return localCountRecordSchema.parse({ id: row.id, clientCountId: row.client_count_id, inventoryId: row.inventory_id, userId: row.user_id, deviceId: row.device_id, ubicacion: row.ubicacion, codigo: row.codigo, serie: row.serie, partida: row.partida, piezaProducto: row.pieza_producto, fechaVencimiento: row.fecha_vencimiento, talla: row.talla, color: row.color, physicalUom: row.physical_uom ?? null, cantidadContada: row.cantidad_contada, descripcion: row.descripcion, controlType: row.control_type, capturedAt: row.captured_at, createdAt: row.created_at, syncStatus: row.sync_status, syncAttempts: row.sync_attempts, lastSyncError: row.last_sync_error, syncStartedAt: row.sync_started_at ?? null, nextRetryAt: row.next_retry_at ?? null, confirmedAt: row.confirmed_at ?? null, serverCountId: row.server_count_id ?? null, lastSyncAt: row.last_sync_at ?? null })
 }

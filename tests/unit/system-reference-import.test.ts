@@ -1,0 +1,176 @@
+import * as XLSX from '@e965/xlsx'
+import { describe, expect, it } from 'vitest'
+import { parseSystemReferenceFiles, parseSystemReferenceXlsx } from '../../src/features/reconciliation/system-reference-import-parser'
+import { hasBlockingSystemReferenceIssues } from '../../src/domain/reconciliation/system-reference-contracts'
+
+function workbookBytes(options:{missingBatch?:boolean;duplicateSerial?:boolean;dropFromSerialUniverse?:boolean}={}){
+ const total=[
+  ['Cod. Producto','Producto','Cod. U. Medida','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+  ['LEG001','Legacy','UNI',2,1,0,0,3],
+  ['BAT001P','Batch','UNI',5,0,0,0,5],
+  ['SER001S','Serial','UNI',2,0,0,0,2],
+ ]
+ const p=[
+  ['Cod. Producto','Producto','Cod. U. Medida','Partida / Talla','Fecha Venc','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+  ['LEG001','Legacy','UNI','', '',2,1,0,0,3],
+  ['BAT001P','Batch','UNI',options.missingBatch?'':'LOT-01','',5,0,0,0,5],
+  ['SER001S','Serial','UNI','', '',2,0,0,0,2],
+ ]
+ const s=[
+  ['Cod. Producto','Producto','Cod. U. Medida','Serie','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+  ['LEG001','Legacy','UNI','',2,1,0,0,3],
+  ['BAT001P','Batch','UNI','',5,0,0,0,5],
+  ['SER001S','Serial','UNI','SER-A',1,0,0,0,1],
+  ['SER001S','Serial','UNI',options.duplicateSerial?'SER-A':'SER-B',1,0,0,0,1],
+ ]
+ if(options.dropFromSerialUniverse) s.splice(2,1)
+ const workbook=XLSX.utils.book_new()
+ XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet(total),'STOCK TOTAL')
+ XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet(p),'STOCK CON P')
+ XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet(s),'STOCK CON S')
+ return XLSX.write(workbook,{bookType:'xlsx',type:'array'})
+}
+
+function fileFromWorkbook(rows:unknown[][],fileName:string){
+ const workbook=XLSX.utils.book_new()
+ XLSX.utils.book_append_sheet(workbook,XLSX.utils.aoa_to_sheet(rows),'Exportación Softland')
+ const bytes=XLSX.write(workbook,{bookType:'xlsx',type:'array'}) as ArrayBuffer
+ const file=new File([bytes],fileName,{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'})
+ Object.defineProperty(file,'arrayBuffer',{value:()=>Promise.resolve(bytes)})
+ return file
+}
+
+describe('F11 system reference RP parser',()=>{
+ it('builds a valid SERIAL/PARTIDA/LEGACY snapshot from the canonical three sheets',async()=>{
+  const preview=await parseSystemReferenceXlsx(workbookBytes(),'synthetic.xlsx')
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.itemCount).toBe(4)
+  expect(preview.legacyItems).toBe(1)
+  expect(preview.batchItems).toBe(1)
+  expect(preview.serialItems).toBe(2)
+  expect(preview.items).toEqual(expect.arrayContaining([
+   {codigo:'LEG001',referenceType:'LEGACY',referenceValue:null,quantity:3,availableQuantity:2,unitCode:'UNI',expirationDate:null},
+   {codigo:'BAT001P',referenceType:'PARTIDA',referenceValue:'LOT-01',quantity:5,availableQuantity:5,unitCode:'UNI',expirationDate:null},
+   {codigo:'SER001S',referenceType:'SERIAL',referenceValue:'SER-A',quantity:1,availableQuantity:1,unitCode:'UNI',expirationDate:null},
+  ]))
+  expect(preview.fileSha256).toMatch(/^[a-f0-9]{64}$/)
+ })
+
+ it('flags a positive PARTIDA row without Partida / Talla for controlled authorization',async()=>{
+  const preview=await parseSystemReferenceXlsx(workbookBytes({missingBatch:true}),'synthetic.xlsx')
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.unidentifiedBatchCodes).toEqual(['BAT001P'])
+  expect(preview.items.some(item=>item.codigo==='BAT001P')).toBe(false)
+  expect(preview.issues).toContainEqual(expect.objectContaining({codigo:'BAT001P',severity:'WARNING',message:expect.stringContaining('REQUIERE AUTORIZACIÓN CONTROLADA')}))
+ })
+
+ it('materializes the technical missing-batch reference only after authorization',async()=>{
+  const preview=await parseSystemReferenceXlsx(workbookBytes({missingBatch:true}),'synthetic.xlsx',new Set(['BAT001P']))
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.items).toContainEqual(expect.objectContaining({
+   codigo:'BAT001P',referenceType:'PARTIDA',referenceValue:'EXC-SIN-PARTIDA:BAT001P',quantity:5,availableQuantity:5,
+  }))
+  expect(preview.issues).toContainEqual(expect.objectContaining({sheet:'EXCEPCIÓN CONTROLADA',severity:'WARNING'}))
+ })
+
+ it('keeps duplicate system serials as non-blocking Softland findings',async()=>{
+  const preview=await parseSystemReferenceXlsx(workbookBytes({duplicateSerial:true}),'synthetic.xlsx')
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.issues).toContainEqual(expect.objectContaining({severity:'WARNING',message:'SERIE DUPLICADA EN FUENTE DE SISTEMA'}))
+ })
+
+ it('keeps workbook universe mismatches as non-blocking Softland findings',async()=>{
+  const preview=await parseSystemReferenceXlsx(workbookBytes({dropFromSerialUniverse:true}),'synthetic.xlsx')
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.issues).toContainEqual(expect.objectContaining({severity:'WARNING',message:'EL UNIVERSO SKU NO COINCIDE CON STOCK TOTAL'}))
+ })
+
+ it('combina archivos separados de partidas y series sin requerir un libro consolidado',async()=>{
+  const batches=fileFromWorkbook([
+   ['Cod. Producto','Producto','Cod. U. Medida','Partida / Talla','Fecha Venc','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+   ['LEG001','Legacy','UNI','', '',2,1,0,0,3],
+   ['BAT001P','Batch','UNI','LOT-01','',5,0,0,0,5],
+   ['SER001S','Serial','UNI','', '',2,0,0,0,2],
+  ],'partidas.xlsx')
+  const serials=fileFromWorkbook([
+   ['Cod. Producto','Producto','Cod. U. Medida','Serie','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+   ['LEG001','Legacy','UNI','',2,1,0,0,3],
+   ['BAT001P','Batch','UNI','',5,0,0,0,5],
+   ['SER001S','Serial','UNI','SER-A',1,0,0,0,1],
+   ['SER001S','Serial','UNI','SER-B',1,0,0,0,1],
+  ],'series.xlsx')
+  const preview=await parseSystemReferenceFiles(batches,serials)
+
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.sourceFiles).toEqual([
+   expect.objectContaining({role:'PARTIDAS',fileName:'partidas.xlsx'}),
+   expect.objectContaining({role:'SERIES',fileName:'series.xlsx'}),
+  ])
+  expect(preview.itemCount).toBe(4)
+  expect(preview.items).toEqual(expect.arrayContaining([
+   expect.objectContaining({codigo:'LEG001',referenceType:'LEGACY',availableQuantity:2}),
+   expect.objectContaining({codigo:'BAT001P',referenceType:'PARTIDA',referenceValue:'LOT-01'}),
+   expect.objectContaining({codigo:'SER001S',referenceType:'SERIAL',referenceValue:'SER-A'}),
+  ]))
+ })
+
+ it('requires an ADMIN-authorized exception before preserving a positive PARTIDA SKU without a lot',async()=>{
+  const batches=fileFromWorkbook([
+   ['Cod. Producto','Producto','Cod. U. Medida','Partida / Talla','Fecha Venc','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+   ['BAT001P','Batch','UNI','', '',5,0,0,0,5],
+  ],'partidas-sin-lote.xlsx')
+  const serials=fileFromWorkbook([
+   ['Cod. Producto','Producto','Cod. U. Medida','Serie','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+   ['BAT001P','Batch','UNI','',5,0,0,0,5],
+  ],'series-sin-lote.xlsx')
+
+  const blocked=await parseSystemReferenceFiles(batches,serials)
+  expect(hasBlockingSystemReferenceIssues(blocked)).toBe(false)
+  expect(blocked.unidentifiedBatchCodes).toEqual(['BAT001P'])
+  expect(blocked.items).toEqual([])
+
+  const authorized=await parseSystemReferenceFiles(batches,serials,new Set(['BAT001P']))
+  expect(hasBlockingSystemReferenceIssues(authorized)).toBe(false)
+  expect(authorized.unidentifiedBatchCodes).toEqual(['BAT001P'])
+  expect(authorized.items).toEqual([expect.objectContaining({
+   codigo:'BAT001P',referenceType:'PARTIDA',referenceValue:'EXC-SIN-PARTIDA:BAT001P',quantity:5,availableQuantity:5,
+  })])
+  expect(authorized.issues).toEqual(expect.arrayContaining([expect.objectContaining({severity:'WARNING',message:'PARTIDA AUSENTE EN SOFTLAND: referencia de excepción; no es una partida real ni autoriza ajustes.'})]))
+ })
+
+ it('preserves a negative batch value as source evidence without blocking the upload',async()=>{
+  const batches=fileFromWorkbook([
+   ['Cod. Producto','Producto','Cod. U. Medida','Partida / Talla','Fecha Venc','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+   ['BAT001P','Batch','UNI','LOT-CORR','',0,0,0,-1,-1],
+  ],'partidas-negativas.xlsx')
+  const serials=fileFromWorkbook([
+   ['Cod. Producto','Producto','Cod. U. Medida','Serie','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+   ['BAT001P','Batch','UNI','',0,0,0,-1,-1],
+  ],'series-negativas.xlsx')
+
+  const preview=await parseSystemReferenceFiles(batches,serials)
+
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.items).toEqual([expect.objectContaining({codigo:'BAT001P',referenceValue:'LOT-CORR',quantity:-1,availableQuantity:0})])
+  expect(preview.issues).toEqual(expect.arrayContaining([expect.objectContaining({severity:'WARNING',message:expect.stringContaining('STOCK TOTAL NEGATIVO')}),expect.objectContaining({severity:'WARNING',message:'EXISTE UN ESTADO DE STOCK NEGATIVO'})]))
+ })
+
+ it('uses the explicit master SKU universe without rejecting source-only codes',async()=>{
+  const batches=fileFromWorkbook([
+   ['Cod. Producto','Producto','Cod. U. Medida','Partida / Talla','Fecha Venc','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+   ['BAT001P','Known batch','UNI','LOT-01','',1,0,0,0,1],
+   ['NO-MASTERP','Source only','UNI','LOT-02','',1,0,0,0,1],
+  ],'partidas-maestro.xlsx')
+  const serials=fileFromWorkbook([
+   ['Cod. Producto','Producto','Cod. U. Medida','Serie','Disponible','Reserva','Transitoria','Consignación','Stock Total'],
+   ['BAT001P','Known batch','UNI','',1,0,0,0,1],
+   ['NO-MASTERP','Source only','UNI','',1,0,0,0,1],
+  ],'series-maestro.xlsx')
+
+  const preview=await parseSystemReferenceFiles(batches,serials,new Set(),new Set(['BAT001P']))
+
+  expect(hasBlockingSystemReferenceIssues(preview)).toBe(false)
+  expect(preview.items).toEqual([expect.objectContaining({codigo:'BAT001P',referenceValue:'LOT-01'})])
+  expect(preview.issues).toEqual(expect.arrayContaining([expect.objectContaining({codigo:'NO-MASTERP',severity:'WARNING',message:expect.stringContaining('NO ESTÁ EN EL MAESTRO')})]))
+ })
+})

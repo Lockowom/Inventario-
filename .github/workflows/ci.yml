@@ -3,7 +3,11 @@ name: CI
 on:
   pull_request:
   push:
-    branches: [main, 'feature/**', 'fix/**', 'release/**']
+    branches: [main, 'release/**']
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -18,12 +22,12 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm run release:preflight:static -- --defer-ios
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run test
       - run: npm run build
       - run: npx cap sync android
-      - run: npx cap sync ios
       - run: npm audit --omit=dev
 
   database-checks:
@@ -75,3 +79,44 @@ jobs:
       - run: npx supabase db advisors --local --type security --level warn --fail-on error
       - if: always()
         run: docker logs supabase_edge_runtime_inven3 || true
+
+  phase-9-load:
+    needs: database-checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx supabase start -x imgproxy,mailpit,postgres-meta,studio,logflare,vector,supavisor
+      - run: npx supabase db reset
+      - run: set -a && eval "$(npx supabase status -o env)" && set +a && node scripts/supabase-sync-integration.mjs
+      - run: set -a && eval "$(npx supabase status -o env)" && set +a && node scripts/phase-9-load-certification.mjs
+      - run: npx supabase db advisors --local --type security --level warn --fail-on error
+
+  phase-9-e2e-visual:
+    needs: app-checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: npm run test:visual
+
+  phase-9-certification-summary:
+    needs: [app-checks, database-checks, phase-7-edge-storage, phase-8-edge-storage, phase-9-load, phase-9-e2e-visual]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: node scripts/phase-9-certification-summary.mjs

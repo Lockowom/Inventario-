@@ -1,0 +1,80 @@
+name: iOS Certification
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ios-cert-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  ios-simulator-build:
+    name: iOS Simulator Build
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Web typecheck
+        run: npm run typecheck
+
+      - name: Build web bundle
+        run: npm run build
+
+      - name: Sync Capacitor iOS
+        run: npx cap sync ios
+
+      - name: Toolchain inventory
+        run: |
+          xcodebuild -version
+          ruby --version
+          pod --version
+
+      - name: Install CocoaPods dependencies
+        working-directory: ios/App
+        run: pod install --repo-update
+
+      - name: Validate Xcode workspace
+        run: |
+          xcodebuild             -workspace ios/App/App.xcworkspace             -scheme App             -showBuildSettings             -sdk iphonesimulator             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             > ios-build-settings.txt
+
+      - name: Build iOS simulator application
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild             -workspace ios/App/App.xcworkspace             -scheme App             -configuration Debug             -sdk iphonesimulator             -destination 'generic/platform=iOS Simulator'             -derivedDataPath artifacts/ios-derived-data             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             build | tee ios-simulator-build.log
+
+      - name: Verify .app product
+        shell: bash
+        run: |
+          APP_PATH="$(find artifacts/ios-derived-data/Build/Products/Debug-iphonesimulator -maxdepth 1 -name '*.app' -print -quit)"
+          test -n "$APP_PATH"
+          echo "IOS_APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+          echo "Built: $APP_PATH"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP_PATH/Info.plist"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$APP_PATH/Info.plist"
+
+      - name: Upload iOS simulator evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-certification
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            ios-simulator-build.log
+            ios-build-settings.txt
+            artifacts/ios-derived-data/Build/Products/Debug-iphonesimulator/*.app
