@@ -8,7 +8,7 @@ import { Inven3WebDatabase } from '../../src/storage/web-indexeddb/inven3-web-da
 
 const inventoryId = '11111111-1111-4111-8111-111111111111'
 const userId = '22222222-2222-4222-8222-222222222222'
-const record: LocalCountRecord = { id: '44444444-4444-4444-8444-444444444444', clientCountId: '55555555-5555-4555-8555-555555555555', inventoryId, userId, deviceId: '33333333-3333-4333-8333-333333333333', ubicacion: 'F-32-03', codigo: '00001', serie: null, partida: '000045', piezaProducto: null, fechaVencimiento: null, talla: null, color: null, cantidadContada: 2, descripcion: 'Producto local', controlType: 'PARTIDA', capturedAt: '2026-09-16T12:00:00.000Z', createdAt: '2026-09-16T12:00:00.000Z', syncStatus: 'PENDING', syncAttempts: 0, lastSyncError: null, syncStartedAt: null, nextRetryAt: null, confirmedAt: null, serverCountId: null, lastSyncAt: null }
+const record: LocalCountRecord = { id: '44444444-4444-4444-8444-444444444444', clientCountId: '55555555-5555-4555-8555-555555555555', inventoryId, userId, deviceId: '33333333-3333-4333-8333-333333333333', ubicacion: 'F-32-03', codigo: '00001', serie: null, partida: '000045', piezaProducto: null, fechaVencimiento: null, talla: null, color: null, physicalUom: null, cantidadContada: 2, descripcion: 'Producto local', controlType: 'PARTIDA', capturedAt: '2026-09-16T12:00:00.000Z', createdAt: '2026-09-16T12:00:00.000Z', syncStatus: 'PENDING', syncAttempts: 0, lastSyncError: null, syncStartedAt: null, nextRetryAt: null, confirmedAt: null, serverCountId: null, lastSyncAt: null }
 
 function countContract(name: string, createRepository: () => CountRepository) {
   describe(name, () => {
@@ -89,7 +89,7 @@ class FakeCountSqlite implements SqliteDatabase {
     if (statement.startsWith('pragma user_version =')) { this.userVersion = Number(statement.split('=').at(-1)); return }
     if (statement.startsWith('insert into local_device_registrations')) { this.deviceId = String(values[1]); return }
     if (statement.startsWith('insert into local_count_records')) {
-      const keys = ['id', 'client_count_id', 'inventory_id', 'user_id', 'device_id', 'ubicacion', 'codigo', 'serie', 'partida', 'pieza_producto', 'fecha_vencimiento', 'talla', 'color', 'cantidad_contada', 'descripcion', 'control_type', 'captured_at', 'created_at', 'sync_status', 'sync_attempts', 'last_sync_error', 'sync_started_at', 'next_retry_at', 'confirmed_at', 'server_count_id', 'last_sync_at']
+      const keys = ['id', 'client_count_id', 'inventory_id', 'user_id', 'device_id', 'ubicacion', 'codigo', 'serie', 'partida', 'pieza_producto', 'fecha_vencimiento', 'talla', 'color', 'physical_uom', 'cantidad_contada', 'descripcion', 'control_type', 'captured_at', 'created_at', 'sync_status', 'sync_attempts', 'last_sync_error', 'sync_started_at', 'next_retry_at', 'confirmed_at', 'server_count_id', 'last_sync_at']
       this.rows.push(Object.fromEntries(keys.map((key, index) => [key, values[index]])))
     }
   }

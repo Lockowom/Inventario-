@@ -197,3 +197,52 @@ deadlock, lectura repetitiva ni coste que justifique cambiar el plan de datos.
 - No se crearon migraciones de esquema.
 - Las advertencias históricas del linter/advisor se documentan separadamente;
   no hay hallazgos de seguridad nuevos de CUT2-03K.
+
+## CUT2-03M — certificación post-reset
+
+Fecha: 2026-10-15
+Checkpoint de entrada: `eb5fca286f371c55ee09a0138c2a7eaed8c31e5c`
+
+Esta repetición recuperó Docker Desktop sin reiniciar Windows ni modificar
+contenedores manualmente y reconstruyó la base local con
+`supabase db reset --local --no-seed --yes`. La suite de base de datos se
+ejecutó inmediatamente después del reset y concluyó PASS: 36 archivos / 610
+aserciones, incluyendo explícitamente `cut2_03l_identity_matrix_test.sql`
+(31/31).
+
+La ejecución reveló además tres pruebas de cliente desactualizadas respecto de
+la migración SQLite v8 de CUT2-03K. La corrección fue exclusivamente de los
+fixtures/expectativas de prueba: se preservó `physical_uom` en el fake SQLite y
+se actualizó la versión esperada de v7 a v8. No cambió SQL remoto, migraciones,
+reglas C1/C2/C3, contratos Supabase ni comportamiento visible.
+
+| Control | Resultado | Evidencia |
+| --- | --- | --- |
+| Reset local sin seed | PASS | migraciones locales aplicadas hasta `20261014163539` |
+| pgTAP completo post-reset | PASS | 36 archivos / 610 aserciones |
+| Matriz CUT2-03L | PASS | 31/31 aserciones |
+| Regresión dirigida SQLite v8 | PASS | 3 archivos / 28 pruebas |
+| `npm test` | PASS | 79 archivos / 450 pruebas |
+| `npm run typecheck` | PASS | sin diagnósticos |
+| `npm run lint` | PASS | sin warnings ni errores |
+| `npm run build` | PASS | 298 módulos; sólo avisos informativos de Rollup en dependencias |
+| `supabase db lint --local --level warning --fail-on error` | BLOCKED | PostgreSQL local dejó de aceptar conexiones en `127.0.0.1:54322` después de los gates anteriores |
+
+### Bloqueo residual de entorno
+
+Al intentar el último lint local, el motor Docker pasó de disponible a rechazar
+el named pipe `dockerDesktopLinuxEngine` por permisos y PostgreSQL local dejó
+de escuchar en el puerto `54322`. Se intentó iniciar Docker Desktop mediante su
+AppID existente, sin detener/recrear contenedores, pero el pipe siguió
+inaccesible desde esta sesión. El problema es de disponibilidad/permisos del
+entorno local; no es un error de migración ni un hallazgo de seguridad.
+
+Por integridad, no se declara el gate final como READY mientras no se repita
+ese lint en una pila local accesible. No hubo push, deploy, cambio remoto,
+acceso a QA remoto, producción, iOS, Windows/Tauri ni CUT2-04.
+
+## Gate CUT2-03M
+
+`BLOCKED_FOR_CUT2_ROLLING_CUT_LOCAL` únicamente por el lint final de base
+local no ejecutable debido al acceso perdido al motor Docker. Todos los demás
+gates de datos y aplicación listados arriba están PASS.
