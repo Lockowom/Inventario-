@@ -17,14 +17,14 @@ export type RecountSubtask={
  created_at:string;started_at:string|null;completed_at:string|null;scanned_series_count:number;recent_series:string[]
 }
 export type RecountMission={
- id:string;case_id:string;inventory_id:string;round:2|3;status:'QUEUED'|'ACTIVE'|'COMPLETED'|'CANCELLED';
+ id:string;case_id:string;inventory_id:string;round:2|3;status:'QUEUED'|'ACTIVE'|'COMPLETED'|'CANCELLED';execution_state?:'QUEUED'|'CLAIMED'|'ACTIVE'|'COMPLETED'|'CANCELLED';sla_due_at?:string|null;sla_state?:'ON_TIME'|'C2_OVERDUE_OPERATIONAL'|null;
  codigo:string;descripcion:string;reference_type:'SERIAL'|'PARTIDA'|'LEGACY';reference_value:string|null;
  known_locations:string[];observations:RecountMissionObservation[];/** Missing only for a cached pre-C2.0 mission. */ subtasks?:RecountSubtask[];
 }
 export type RecountQueue={inventory_id:string;round:2|3|null;c1_completed:boolean;queued_count:number;active:RecountMission|null}
 export type RecountMissionCompletion={mission_id:string;round:2|3;total_quantity:number;observation_count?:number;subtask_count?:number;case_id:string;case_status:string;confirmed_physical_quantity:number|null;next_round:3|null;review_required?:boolean}
 export type RecountFindingType='DAMAGED'|'EXPIRED'|'ILLEGIBLE_SERIAL'|'ILLEGIBLE_BATCH'|'WRONG_LOCATION'|'WRONG_LABEL'|'DUPLICATE_PHYSICAL_LABEL'|'OTHER'
-export type C2ExecutionMetrics={queued_missions:number;active_missions:number;pending_subtasks:number;completed_subtasks:number;serial_sweeps_active:number;targeted_searches:number;blocked:number;escalated:number}
+export type C2ExecutionMetrics={queued_missions:number;claimed_missions:number;active_missions:number;overdue_operational:number;reassignment_pending:number;pending_subtasks:number;completed_subtasks:number;serial_sweeps_active:number;targeted_searches:number;blocked:number;escalated:number}
 export type SystemReferenceImportResult={reference_version:number;row_count:number;fingerprint:string}
 export type MissingBatchException={codigo:string;reason:string;created_at:string}
 export type ReconciliationEvent={id:string;case_id:string;event_type:string;actor_user_id:string;actor_display_name:string;target_display_name:string|null;payload:Record<string,unknown>;created_at:string}
@@ -35,6 +35,8 @@ export type LiveReconciliationWorkspace={inventory_id:string;refreshed_at:string
 export class SupabaseReconciliationRepository {
  recountQueue(inventoryId:string){return rpc<RecountQueue>('get_my_recount_queue',{p_inventory_id:inventoryId})}
  claimNextMission(inventoryId:string){return rpc<RecountMission|null>('claim_next_recount_mission',{p_inventory_id:inventoryId})}
+ abandonMission(missionId:string,reason:string){return rpc<RecountMission>('abandon_my_recount_mission',{p_mission_id:missionId,p_reason:reason})}
+ processC2Sla(inventoryId:string){return rpc<{inventory_id:string;overdue_marked:number;requeued_without_evidence:number}>('process_recount_sla',{p_inventory_id:inventoryId})}
  startSubtask(subtaskId:string){return rpc<RecountMission>('start_my_recount_subtask',{p_subtask_id:subtaskId})}
  recordSubtask(input:{subtaskId:string;location:string;quantity?:number|null;serial?:string|null;batch?:string|null;logisticUnit?:string|null}){
   return rpc<RecountMission>('record_my_recount_subtask',{p_subtask_id:input.subtaskId,p_location:input.location,p_quantity:input.quantity??null,p_serial:input.serial??null,p_batch:input.batch??null,p_logistic_unit:input.logisticUnit??null})

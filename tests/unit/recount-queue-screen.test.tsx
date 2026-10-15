@@ -12,9 +12,9 @@ vi.mock('../../src/services/supabase-supervision-repository',()=>({
 vi.mock('../../src/services/supabase-reconciliation-repository',()=>({
  SupabaseReconciliationRepository:class{
   recountQueue(){return Promise.resolve({
-   inventory_id:'inv-1',round:2,queued_count:3,
+   inventory_id:'inv-1',round:2,c1_completed:true,queued_count:3,
    active:{
-    id:'mission-1',case_id:'case-1',inventory_id:'inv-1',round:2,status:'ACTIVE',
+    id:'mission-1',case_id:'case-1',inventory_id:'inv-1',round:2,status:'ACTIVE',execution_state:'CLAIMED',sla_state:'ON_TIME',sla_due_at:'2026-10-20T10:00:00Z',
     codigo:'SKU001P',descripcion:'Producto prueba',reference_type:'PARTIDA',reference_value:'LOTE-01',
     known_locations:['A-21-03','B-02-01'],observations:[],subtasks:[
      {id:'subtask-a',location:'A-21-03',strategy:'BATCH_LOCATION_RECOUNT',status:'PENDING',logistic_unit:null,counted_quantity:null,exception_reason:null,created_at:'2026-10-08T10:00:00Z',started_at:null,completed_at:null,scanned_series_count:0,recent_series:[]},
@@ -48,5 +48,7 @@ describe('F15 recount queue',()=>{
   expect(screen.queryByText(/C1: 4/)).toBeNull()
   expect(screen.getByRole('button',{name:'CONFIRMAR 0'})).toBeEnabled()
   expect(screen.getByRole('button',{name:'FINALIZAR C2'})).toBeDisabled()
+  expect(screen.getByText(/SLA operativo/)).toBeTruthy()
+  expect(screen.getByRole('button',{name:'LIBERAR SIN EVIDENCIA'})).toBeDisabled()
  })
 })

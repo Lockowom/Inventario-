@@ -15,6 +15,7 @@
     "test:e2e": "playwright test --project=chromium",
     "test:visual": "playwright test --project=visual",
     "db:test": "supabase test db",
+    "test:cut2-05:concurrency": "node scripts/cut2-05-postgres-concurrency.mjs",
     "db:types": "supabase gen types typescript --local > src/services/supabase.types.ts",
     "cap:sync": "npm run build && cap sync",
     "cap:android": "npm run build && cap sync android",

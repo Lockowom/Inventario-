@@ -1,5 +1,5 @@
 begin;
-select plan(30);
+select plan(31);
 
 insert into auth.users (id,aud,role,email,encrypted_password,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
  ('e3010000-0000-0000-0000-000000000001','authenticated','authenticated','cut03-admin@example.invalid','', '{}'::jsonb,'{}'::jsonb,now(),now()),
@@ -40,6 +40,7 @@ select is((select count(*) from public.inventory_sealed_references where cut_id=
 select is((select count(*) from public.rolling_cut_reference_snapshots where cut_id=current_setting('cut2.cut')::uuid),2::bigint,'T12: all selected C1 records enter immutable snapshots');
 select is((select count(*) from public.reconciliation_cases where source_cut_id=current_setting('cut2.cut')::uuid),1::bigint,'T07: only the difference creates a reconciliation case');
 select is((select count(*) from public.recount_missions where source_cut_id=current_setting('cut2.cut')::uuid and round=2),1::bigint,'T07: difference creates exactly one C2 mission');
+select ok((select source_sealed_reference_id is not null from public.recount_missions where source_cut_id=current_setting('cut2.cut')::uuid and round=2),'T07: rolling C2 keeps the exact sealed reference that originated it');
 select is((select count(*) from public.inventory_sealed_references where inventory_id='e3020000-0000-0000-0000-000000000001' and normalized_reference_key='SKU-OPEN'),0::bigint,'T16: unselected identity remains open C1');
 select is((select count(*) from public.rolling_cut_events where cut_id=current_setting('cut2.cut')::uuid and event_type='ROLLING_CUT_CREATED'),1::bigint,'T26: cut audit event is append-only and exactly once');
 select is((select count(*) from public.generated_files where inventory_id='e3020000-0000-0000-0000-000000000001'),0::bigint,'T28: no XLSX generated');

@@ -47,6 +47,24 @@ export class SupabaseLiveMonitorRepository {
     return data as Record<string, unknown>
   }
 
+  /** The monitor is the authorized operational clock: it materializes overdue
+   * C2 lifecycle events before reading the guarded dashboard projection. */
+  public async processC2Sla(inventoryId: string) {
+    const { error } = await clientOrThrow().rpc('process_recount_sla', { p_inventory_id: inventoryId })
+    if (error) throw new Error('No fue posible actualizar el SLA operativo de C2.')
+  }
+
+  public async reassignC2(missionId: string, reason: string) {
+    const { error } = await clientOrThrow().rpc('reassign_recount_mission', { p_mission_id: missionId, p_reason: reason })
+    if (error) throw new Error(error.message)
+  }
+
+  public async c2OperationalMissions(inventoryId: string) {
+    const { data, error } = await clientOrThrow().rpc('get_c2_operational_missions', { p_inventory_id: inventoryId })
+    if (error) throw new Error('No fue posible cargar el estado SLA de C2.')
+    return (data ?? []) as Record<string, unknown>[]
+  }
+
   public async otaDevices() {
     const { data, error } = await clientOrThrow().rpc('get_live_monitor_ota_devices', { p_limit: 100 })
     if (error) throw new Error('No fue posible cargar los dispositivos OTA.')

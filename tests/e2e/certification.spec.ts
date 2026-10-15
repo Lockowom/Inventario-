@@ -3,6 +3,10 @@ import { expect, test } from '@playwright/test'
 const viewports = [320, 360, 390, 412, 420, 430, 600, 768, 900, 1024, 1440]
 
 test.describe('F9A certificación responsive y accesible', () => {
+  // A cold Vite graph must compile the complete fixture dependency tree before
+  // the first browser scenario. Keep the functional assertion strict while
+  // giving that one cold-start path a deterministic CI budget.
+  test.setTimeout(60_000)
   for (const [state, label] of [
     ['health-ready', 'DISPOSITIVO LISTO PARA INVENTARIO'],
     ['health-offline', 'DISPOSITIVO LISTO PARA INVENTARIO OFFLINE'],
@@ -11,8 +15,12 @@ test.describe('F9A certificación responsive y accesible', () => {
   ] as const) {
     test(`Device Health muestra ${state} con contrato y sin overflow`, async ({ page }) => {
       await page.setViewportSize({ width: 390, height: 844 })
-      await page.goto(`/?fixture=${state}`)
-      await expect(page.getByRole('heading', { name: 'HEALTH CHECK DEL DISPOSITIVO' })).toBeVisible()
+      // HEALTH_READY starts the scanner capability probe. Chromium can leave
+      // both DOMContentLoaded and load pending while that native-like probe is
+      // unresolved. Commit only proves navigation reached Vite; the explicit
+      // rendered-health expectation below is the functional readiness gate.
+      await page.goto(`/?fixture=${state}`, { waitUntil: 'commit' })
+      await expect(page.getByRole('heading', { name: 'HEALTH CHECK DEL DISPOSITIVO' })).toBeVisible({ timeout: 45_000 })
       await expect(page.getByText(label)).toBeVisible()
       await expect(page.getByText('Versión de la aplicación')).toBeVisible()
       await expect(page.getByText('Scanner', { exact: true })).toBeVisible()

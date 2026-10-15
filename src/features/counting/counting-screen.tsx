@@ -36,6 +36,12 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
   const batchInput = useRef<HTMLInputElement>(null)
   const quantityInput = useRef<HTMLInputElement>(null)
   const healthBlocked = captureGate?.blocked === true
+  useEffect(() => {
+    if (!master) return
+    if (master.controlType === 'SERIAL') serialInput.current?.focus()
+    else if (master.controlType === 'PARTIDA') batchInput.current?.focus()
+    else quantityInput.current?.focus()
+  }, [master])
   const { preferences } = useExperiencePreferences()
 
   const runSync = useCallback(async (forceRetry = false) => {
@@ -164,11 +170,6 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     if (resolution.error) { setFeedback({ tone: 'ERROR', message: resolution.error }); interactionSounds.playError() }
     else if (resolution.master) {
       setFeedback({ tone: 'SUCCESS', message: 'SKU validado contra el Maestro local.' }); interactionSounds.playScanSuccess()
-      requestAnimationFrame(() => {
-        if (resolution.master?.controlType === 'SERIAL') serialInput.current?.focus()
-        else if (resolution.master?.controlType === 'PARTIDA') batchInput.current?.focus()
-        else quantityInput.current?.focus()
-      })
     }
   }
   function updateCode(value: string) {

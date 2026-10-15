@@ -69,11 +69,11 @@ describe('last known authorized counting context', () => {
 })
 
 describe('adaptadores persistentes del contexto', () => {
-  it('SQLite v8 conserva el contexto a través de una nueva instancia', async () => {
+  it('SQLite v9 conserva el contexto a través de una nueva instancia', async () => {
     const database = new ContextSqliteDatabase()
     await new SqliteCountingContextRepository(database).save(cached)
     await expect(new SqliteCountingContextRepository(database).get()).resolves.toEqual(cached)
-    expect(database.userVersion).toBe(8)
+    expect(database.userVersion).toBe(9)
   })
 
   it('Dexie v4 conserva el contexto después de simular un reinicio de app', async () => {
