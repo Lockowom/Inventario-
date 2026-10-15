@@ -246,3 +246,52 @@ acceso a QA remoto, producción, iOS, Windows/Tauri ni CUT2-04.
 `BLOCKED_FOR_CUT2_ROLLING_CUT_LOCAL` únicamente por el lint final de base
 local no ejecutable debido al acceso perdido al motor Docker. Todos los demás
 gates de datos y aplicación listados arriba están PASS.
+
+## CUT2-03N — FINAL SUPABASE LOCAL GATE
+
+Fecha: 2026-10-15
+Checkpoint de entrada: `86c405b0385fb8d1bbcdff417bb69f7072a39d52`
+
+El checkpoint es posterior al SHA histórico de CUT2-03M por cambios QA ajenos
+a CUT2-03; este gate no modificó SQL, funciones, reglas C1/C2/C3 ni código
+de CUT2-03.
+
+### Recuperación de Docker y PostgreSQL
+
+El contexto `desktop-linux` estaba seleccionado, `DOCKER_HOST` vacío y la
+distribución WSL `docker-desktop` detenida; por ello no existía el named pipe
+`dockerDesktopLinuxEngine`. Se inició Docker Desktop mediante su ejecutable
+registrado de Windows. No se ejecutó `wsl --shutdown`, no se reinició Windows,
+no se borraron volúmenes y no se eliminaron contenedores.
+
+Docker volvió a informar Client y Server `29.8.1`; `docker info` y `docker ps`
+respondieron. `docker-desktop` quedó en ejecución. La stack local existente
+de Supabase volvió a estar disponible sin `db reset`; PostgreSQL respondió en
+`127.0.0.1:54322` y `supabase_db_inven3` informó estado healthy.
+
+### DB lint y Security Advisor
+
+| Control | Comando | Resultado |
+| --- | --- | --- |
+| Lint local | `supabase db lint --local --level warning` | PASS sin errores; 4 warnings heredados en 3 funciones |
+| Security Advisor local | `supabase db advisors --local --type security --level warn --fail-on error` | PASS, 0 hallazgos |
+
+Los warnings del lint no pertenecen a CUT2-03: dos de volatilidad declarada en
+`app_private.canonical_rectification_payload` proceden de Phase 8, uno de
+variable sin lectura en `public.request_cut_file_generation` procede de Phase
+7 y uno de variable sin lectura en `public.get_inventory_lifecycle` procede de
+F16. No se detectaron errores ni hallazgos nuevos relativos a rolling cuts,
+`sync_counts`, UOM, findings pre-seal, RLS, grants, `SECURITY DEFINER` o
+`search_path`.
+
+### Cierre del gate
+
+No se modificó código de CUT2-03, migraciones ni funciones SQL. Se conserva la
+certificación post-reset de CUT2-03M: pgTAP 36 archivos / 610 aserciones PASS;
+cliente 79 archivos / 450 pruebas PASS; typecheck, lint y build PASS. Durante
+este gate no hubo push, deploy, QA remoto, producción, iOS, Windows/Tauri ni
+CUT2-04.
+
+## Gate CUT2-03N
+
+`READY_FOR_CUT2_ROLLING_CUT_LOCAL`
