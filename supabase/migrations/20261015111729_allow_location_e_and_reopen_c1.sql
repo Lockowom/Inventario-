@@ -1,20 +1,42 @@
--- Permit aisle E consistently in the already deployed F16 sync function.
--- The function definition is preserved verbatim apart from this narrow regex
--- replacement, so its replay, authorization and C1/C2 behavior do not drift.
+-- Permit aisle E in the authoritative F16 capture implementation. Before
+-- CUT2 it lives in public.sync_counts; after CUT2 the public RPC is only a
+-- sealing wrapper and delegates to app_private.sync_counts_pre_cut2_03.
+-- Preserve every other part of the stored definition (grants, owner,
+-- idempotency and C1/C2 behavior) while changing only the location contract.
 do $migration$
 declare
+  signature text;
+  function_oid regprocedure;
   definition_sql text;
+  legacy_pattern constant text := '^(A|B|C|C2|D|F|G|H|I)-[0-9]{2}-[0-9]{2}$';
   prior_pattern constant text := '^(TECHO|(A|B|C|C2|D|F|G|H|I)-[0-9]{2}-[0-9]{2})$';
   next_pattern constant text := '^(TECHO|(A|B|C|C2|D|E|F|G|H|I)-[0-9]{2}-[0-9]{2})$';
+  contract_found boolean := false;
 begin
-  select pg_get_functiondef('public.sync_counts(uuid,uuid,public.device_platform,text,text,jsonb)'::regprocedure)
-    into definition_sql;
+  foreach signature in array array[
+    'public.sync_counts(uuid,uuid,public.device_platform,text,text,jsonb)',
+    'app_private.sync_counts_pre_cut2_03(uuid,uuid,public.device_platform,text,text,jsonb)'
+  ] loop
+    function_oid := to_regprocedure(signature);
+    continue when function_oid is null;
+    select pg_get_functiondef(function_oid) into definition_sql;
 
-  if definition_sql is null or position(prior_pattern in definition_sql) = 0 then
-    raise exception 'sync_counts location contract changed; refusing blind E hotfix' using errcode = 'P0001';
+    if position(next_pattern in definition_sql) > 0 then
+      contract_found := true;
+    elsif position(prior_pattern in definition_sql) > 0 then
+      execute replace(definition_sql, prior_pattern, next_pattern);
+      contract_found := true;
+    elsif position(legacy_pattern in definition_sql) > 0 then
+      execute replace(definition_sql, legacy_pattern, next_pattern);
+      contract_found := true;
+    elsif position('INVALID_LOCATION' in definition_sql) > 0 then
+      raise exception 'sync_counts location contract changed; refusing blind E hotfix in %', signature using errcode = 'P0001';
+    end if;
+  end loop;
+
+  if not contract_found then
+    raise exception 'No authoritative sync_counts location contract was found' using errcode = 'P0001';
   end if;
-
-  execute replace(definition_sql, prior_pattern, next_pattern);
 end
 $migration$;
 
