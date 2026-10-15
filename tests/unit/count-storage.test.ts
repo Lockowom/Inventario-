@@ -78,6 +78,19 @@ describe('scope de freeze guard', () => {
   })
 })
 
+describe('evidencia post-sello terminal', () => {
+  it('persiste REVIEW_REQUIRED sin incluirlo en el outbox ni reintentar tras reinicio web', async () => {
+    const database = new Inven3WebDatabase(`inven3-postseal-${crypto.randomUUID()}`)
+    const repository = new DexieCountRepository(database)
+    await repository.save({ ...record, syncStatus: 'REVIEW_REQUIRED', lastSyncError: 'REFERENCE_SEALED' })
+    expect(await repository.findByClientId(record.clientCountId)).toMatchObject({ syncStatus: 'REVIEW_REQUIRED', lastSyncError: 'REFERENCE_SEALED', cantidadContada: 2 })
+    expect(await repository.countPendingByDevice(record.deviceId)).toBe(0)
+    expect(await repository.countOutstandingByInventoryDevice(inventoryId, record.deviceId)).toBe(0)
+    expect(await repository.listOutstandingSyncScopes(userId)).toEqual([])
+    database.close()
+  })
+})
+
 class FakeCountSqlite implements SqliteDatabase {
   public userVersion = 0
   private deviceId: string | null = null
@@ -99,7 +112,7 @@ class FakeCountSqlite implements SqliteDatabase {
     let rows = [...this.rows]
     if (statement.includes('client_count_id =')) rows = rows.filter((row) => row.client_count_id === values[0])
     if (statement.includes('inventory_id = ? and user_id = ?')) rows = rows.filter((row) => row.inventory_id === values[0] && row.user_id === values[1])
-    if (statement.includes('select count(*) as total') && statement.includes('sync_status')) return { values: [{ total: rows.filter((row) => row.device_id === values[0] && row.sync_status !== 'CONFIRMED' && row.sync_status !== 'REJECTED').length }] as unknown as Row[] }
+    if (statement.includes('select count(*) as total') && statement.includes('sync_status')) return { values: [{ total: rows.filter((row) => row.device_id === values[0] && row.sync_status !== 'CONFIRMED' && row.sync_status !== 'REJECTED' && row.sync_status !== 'REVIEW_REQUIRED').length }] as unknown as Row[] }
     if (statement.includes('like ?')) { const search = String(values[2]).replaceAll('%', '').toUpperCase(); rows = rows.filter((row) => ['codigo', 'serie', 'partida', 'ubicacion'].some((key) => String(row[key] ?? '').toUpperCase().includes(search))) }
     return { values: rows as Row[] }
   }

@@ -23,9 +23,9 @@ class MemoryOutbox implements CountRepository {
   public async savePendingWithCapacity(item: LocalCountRecord) { this.records.push(item); return { record: item, pending: this.records.length } }
   public async findByClientId(id: string) { return this.records.find((item) => item.clientCountId === id) ?? null }
   public async listOwnCounts(filter: CountListFilter) { void filter; return this.records }
-  public async listOutstandingSyncScopes(scopeUserId: string) { return [...new Set(this.records.filter((item) => item.userId === scopeUserId && item.syncStatus !== 'CONFIRMED' && item.syncStatus !== 'REJECTED').map((item) => item.inventoryId))].map((inventoryId) => ({ inventoryId, userId: scopeUserId })) }
-  public async countPendingByDevice(id: string) { void id; return this.records.filter((item) => item.syncStatus !== 'CONFIRMED' && item.syncStatus !== 'REJECTED').length }
-  public async countOutstandingByInventoryDevice(scopeInventoryId: string, id: string) { return this.records.filter((item) => item.inventoryId === scopeInventoryId && item.deviceId === id && item.syncStatus !== 'CONFIRMED' && item.syncStatus !== 'REJECTED').length }
+  public async listOutstandingSyncScopes(scopeUserId: string) { return [...new Set(this.records.filter((item) => item.userId === scopeUserId && item.syncStatus !== 'CONFIRMED' && item.syncStatus !== 'REJECTED' && item.syncStatus !== 'REVIEW_REQUIRED').map((item) => item.inventoryId))].map((inventoryId) => ({ inventoryId, userId: scopeUserId })) }
+  public async countPendingByDevice(id: string) { void id; return this.records.filter((item) => item.syncStatus !== 'CONFIRMED' && item.syncStatus !== 'REJECTED' && item.syncStatus !== 'REVIEW_REQUIRED').length }
+  public async countOutstandingByInventoryDevice(scopeInventoryId: string, id: string) { return this.records.filter((item) => item.inventoryId === scopeInventoryId && item.deviceId === id && item.syncStatus !== 'CONFIRMED' && item.syncStatus !== 'REJECTED' && item.syncStatus !== 'REVIEW_REQUIRED').length }
   public async claimNextSyncBatch(input: { inventoryId: string; userId: string; max: number; now: string; forceRetry?: boolean }) {
     const claimed = this.records.filter((item) => item.inventoryId === input.inventoryId && item.userId === input.userId && (item.syncStatus === 'PENDING' || (item.syncStatus === 'FAILED' && (input.forceRetry === true || !item.nextRetryAt || item.nextRetryAt <= input.now)))).slice(0, input.max)
     for (const item of claimed) { item.syncStatus = 'SYNCING'; item.syncStartedAt = input.now; item.lastSyncError = null }
@@ -150,6 +150,15 @@ describe('SyncManager', () => {
     const result = await new SyncManager({ inventoryId, userId }, outbox, gatewayInstance).run()
     expect(result).toMatchObject({ rejected: 1, failed: 0 })
     expect(outbox.records[0]).toMatchObject({ syncStatus: 'REJECTED', lastSyncError: 'INVENTORY_FROZEN', codigo: '00001' })
+  })
+
+  it('convierte REFERENCE_SEALED en evidencia local terminal sin reintentos', async () => {
+    const outbox = new MemoryOutbox([record(1)])
+    gatewayInstance = gateway((records) => records.map((item) => ({ client_count_id: item.clientCountId, result_status: 'REJECTED', server_count_id: null, received_at: null, reason: 'REFERENCE_SEALED' })))
+    const result = await new SyncManager({ inventoryId, userId }, outbox, gatewayInstance).run()
+    expect(result).toMatchObject({ reviewRequired: 1, rejected: 0, failed: 0 })
+    expect(outbox.records[0]).toMatchObject({ syncStatus: 'REVIEW_REQUIRED', lastSyncError: 'REFERENCE_SEALED', codigo: '00001' })
+    expect(await outbox.claimNextSyncBatch({ inventoryId, userId, max: 20, now: '2026-09-17T13:00:00.000Z' })).toEqual([])
   })
 
   it('503 deja FAILED con próximo reintento futuro', async () => {

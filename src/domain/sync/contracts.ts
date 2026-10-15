@@ -20,7 +20,7 @@ export type SyncRpcResult = z.infer<typeof syncRpcResultSchema>
 /** The only acknowledgement shape allowed to mutate a local claimed record. */
 export interface LocalSyncAcknowledgement {
   clientCountId: string
-  syncStatus: 'CONFIRMED' | 'REJECTED'
+  syncStatus: 'CONFIRMED' | 'REJECTED' | 'REVIEW_REQUIRED'
   serverCountId: string | null
   receivedAt: string | null
   reason: string | null
@@ -30,6 +30,8 @@ export interface SyncRunSummary {
   claimed: number
   confirmed: number
   rejected: number
+  /** A sealed reference accepted the evidence as an idempotent finding. */
+  reviewRequired: number
   failed: number
   conflicts: number
   /** Safe diagnostic for a terminal transport condition; no raw backend error. */

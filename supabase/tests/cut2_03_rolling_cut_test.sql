@@ -1,5 +1,5 @@
 begin;
-select plan(22);
+select plan(30);
 
 insert into auth.users (id,aud,role,email,encrypted_password,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
  ('e3010000-0000-0000-0000-000000000001','authenticated','authenticated','cut03-admin@example.invalid','', '{}'::jsonb,'{}'::jsonb,now(),now()),
@@ -22,7 +22,9 @@ insert into public.inventory_system_reference_items(inventory_id,codigo,referenc
  ('e3020000-0000-0000-0000-000000000001','SKU-OK','LEGACY',5,5,5,'UNI'),
  ('e3020000-0000-0000-0000-000000000001','SKU-DIFF','LEGACY',5,5,5,'UNI'),
  ('e3020000-0000-0000-0000-000000000001','SKU-OPEN','LEGACY',1,1,1,'UNI');
-insert into public.sync_devices(id,user_id,platform,app_version,device_label) values('e3030000-0000-0000-0000-000000000001','e3010000-0000-0000-0000-000000000002','WEB','test','counter');
+insert into public.sync_devices(id,user_id,platform,app_version,device_label) values
+ ('e3030000-0000-0000-0000-000000000001','e3010000-0000-0000-0000-000000000002','WEB','test','counter'),
+ ('e3030000-0000-0000-0000-000000000002','e3010000-0000-0000-0000-000000000003','WEB','test','c2');
 insert into public.count_records(id,client_count_id,inventory_id,user_id,device_id,ubicacion,codigo,cantidad_contada,descripcion,captured_at,received_at) values
  ('e3040000-0000-0000-0000-000000000001','e3050000-0000-0000-0000-000000000001','e3020000-0000-0000-0000-000000000001','e3010000-0000-0000-0000-000000000002','e3030000-0000-0000-0000-000000000001','A-01-01','SKU-OK',5,'OK',now(),now()),
  ('e3040000-0000-0000-0000-000000000002','e3050000-0000-0000-0000-000000000002','e3020000-0000-0000-0000-000000000001','e3010000-0000-0000-0000-000000000002','e3030000-0000-0000-0000-000000000001','A-01-02','SKU-DIFF',3,'Diff',now(),now()),
@@ -64,6 +66,24 @@ reset role;
 select set_config('request.jwt.claim.sub','e3010000-0000-0000-0000-000000000002',true); set local role authenticated;
 select is((select result_status from public.sync_counts('e3020000-0000-0000-0000-000000000001','e3030000-0000-0000-0000-000000000001','WEB','test','counter','[{"client_count_id":"e3050000-0000-0000-0000-000000000099","ubicacion":"A-01-01","codigo":"SKU-OK","cantidad_contada":1,"captured_at":"2026-10-13T00:00:00Z"}]'::jsonb)),'REJECTED','T13: late/offline C1 is rejected after seal');
 select is((select reason from public.sync_counts('e3020000-0000-0000-0000-000000000001','e3030000-0000-0000-0000-000000000001','WEB','test','counter','[{"client_count_id":"e3050000-0000-0000-0000-000000000098","ubicacion":"A-01-01","codigo":"SKU-OK","cantidad_contada":1,"captured_at":"2026-10-13T00:00:00Z"}]'::jsonb)),'REFERENCE_SEALED','T15: sealed rejection retains conflict context code');
+reset role;
+select is((select count(*) from public.reference_findings where source_client_count_id='e3050000-0000-0000-0000-000000000099'),1::bigint,'T30: a late C1 count is preserved once as post-seal evidence');
+select is((select count(*) from public.count_records where client_count_id='e3050000-0000-0000-0000-000000000099'),0::bigint,'T31: a late C1 count cannot enter immutable count records');
+select is((select late_count_payload #>> '{record,cantidad_contada}' from public.reference_findings where source_client_count_id='e3050000-0000-0000-0000-000000000099'),'1','T32: post-seal finding preserves the original physical payload');
+select set_config('request.jwt.claim.sub','e3010000-0000-0000-0000-000000000002',true); set local role authenticated;
+select is((select result_status from public.sync_counts('e3020000-0000-0000-0000-000000000001','e3030000-0000-0000-0000-000000000001','WEB','test','counter','[{"client_count_id":"e3050000-0000-0000-0000-000000000099","ubicacion":"A-01-01","codigo":"SKU-OK","cantidad_contada":1,"captured_at":"2026-10-13T00:00:00Z"}]'::jsonb)),'REJECTED','T33: retry retains the safe sealed response');
+reset role;
+select is((select count(*) from public.reference_findings where source_client_count_id='e3050000-0000-0000-0000-000000000099'),1::bigint,'T34: retry cannot duplicate a post-seal finding');
+select set_config('request.jwt.claim.sub','e3010000-0000-0000-0000-000000000002',true); set local role authenticated;
+select throws_ok($$insert into public.count_records(id,client_count_id,inventory_id,user_id,device_id,ubicacion,codigo,cantidad_contada,descripcion,captured_at,received_at) values ('e3040000-0000-0000-0000-000000000005','e3050000-0000-0000-0000-000000000095','e3020000-0000-0000-0000-000000000001','e3010000-0000-0000-0000-000000000002','e3030000-0000-0000-0000-000000000001','A-01-04','SKU-OK',1,'OK',now(),now())$$,'42501','permission denied for table count_records','T37: authenticated clients cannot bypass sealed RPC enforcement with direct DML');
+reset role;
+insert into public.count_records(id,client_count_id,inventory_id,user_id,device_id,ubicacion,codigo,cantidad_contada,descripcion,captured_at,received_at)
+values('e3040000-0000-0000-0000-000000000004','e3050000-0000-0000-0000-000000000097','e3020000-0000-0000-0000-000000000001','e3010000-0000-0000-0000-000000000002','e3030000-0000-0000-0000-000000000001','A-01-04','SKU-OK',1,'OK',now(),now());
+select set_config('request.jwt.claim.sub','e3010000-0000-0000-0000-000000000002',true); set local role authenticated;
+select throws_ok($$select public.correct_uncut_count('e3040000-0000-0000-0000-000000000004','{"ubicacion":"A-01-04","codigo":"SKU-OK","cantidad_contada":1}'::jsonb,'late correction')$$,'23514','REFERENCE_SEALED','T35: correction cannot mutate an identity after its seal');
+reset role;
+select set_config('request.jwt.claim.sub','e3010000-0000-0000-0000-000000000003',true); set local role authenticated;
+select is((select result_status from public.sync_counts('e3020000-0000-0000-0000-000000000001','e3030000-0000-0000-0000-000000000002','WEB','test','c2','[{"client_count_id":"e3050000-0000-0000-0000-000000000096","ubicacion":"A-01-05","codigo":"SKU-DIFF","cantidad_contada":5,"captured_at":"2026-10-13T00:00:00Z"}]'::jsonb)),'ACCEPTED','T36: assigned C2 remains the only allowed post-seal physical path');
 reset role;
 select set_config('request.jwt.claim.sub','e3010000-0000-0000-0000-000000000002',true); set local role authenticated;
 select throws_ok($$select public.create_rolling_cut_v2('e3020000-0000-0000-0000-000000000001','e3060000-0000-0000-0000-000000000003',repeat('a',64),'{"normalized_reference_keys":["SKU-OPEN"]}'::jsonb)$$,'42501','Not authorized for rolling cut','T23: counter cannot create a rolling cut');

@@ -81,6 +81,24 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = [
       await database.execute('alter table local_count_records add column physical_uom text')
     },
   },
+  {
+    version: 9,
+    up: async (database) => {
+      // SQLite cannot widen a CHECK constraint in place.  Rebuild atomically
+      // so a post-seal evidence record can become terminal REVIEW_REQUIRED
+      // without being retried or discarded after an app restart.
+      await database.execute("create table local_count_records_v9 (id text primary key, client_count_id text not null unique, inventory_id text not null, user_id text not null, device_id text not null, ubicacion text not null, codigo text not null, serie text, partida text, pieza_producto text, fecha_vencimiento text, talla text, color text, physical_uom text, cantidad_contada integer not null check (cantidad_contada > 0), descripcion text not null, control_type text not null check (control_type in ('SERIAL', 'PARTIDA', 'LEGACY')), captured_at text not null, created_at text not null, sync_status text not null check (sync_status in ('PENDING', 'SYNCING', 'CONFIRMED', 'FAILED', 'REJECTED', 'REVIEW_REQUIRED')), sync_attempts integer not null default 0 check (sync_attempts >= 0), last_sync_error text, sync_started_at text, next_retry_at text, confirmed_at text, server_count_id text, last_sync_at text)")
+      await database.execute('insert into local_count_records_v9 (id, client_count_id, inventory_id, user_id, device_id, ubicacion, codigo, serie, partida, pieza_producto, fecha_vencimiento, talla, color, physical_uom, cantidad_contada, descripcion, control_type, captured_at, created_at, sync_status, sync_attempts, last_sync_error, sync_started_at, next_retry_at, confirmed_at, server_count_id, last_sync_at) select id, client_count_id, inventory_id, user_id, device_id, ubicacion, codigo, serie, partida, pieza_producto, fecha_vencimiento, talla, color, physical_uom, cantidad_contada, descripcion, control_type, captured_at, created_at, sync_status, sync_attempts, last_sync_error, sync_started_at, next_retry_at, confirmed_at, server_count_id, last_sync_at from local_count_records')
+      await database.execute('drop table local_count_records')
+      await database.execute('alter table local_count_records_v9 rename to local_count_records')
+      await database.execute('create index if not exists local_count_records_inventory_idx on local_count_records (inventory_id)')
+      await database.execute('create index if not exists local_count_records_user_idx on local_count_records (user_id)')
+      await database.execute('create index if not exists local_count_records_codigo_idx on local_count_records (codigo)')
+      await database.execute('create index if not exists local_count_records_captured_at_idx on local_count_records (captured_at desc)')
+      await database.execute('create index if not exists local_count_records_sync_status_idx on local_count_records (sync_status)')
+      await database.execute('create index if not exists local_count_records_sync_eligible_idx on local_count_records (user_id, sync_status, next_retry_at, captured_at)')
+    },
+  },
 ]
 
 const migrationRuns = new WeakMap<SqliteDatabase, Promise<void>>()

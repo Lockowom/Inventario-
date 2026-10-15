@@ -12,7 +12,10 @@ export const BATCH_REQUIRED_ERROR = 'Favor introducir el lote/partida. Si el pro
 export const QUANTITY_ERROR = 'La cantidad contada debe ser mayor a 0. Ingrese al menos 1 unidad.'
 export const PHYSICAL_UOM_ERROR = 'La unidad física debe usar hasta 32 caracteres: letras, números, punto, guion o barra.'
 
-export const countSyncStatusSchema = z.enum(['PENDING', 'SYNCING', 'CONFIRMED', 'FAILED', 'REJECTED'])
+// REVIEW_REQUIRED is a terminal local state.  It preserves an offline count
+// after the server has converted it into a post-seal finding; it must never
+// return to the retry queue automatically.
+export const countSyncStatusSchema = z.enum(['PENDING', 'SYNCING', 'CONFIRMED', 'FAILED', 'REJECTED', 'REVIEW_REQUIRED'])
 export type CountSyncStatus = z.infer<typeof countSyncStatusSchema>
 
 export const physicalCountDraftSchema = z.object({

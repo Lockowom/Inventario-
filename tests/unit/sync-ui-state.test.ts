@@ -19,5 +19,6 @@ describe('count sync UI state', () => {
     expect(getCountSyncUiModel('OFFLINE', 2).title).toBe('OFFLINE')
     expect(getCountSyncUiModel('CONFIRMED', 0).title).toBe('TODO SINCRONIZADO')
     expect(getCountSyncUiModel('REJECTED', 0, 2)).toMatchObject({ action: 'DETAIL' })
+    expect(getCountSyncUiModel('REVIEW_REQUIRED', 0)).toMatchObject({ title: 'CONTEO PRESERVADO PARA REVISIÓN', action: 'DETAIL' })
   })
 })

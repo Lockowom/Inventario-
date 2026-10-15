@@ -42,7 +42,7 @@ export class SyncManager {
   }
 
   private async runInternal(options: SyncRunOptions): Promise<SyncRunSummary> {
-    const summary: SyncRunSummary = { claimed: 0, confirmed: 0, rejected: 0, failed: 0, conflicts: 0, diagnostic: null }
+    const summary: SyncRunSummary = { claimed: 0, confirmed: 0, rejected: 0, reviewRequired: 0, failed: 0, conflicts: 0, diagnostic: null }
     if (!this.gateway) return summary
     const deviceId = await this.counts.getOrCreateDeviceId(this.context.userId)
     const now = this.clock()
@@ -66,8 +66,10 @@ export class SyncManager {
             acknowledged.push({ clientCountId: result.client_count_id, syncStatus: 'CONFIRMED', serverCountId: result.server_count_id, receivedAt: result.received_at, reason: null })
             summary.confirmed += 1
           } else {
-            acknowledged.push({ clientCountId: result.client_count_id, syncStatus: 'REJECTED', serverCountId: null, receivedAt: null, reason: result.reason ?? (result.result_status === 'CONFLICT' ? 'CLIENT_COUNT_ID_PAYLOAD_CONFLICT' : 'REJECTED_BY_SERVER') })
-            summary.rejected += 1
+            const reviewRequired = result.result_status === 'REJECTED' && result.reason === 'REFERENCE_SEALED'
+            acknowledged.push({ clientCountId: result.client_count_id, syncStatus: reviewRequired ? 'REVIEW_REQUIRED' : 'REJECTED', serverCountId: null, receivedAt: null, reason: result.reason ?? (result.result_status === 'CONFLICT' ? 'CLIENT_COUNT_ID_PAYLOAD_CONFLICT' : 'REJECTED_BY_SERVER') })
+            if (reviewRequired) summary.reviewRequired += 1
+            else summary.rejected += 1
             if (result.result_status === 'CONFLICT') summary.conflicts += 1
           }
         }

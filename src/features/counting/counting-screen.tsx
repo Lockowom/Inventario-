@@ -67,7 +67,8 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
       const pendingAfter = await runtime.counts.countPendingByDevice(deviceId)
       setPending(pendingAfter)
       setRejectedCount(summary.rejected)
-      if (summary.rejected > 0) setSyncState('REJECTED')
+      if (summary.reviewRequired > 0) setSyncState('REVIEW_REQUIRED')
+      else if (summary.rejected > 0) setSyncState('REJECTED')
       else if (summary.failed > 0) setSyncState('RETRY_PENDING')
       else if (pendingAfter === 0) setSyncState(summary.confirmed > 0 ? 'CONFIRMED' : 'IDLE')
       else setSyncState('RETRY_PENDING')
@@ -137,7 +138,7 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     setSyncing(true)
     try {
       const summary = await syncCoordinator.runOutstanding({ forceRetry: true })
-      setSyncState(summary.rejected > 0 ? 'REJECTED' : summary.failed > 0 ? 'RETRY_PENDING' : 'IDLE')
+      setSyncState(summary.reviewRequired > 0 ? 'REVIEW_REQUIRED' : summary.rejected > 0 ? 'REJECTED' : summary.failed > 0 ? 'RETRY_PENDING' : 'IDLE')
     } catch { setSyncState('ERROR') } finally { setSyncing(false) }
   }
 
@@ -259,15 +260,21 @@ function MyCounts({ runtime, refreshKey }: { runtime: CountingRuntime; refreshKe
   const [search, setSearch] = useState('')
   const [counts, setCounts] = useState<LocalCountRecord[]>([])
   useEffect(() => { void runtime.counts.listOwnCounts({ inventoryId: runtime.context.inventoryId, userId: runtime.context.userId, search }).then(setCounts) }, [runtime, search, refreshKey])
-  return <section id="mis-conteos" className="my-counts" aria-labelledby="my-counts-title"><h2 id="my-counts-title">MIS CONTEOS</h2><label className="field"><span>Buscar por código, serie, partida o ubicación</span><input value={search} onChange={(event) => setSearch(event.target.value)} /></label><ul>{counts.map((count) => <li key={count.clientCountId}><time>{new Date(count.capturedAt).toLocaleTimeString()}</time><strong>{count.ubicacion}</strong><span>{count.codigo} · {count.descripcion}</span><span>{count.serie ?? count.partida ?? 'Sin serie/partida'} · {count.cantidadContada}</span><em>{syncLabel(count)}</em>{count.lastSyncError && <small>{count.lastSyncError}</small>}</li>)}</ul>{counts.length === 0 && <p>No hay conteos locales para este inventario.</p>}</section>
+  return <section id="mis-conteos" className="my-counts" aria-labelledby="my-counts-title"><h2 id="my-counts-title">MIS CONTEOS</h2><label className="field"><span>Buscar por código, serie, partida o ubicación</span><input value={search} onChange={(event) => setSearch(event.target.value)} /></label><ul>{counts.map((count) => <li key={count.clientCountId}><time>{new Date(count.capturedAt).toLocaleTimeString()}</time><strong>{count.ubicacion}</strong><span>{count.codigo} · {count.descripcion}</span><span>{count.serie ?? count.partida ?? 'Sin serie/partida'} · {count.cantidadContada}</span><em>{syncLabel(count)}</em>{syncDetail(count) && <small>{syncDetail(count)}</small>}</li>)}</ul>{counts.length === 0 && <p>No hay conteos locales para este inventario.</p>}</section>
 }
 
 function syncLabel(count: LocalCountRecord): string {
   if (count.syncStatus === 'CONFIRMED') return 'Confirmado en servidor'
+  if (count.syncStatus === 'REVIEW_REQUIRED') return 'Evidencia preservada para revisión'
   if (count.syncStatus === 'REJECTED') return `Rechazado: ${count.lastSyncError ?? 'requiere revisión'}`
   if (count.syncStatus === 'FAILED') return 'Pendiente de reintento'
   if (count.syncStatus === 'SYNCING') return 'Sincronizando…'
   return 'Pendiente de sincronización'
+}
+
+function syncDetail(count: LocalCountRecord): string | null {
+  if (count.syncStatus === 'REVIEW_REQUIRED' && count.lastSyncError === 'REFERENCE_SEALED') return 'La evidencia se registró después del cierre y quedó disponible para revisión.'
+  return count.lastSyncError
 }
 
 function CapacityStatus({ pending, capacity }: { pending: number | null; capacity: PendingCapacity | null }) {

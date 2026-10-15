@@ -1,4 +1,4 @@
-export type CountSyncUiState = 'IDLE' | 'LOCAL_SAVED' | 'SYNCING' | 'CONFIRMED' | 'OFFLINE' | 'RETRY_PENDING' | 'REJECTED' | 'ERROR'
+export type CountSyncUiState = 'IDLE' | 'LOCAL_SAVED' | 'SYNCING' | 'CONFIRMED' | 'OFFLINE' | 'RETRY_PENDING' | 'REJECTED' | 'REVIEW_REQUIRED' | 'ERROR'
 
 export interface CountSyncUiModel {
   title: string
@@ -14,5 +14,6 @@ export function getCountSyncUiModel(state: CountSyncUiState, pending: number | n
   if (state === 'OFFLINE') return { title: 'OFFLINE', detail: `${count} ${noun} guardado${count === 1 ? '' : 's'} localmente`, action: null }
   if (state === 'RETRY_PENDING' || state === 'ERROR') return { title: 'SINCRONIZACIÓN PENDIENTE', detail: `${count} ${noun} por enviar`, action: 'RETRY' }
   if (state === 'REJECTED') return { title: `${rejected || 1} conteo${rejected === 1 ? '' : 's'} requiere${rejected === 1 ? '' : 'n'} revisión`, detail: 'Revise el detalle antes de volver a intentarlo.', action: 'DETAIL' }
+  if (state === 'REVIEW_REQUIRED') return { title: 'CONTEO PRESERVADO PARA REVISIÓN', detail: 'La referencia se cerró mientras estaba offline. La evidencia quedó registrada y no se reenviará.', action: 'DETAIL' }
   return { title: 'TODO SINCRONIZADO', detail: 'No hay conteos pendientes en este dispositivo.', action: null }
 }

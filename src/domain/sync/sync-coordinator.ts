@@ -55,10 +55,11 @@ export class SyncCoordinator {
       claimed: total.claimed + current.claimed,
       confirmed: total.confirmed + current.confirmed,
       rejected: total.rejected + current.rejected,
+      reviewRequired: total.reviewRequired + current.reviewRequired,
       failed: total.failed + current.failed,
       conflicts: total.conflicts + current.conflicts,
       diagnostic: total.diagnostic ?? current.diagnostic,
-    }), { scopes: 0, claimed: 0, confirmed: 0, rejected: 0, failed: 0, conflicts: 0, diagnostic: null })
+    }), { scopes: 0, claimed: 0, confirmed: 0, rejected: 0, reviewRequired: 0, failed: 0, conflicts: 0, diagnostic: null })
   }
 }
 
@@ -69,7 +70,7 @@ type ActiveScope = {
 }
 
 function emptySummary(): SyncRunSummary {
-  return { claimed: 0, confirmed: 0, rejected: 0, failed: 0, conflicts: 0, diagnostic: null }
+  return { claimed: 0, confirmed: 0, rejected: 0, reviewRequired: 0, failed: 0, conflicts: 0, diagnostic: null }
 }
 
 function addSummaries(total: SyncRunSummary, current: SyncRunSummary): SyncRunSummary {
@@ -77,6 +78,7 @@ function addSummaries(total: SyncRunSummary, current: SyncRunSummary): SyncRunSu
     claimed: total.claimed + current.claimed,
     confirmed: total.confirmed + current.confirmed,
     rejected: total.rejected + current.rejected,
+    reviewRequired: total.reviewRequired + current.reviewRequired,
     failed: total.failed + current.failed,
     conflicts: total.conflicts + current.conflicts,
     diagnostic: total.diagnostic ?? current.diagnostic,
