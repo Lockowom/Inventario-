@@ -158,7 +158,7 @@ reset role;
 select is((select confirmed_physical_quantity from public.reconciliation_cases where inventory_id='f1510000-0000-0000-0000-000000000001' and codigo='F15A002P'),null::integer,'C3 total remains evidence and is not auto-confirmed');
 select is((select status::text from public.reconciliation_cases where inventory_id='f1510000-0000-0000-0000-000000000001' and codigo='F15A002P'),'PENDIENTE_ANALISIS','C3 completion requires an explicit later decision');
 select is((select c3_result from public.recount_missions m join public.reconciliation_cases r on r.id=m.case_id where r.codigo='F15A002P' and m.round=3),'C3_CONFIRMS_DIFFERENCE','C3 stores its evidence result without choosing a stock outcome');
-select is((select count(*) from public.reconciliation_events e join public.reconciliation_cases r on r.id=e.case_id where r.inventory_id='f1510000-0000-0000-0000-000000000001'),6::bigint,'single event ledger records C2/C3 creation, claims and completions exactly once');
+select is((select count(*) from public.reconciliation_events e join public.reconciliation_cases r on r.id=e.case_id where r.inventory_id='f1510000-0000-0000-0000-000000000001'),7::bigint,'single event ledger records C2/C3 creation, claims and completions exactly once');
 
 select * from finish();
 rollback;

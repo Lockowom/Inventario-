@@ -15,6 +15,14 @@ final. La migración se aplica únicamente en Supabase local y contiene:
   sin segundo evento de finalización;
 - caché C3 ciega y outbox aislado por actor.
 
+CUT2-07C agrega una carrera PostgreSQL local de dos conexiones que certifica:
+
+- una sola finalización lógica C2 genera exactamente una C3 y un solo evento
+  `C3_CREATED`;
+- la C3 conserva la misión C2 fuente;
+- dos actores C3 no pueden reclamar la misma misión (`SKIP LOCKED`);
+- el índice `recount_missions_c3_queue_idx` se usa para la cola C3.
+
 La ejecución final debe registrar DB reset, pgTAP, cliente, Chromium,
 typecheck, lint, build, lint/advisor de DB y pruebas de concurrencia antes de
 declarar `READY_FOR_CUT2_C3_LOCAL`.

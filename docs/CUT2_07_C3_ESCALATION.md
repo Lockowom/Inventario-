@@ -19,3 +19,8 @@ ningún ajuste ERP.
 La caché de ejecución también respeta la ceguera: una misión C3 guarda
 `reference_value = null` y su outbox se almacena por actor. Así un nuevo
 usuario del mismo equipo no puede heredar datos ni pendientes del anterior.
+
+El Monitor existente, protegido por `VIEW_MONITOR`, muestra la trazabilidad de
+una C3 mediante su misión C2 origen, corte, referencia sellada y resultado de
+evidencia. Esa proyección es exclusivamente de supervisión: no cambia el
+payload ciego del contador.
