@@ -12,9 +12,11 @@ describe('UserManagementScreen', () => {
     mocks.list.mockResolvedValue({ users: [{ user_id: id, email: 'counter@example.com', display_name: 'Counter', role: 'CONTADOR', active: true, created_at: '2026-10-02T00:00:00Z', updated_at: '2026-10-02T00:00:00Z', inventoryIds: [] }], inventories: [] })
     mocks.create.mockResolvedValue({}); mocks.update.mockResolvedValue({}); mocks.setTemporaryPassword.mockResolvedValue({})
   })
-  it('hides the privileged screen from non-admin roles', () => {
+  it('does not treat role metadata as the authority when server scope authorizes', async () => {
     const { container } = render(<UserManagementScreen role="ANALISTA" />)
-    expect(container).toBeEmptyDOMElement()
+    await flush()
+    expect(container).not.toBeEmptyDOMElement()
+    expect(screen.getByRole('heading', { name: 'USUARIOS' })).toBeInTheDocument()
   })
   it('creates a user without ever rendering a stored password', async () => {
     render(<UserManagementScreen role="ADMIN" />)

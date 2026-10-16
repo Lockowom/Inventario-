@@ -14,7 +14,8 @@ import type { SqliteDatabase, SqliteResult } from '../../src/storage/mobile-sqli
 const inventoryId = '11111111-1111-4111-8111-111111111111'
 const otherInventoryId = '33333333-3333-4333-8333-333333333333'
 const userId = '22222222-2222-4222-8222-222222222222'
-const cached: CachedCountingContext = { userId, inventoryId, inventoryStatus: 'ABIERTO', verifiedAt: '2026-09-16T12:00:00.000Z' }
+const authorization = { actorId: userId, userType: 'PERMANENT' as const, capabilities: ['COUNT_C1'], inventoryScopes: [inventoryId], warehouseScopes: ['44444444-4444-4444-8444-444444444444'], schemaVersion: 1 as const }
+const cached: CachedCountingContext = { userId, inventoryId, inventoryStatus: 'ABIERTO', verifiedAt: '2026-09-16T12:00:00.000Z', authorization }
 
 class MemoryContextRepository implements CountingContextRepository {
   public value: CachedCountingContext | null = null
@@ -30,13 +31,13 @@ function verifier(result: Awaited<ReturnType<CountingContextVerifier['verifyServ
 describe('last known authorized counting context', () => {
   it('guarda el contexto tras una autorización online', async () => {
     const cache = new MemoryContextRepository()
-    await expect(resolveCountingContext(verifier({ kind: 'AUTHORIZED', context: { userId, inventoryId, inventoryStatus: 'ABIERTO' }, verifiedAt: cached.verifiedAt }), cache)).resolves.toMatchObject({ kind: 'ONLINE' })
+    await expect(resolveCountingContext(verifier({ kind: 'AUTHORIZED', context: { userId, inventoryId, inventoryStatus: 'ABIERTO' }, verifiedAt: cached.verifiedAt, authorization }), cache)).resolves.toMatchObject({ kind: 'ONLINE' })
     expect(cache.value).toEqual(cached)
   })
 
   it('reemplaza el contexto anterior con la última autorización online', async () => {
     const cache = new MemoryContextRepository(); cache.value = cached
-    await resolveCountingContext(verifier({ kind: 'AUTHORIZED', context: { userId, inventoryId: otherInventoryId, inventoryStatus: 'ABIERTO' }, verifiedAt: '2026-09-16T13:00:00.000Z' }), cache)
+    await resolveCountingContext(verifier({ kind: 'AUTHORIZED', context: { userId, inventoryId: otherInventoryId, inventoryStatus: 'ABIERTO' }, verifiedAt: '2026-09-16T13:00:00.000Z', authorization: { ...authorization, inventoryScopes: [otherInventoryId] } }), cache)
     expect(cache.value).toMatchObject({ inventoryId: otherInventoryId, verifiedAt: '2026-09-16T13:00:00.000Z' })
   })
 
@@ -69,11 +70,11 @@ describe('last known authorized counting context', () => {
 })
 
 describe('adaptadores persistentes del contexto', () => {
-  it('SQLite v9 conserva el contexto a través de una nueva instancia', async () => {
+  it('SQLite v10 conserva el contexto a través de una nueva instancia', async () => {
     const database = new ContextSqliteDatabase()
     await new SqliteCountingContextRepository(database).save(cached)
     await expect(new SqliteCountingContextRepository(database).get()).resolves.toEqual(cached)
-    expect(database.userVersion).toBe(9)
+    expect(database.userVersion).toBe(10)
   })
 
   it('Dexie v4 conserva el contexto después de simular un reinicio de app', async () => {
@@ -104,14 +105,14 @@ describe('captura offline después de reiniciar', () => {
 
 class ContextSqliteDatabase implements SqliteDatabase {
   public userVersion = 0
-  private context: { user_id: string; inventory_id: string; inventory_status: 'ABIERTO'; verified_at: string } | null = null
+  private context: { user_id: string; inventory_id: string; inventory_status: 'ABIERTO'; verified_at: string; role: string | null; authorization_snapshot: string | null } | null = null
   public async initialize(): Promise<void> {}
   public async close(): Promise<void> {}
   public async transaction<T>(operation: () => Promise<T>): Promise<T> { return operation() }
   public async execute(statement: string, values: readonly unknown[] = []): Promise<void> {
     if (statement.startsWith('pragma user_version =')) { this.userVersion = Number(statement.split('=').at(-1)); return }
     if (statement.startsWith('delete from local_counting_context')) { this.context = null; return }
-    if (statement.startsWith('insert into local_counting_context')) { this.context = { user_id: String(values[0]), inventory_id: String(values[1]), inventory_status: values[2] as 'ABIERTO', verified_at: String(values[3]) } }
+    if (statement.startsWith('insert into local_counting_context')) { this.context = { user_id: String(values[0]), inventory_id: String(values[1]), inventory_status: values[2] as 'ABIERTO', verified_at: String(values[3]), role: values[4] as string | null, authorization_snapshot: values[5] as string | null } }
   }
   public async query<Row extends Record<string, unknown>>(statement: string): Promise<SqliteResult<Row>> {
     if (statement === 'pragma user_version') return { values: [{ user_version: this.userVersion }] as unknown as Row[] }

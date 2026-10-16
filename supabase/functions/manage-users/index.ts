@@ -3,6 +3,7 @@ import { withSupabase } from "@supabase/server";
 
 const roles = new Set(['CONTADOR', 'ANALISTA', 'ADMIN']);
 type Role = 'CONTADOR' | 'ANALISTA' | 'ADMIN';
+type ManagementScope = { actor_id: string; global: boolean; inventory_ids: string[]; schema_version: number };
 
 function message(error: unknown) {
   return error instanceof Error ? error.message : 'La operación de usuarios no pudo completarse.';
@@ -35,20 +36,34 @@ export default {
     try { body = await req.json(); } catch { return badRequest('El cuerpo debe ser JSON.'); }
     const actor = await ctx.supabase.auth.getUser();
     if (actor.error || !actor.data.user) return Response.json({ error: 'Autenticación requerida.' }, { status: 401 });
-    const profile = await ctx.supabase.from('profiles').select('role, active').eq('user_id', actor.data.user.id).maybeSingle();
-    if (profile.error || !profile.data?.active || profile.data.role !== 'ADMIN') return Response.json({ error: 'Administración reservada para ADMIN.' }, { status: 403 });
+    const scopeResult = await ctx.supabase.rpc('get_my_user_management_scope');
+    if (scopeResult.error) return Response.json({ error: 'No tiene autorización para administrar usuarios en este alcance.' }, { status: 403 });
+    const scope = scopeResult.data as ManagementScope;
+    if (scope.actor_id !== actor.data.user.id || scope.schema_version !== 1 || !Array.isArray(scope.inventory_ids) || scope.inventory_ids.some((id) => typeof id !== 'string')) return Response.json({ error: 'El contexto de autorización de usuarios no es válido.' }, { status: 403 });
 
     try {
       const action = body.action;
       if (action === 'list') {
-        const [profiles, assignments, inventories] = await Promise.all([
-          ctx.supabaseAdmin.from('profiles').select('user_id, display_name, role, active, created_at, updated_at').order('display_name'),
-          ctx.supabaseAdmin.from('inventory_assignments').select('user_id, inventory_id, active').eq('active', true),
-          ctx.supabaseAdmin.from('inventories').select('id, name, status').order('name'),
+        const [assignments, inventories] = await Promise.all([
+          scope.global
+            ? ctx.supabaseAdmin.from('inventory_assignments').select('user_id, inventory_id, active').eq('active', true)
+            : ctx.supabaseAdmin.from('inventory_assignments').select('user_id, inventory_id, active').eq('active', true).in('inventory_id', scope.inventory_ids),
+          scope.global
+            ? ctx.supabaseAdmin.from('inventories').select('id, name, status').order('name')
+            : ctx.supabaseAdmin.from('inventories').select('id, name, status').in('id', scope.inventory_ids).order('name'),
         ]);
-        if (profiles.error) throw profiles.error;
         if (assignments.error) throw assignments.error;
         if (inventories.error) throw inventories.error;
+        const allowedUserIds = [...new Set(assignments.data.map((assignment) => assignment.user_id))];
+        // A scoped administrator must never receive the global profiles
+        // read-model and filter it later in JavaScript. The database query is
+        // bounded to the users that have an active assignment in its scope.
+        const profiles = scope.global
+          ? await ctx.supabaseAdmin.from('profiles').select('user_id, display_name, role, active, created_at, updated_at').order('display_name')
+          : allowedUserIds.length === 0
+            ? { data: [], error: null }
+            : await ctx.supabaseAdmin.from('profiles').select('user_id, display_name, role, active, created_at, updated_at').in('user_id', allowedUserIds).order('display_name');
+        if (profiles.error) throw profiles.error;
         const authUsers: Array<{ id: string; email?: string }> = [];
         let page: number | null = 1;
         while (page !== null) {
@@ -60,7 +75,9 @@ export default {
         const email = new Map(authUsers.map((user) => [user.id, user.email ?? '']));
         const grouped = new Map<string, string[]>();
         for (const assignment of assignments.data) grouped.set(assignment.user_id, [...(grouped.get(assignment.user_id) ?? []), assignment.inventory_id]);
-        return Response.json({ users: profiles.data.map((user) => ({ ...user, email: email.get(user.user_id) ?? '', inventoryIds: grouped.get(user.user_id) ?? [] })), inventories: inventories.data });
+        const users = profiles.data
+          .map((user) => ({ ...user, email: email.get(user.user_id) ?? '', inventoryIds: grouped.get(user.user_id) ?? [] }));
+        return Response.json({ users, inventories: inventories.data });
       }
       if (action === 'create') {
         const email = readText(body.email, 'El correo', 320).toLowerCase();

@@ -9,27 +9,28 @@ type Form = { userId: string | null; email: string; displayName: string; role: A
 const fresh = (): Form => ({ userId: null, email: '', displayName: '', role: 'CONTADOR', active: true, inventoryIds: [], password: '' })
 
 export function UserManagementScreen({ role }: { role: AppRole | null }) {
+  // Role remains display metadata during the migration. The server-issued
+  // capability scope, not this prop, controls access to this screen.
+  void role
   const [users, setUsers] = useState<ManagedUser[]>([])
   const [inventories, setInventories] = useState<ManageableInventory[]>([])
   const [form, setForm] = useState<Form>(fresh)
   const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
-  const isAdmin = role === 'ADMIN'
+  const [authorized, setAuthorized] = useState<boolean | null>(null)
   const selected = useMemo(() => users.find((user) => user.user_id === form.userId) ?? null, [form.userId, users])
 
   async function reload(clearMessage = true) {
-    if (!isAdmin) return
     setLoading(true)
     try {
       const data = await repository.list()
-      setUsers(data.users); setInventories(data.inventories); if (clearMessage) setMessage('')
-    } catch (error) { setMessage(error instanceof Error ? error.message : 'No fue posible cargar usuarios.') }
+      setUsers(data.users); setInventories(data.inventories); setAuthorized(true); if (clearMessage) setMessage('')
+    } catch (error) { setAuthorized(false); setMessage(error instanceof Error ? error.message : 'No fue posible cargar usuarios.') }
     finally { setLoading(false) }
   }
-  useEffect(() => { void reload() // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin])
+  useEffect(() => { void reload() }, [])
 
-  if (!isAdmin) return null
+  if (authorized === false) return <section className="user-management-screen" aria-labelledby="user-management-title"><header><p className="eyebrow">Administración segura</p><h1 id="user-management-title">USUARIOS</h1></header><p className="form-warning" role="alert">{message || 'No tiene capability para administrar usuarios en este alcance.'}</p></section>
   const update = <K extends keyof Form>(key: K, value: Form[K]) => setForm((current) => ({ ...current, [key]: value }))
   const toggleAssignment = (inventoryId: string) => update('inventoryIds', form.inventoryIds.includes(inventoryId) ? form.inventoryIds.filter((id) => id !== inventoryId) : [...form.inventoryIds, inventoryId])
   const edit = (user: ManagedUser) => { setForm({ userId: user.user_id, email: user.email, displayName: user.display_name, role: user.role, active: user.active, inventoryIds: user.inventoryIds, password: '' }); setMessage('') }
@@ -59,7 +60,7 @@ export function UserManagementScreen({ role }: { role: AppRole | null }) {
   }
 
   return <section className="user-management-screen" aria-labelledby="user-management-title">
-    <header><p className="eyebrow">Administración segura</p><h1 id="user-management-title">USUARIOS</h1><p>Solo ADMIN. Las contraseñas nunca se muestran, recuperan ni guardan en este sistema.</p></header>
+    <header><p className="eyebrow">Administración segura</p><h1 id="user-management-title">USUARIOS</h1><p>Disponible sólo con capabilities de gestión y scope autorizado. Las contraseñas nunca se muestran, recuperan ni guardan en este sistema.</p></header>
     {message && <p className={message.includes('actualizado') || message.includes('creado') ? 'form-success' : 'form-error'} role="status">{message}</p>}
     <div className="user-management-layout">
       <section aria-label="Usuarios existentes"><div className="user-management-heading"><h2>Usuarios</h2><button className="button-secondary" type="button" onClick={() => void reload()} disabled={loading}>ACTUALIZAR</button></div>{users.length === 0 ? <p>Sin perfiles administrables.</p> : <ul className="user-list">{users.map((user) => <li key={user.user_id}><div><strong>{user.display_name}</strong><span>{user.email}</span><span>{user.role} · {user.active ? 'ACTIVO' : 'INACTIVO'}</span></div><button className="button-secondary" type="button" onClick={() => edit(user)} disabled={loading}>EDITAR</button></li>)}</ul>}</section>

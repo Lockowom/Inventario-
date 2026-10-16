@@ -78,7 +78,7 @@ select set_config('request.jwt.claim.sub', 'd2010000-0000-0000-0000-000000000002
 select lives_ok($$select public.preview_rolling_cut_v2('d2020000-0000-0000-0000-000000000001')$$, 'T13: assigned analyst can query full preview');
 reset role;
 select set_config('request.jwt.claim.sub', 'd2010000-0000-0000-0000-000000000003', true); set local role authenticated;
-select throws_ok($$select public.preview_rolling_cut_v2('d2020000-0000-0000-0000-000000000001')$$, '42501', 'Not authorized for rolling cut preview', 'T13: counter cannot query hidden system quantities');
+select throws_ok($$select public.preview_rolling_cut_v2('d2020000-0000-0000-0000-000000000001')$$, '42501', 'CAPABILITY_REQUIRED', 'T13: counter cannot query hidden system quantities');
 reset role;
 
 select * from finish();

@@ -87,7 +87,7 @@ select set_config('request.jwt.claim.sub','e3010000-0000-0000-0000-000000000003'
 select is((select result_status from public.sync_counts('e3020000-0000-0000-0000-000000000001','e3030000-0000-0000-0000-000000000002','WEB','test','c2','[{"client_count_id":"e3050000-0000-0000-0000-000000000096","ubicacion":"A-01-05","codigo":"SKU-DIFF","cantidad_contada":5,"captured_at":"2026-10-13T00:00:00Z"}]'::jsonb)),'ACCEPTED','T36: assigned C2 remains the only allowed post-seal physical path');
 reset role;
 select set_config('request.jwt.claim.sub','e3010000-0000-0000-0000-000000000002',true); set local role authenticated;
-select throws_ok($$select public.create_rolling_cut_v2('e3020000-0000-0000-0000-000000000001','e3060000-0000-0000-0000-000000000003',repeat('a',64),'{"normalized_reference_keys":["SKU-OPEN"]}'::jsonb)$$,'42501','Not authorized for rolling cut','T23: counter cannot create a rolling cut');
+select throws_ok($$select public.create_rolling_cut_v2('e3020000-0000-0000-0000-000000000001','e3060000-0000-0000-0000-000000000003',repeat('a',64),'{"normalized_reference_keys":["SKU-OPEN"]}'::jsonb)$$,'42501','CAPABILITY_REQUIRED','T23: counter cannot create a rolling cut');
 reset role;
 select * from finish();
 rollback;

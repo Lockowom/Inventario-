@@ -1,15 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { canAccessLiveMonitor } from '../../domain/live-monitor/contracts'
-import type { AppRole } from '../../domain/auth/contracts'
 import { SupabaseLiveMonitorRepository } from '../../services/supabase-live-monitor-repository'
-import { SupabaseSupervisionRepository } from '../../services/supabase-supervision-repository'
 
 const monitor = new SupabaseLiveMonitorRepository()
-const supervision = new SupabaseSupervisionRepository()
 type Inventory = { id: string; name: string; status: string }
 
 export function LiveMonitorScreen() {
-  const [role, setRole] = useState<AppRole | null>(null)
   const [inventories, setInventories] = useState<Inventory[]>([])
   const [inventoryId, setInventoryId] = useState('')
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null)
@@ -27,22 +22,24 @@ export function LiveMonitorScreen() {
 
   const selectedInventory = useMemo(() => inventories.find((item) => item.id === inventoryId), [inventories, inventoryId])
   useEffect(() => {
-    void Promise.all([supervision.myProfile(), monitor.inventories()]).then(([profile, items]) => {
-      setRole(profile.role as AppRole); setInventories(items as Inventory[]); setInventoryId(items[0]?.id ?? '')
+    void monitor.inventories().then((items) => {
+      setInventories(items as Inventory[]); setInventoryId(items[0]?.id ?? '')
       setMessage(items.length ? '' : 'No existen inventarios autorizados para monitorizar.')
     }).catch((error: unknown) => setMessage(error instanceof Error ? error.message : 'Monitor no disponible.'))
   }, [])
 
   const refresh = useCallback(async () => {
-    if (!inventoryId || !canAccessLiveMonitor(role)) return
+    if (!inventoryId) return
     try {
-      if (typeof monitor.processC2Sla === 'function') await monitor.processC2Sla(inventoryId)
+      // SLA processing is independently server-authorized (REASSIGN_C2).
+      // A read-only monitor user still receives the scoped read model below.
+      if (typeof monitor.processC2Sla === 'function') await monitor.processC2Sla(inventoryId).catch(() => undefined)
       const [nextSummary, nextCoverage, nextActivity, nextMissions, nextOtaDevices, nextC2Execution, nextC2OperationalMissions] = await Promise.all([
         monitor.summary(inventoryId), monitor.coverage(inventoryId, coverageStatus, search), monitor.activity(inventoryId, stage, search), monitor.missions(inventoryId), monitor.otaDevices(), typeof monitor.c2Execution === 'function' ? monitor.c2Execution(inventoryId) : Promise.resolve({}), typeof monitor.c2OperationalMissions === 'function' ? monitor.c2OperationalMissions(inventoryId) : Promise.resolve([]),
       ])
       setSummary(nextSummary); setCoverage(nextCoverage); setActivity(nextActivity); setMissions(nextMissions); setOtaDevices(nextOtaDevices); setC2Execution(nextC2Execution); setC2OperationalMissions(nextC2OperationalMissions); setMessage('')
     } catch (error: unknown) { setMessage(error instanceof Error ? error.message : 'Monitor no disponible.') }
-  }, [coverageStatus, inventoryId, role, search, stage])
+  }, [coverageStatus, inventoryId, search, stage])
 
   async function reassignC2(missionId: string) {
     const reason = window.prompt('Motivo de reasignación (mínimo 3 caracteres):')?.trim() ?? ''
@@ -53,20 +50,19 @@ export function LiveMonitorScreen() {
   useEffect(() => { void refresh() }, [refresh])
 
   useEffect(() => {
-    if (!inventoryId || !canAccessLiveMonitor(role) || typeof monitor.subscribe !== 'function') return
+    if (!inventoryId || typeof monitor.subscribe !== 'function') return
     setRealtime('CONNECTING')
     return monitor.subscribe(inventoryId, () => { void refresh() }, (state) => setRealtime(state))
     // The channel carries invalidation only. It never becomes a second source of truth.
-  }, [inventoryId, refresh, role])
+  }, [inventoryId, refresh])
 
   useEffect(() => {
-    if (!inventoryId || !canAccessLiveMonitor(role)) return
+    if (!inventoryId) return
     const timer = window.setInterval(() => { void refresh() }, 30_000)
     return () => window.clearInterval(timer)
     // The timer refreshes the protected server read model. It is not device presence.
-  }, [inventoryId, refresh, role])
+  }, [inventoryId, refresh])
 
-  if (role && !canAccessLiveMonitor(role)) return <section className="live-monitor-screen"><h1>MONITOR OPERATIVO</h1><p className="form-warning">Esta vista está disponible sólo para ANALISTA y ADMIN.</p></section>
   const counts = objectOrEmpty(summary?.counts)
   const reference = objectOrEmpty(summary?.reference)
   const missionSummary = objectOrEmpty(summary?.missions)

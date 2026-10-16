@@ -99,6 +99,14 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = [
       await database.execute('create index if not exists local_count_records_sync_eligible_idx on local_count_records (user_id, sync_status, next_retry_at, captured_at)')
     },
   },
+  {
+    version: 10,
+    up: async (database) => {
+      // Snapshot versioning prevents a role-only cache row from acquiring
+      // privileges after the CUT2-06 authorization model changes.
+      await database.execute('alter table local_counting_context add column authorization_snapshot text')
+    },
+  },
 ]
 
 const migrationRuns = new WeakMap<SqliteDatabase, Promise<void>>()

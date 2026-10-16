@@ -66,7 +66,7 @@ export class SyncManager {
             acknowledged.push({ clientCountId: result.client_count_id, syncStatus: 'CONFIRMED', serverCountId: result.server_count_id, receivedAt: result.received_at, reason: null })
             summary.confirmed += 1
           } else {
-            const reviewRequired = result.result_status === 'REJECTED' && result.reason === 'REFERENCE_SEALED'
+            const reviewRequired = result.result_status === 'REJECTED' && (result.reason === 'REFERENCE_SEALED' || result.reason === 'AUTHORIZATION_REVOKED')
             acknowledged.push({ clientCountId: result.client_count_id, syncStatus: reviewRequired ? 'REVIEW_REQUIRED' : 'REJECTED', serverCountId: null, receivedAt: null, reason: result.reason ?? (result.result_status === 'CONFLICT' ? 'CLIENT_COUNT_ID_PAYLOAD_CONFLICT' : 'REJECTED_BY_SERVER') })
             if (reviewRequired) summary.reviewRequired += 1
             else summary.rejected += 1
@@ -88,6 +88,12 @@ export class SyncManager {
         if (transport.retryable) {
           await this.failClaimed(claimed, transport.code)
           summary.failed += claimed.length
+        } else if (transport.kind === 'TERMINAL_AUTHORIZATION') {
+          // A capability or assignment can be revoked while the device is
+          // offline. The server has denied the write; retain the original
+          // physical evidence once, with no retry loop and no impersonation.
+          await this.markAuthorizationReview(claimed)
+          summary.reviewRequired += claimed.length
         } else {
           await this.markTerminalForReview(claimed, transport.code)
           summary.rejected += claimed.length
@@ -113,6 +119,12 @@ export class SyncManager {
   private async markTerminalForReview(records: LocalCountRecord[], reason: string): Promise<void> {
     await this.counts.applySyncAcknowledgements(records.map((record) => ({
       clientCountId: record.clientCountId, syncStatus: 'REJECTED', serverCountId: null, receivedAt: null, reason,
+    })), this.clock().toISOString())
+  }
+
+  private async markAuthorizationReview(records: LocalCountRecord[]): Promise<void> {
+    await this.counts.applySyncAcknowledgements(records.map((record) => ({
+      clientCountId: record.clientCountId, syncStatus: 'REVIEW_REQUIRED', serverCountId: null, receivedAt: null, reason: 'AUTHORIZATION_REVOKED',
     })), this.clock().toISOString())
   }
 }

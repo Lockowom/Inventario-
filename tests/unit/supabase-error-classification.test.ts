@@ -3,7 +3,7 @@ import { resolveCountingContext } from '../../src/domain/count/resolve-counting-
 import type { CachedCountingContext, CountingContextRepository } from '../../src/domain/ports/counting-context-repository'
 import { classifyAuthError, classifyPostgrestError } from '../../src/features/counting/supabase-error-classification'
 
-const cached: CachedCountingContext = { userId: '22222222-2222-4222-8222-222222222222', inventoryId: '11111111-1111-4111-8111-111111111111', inventoryStatus: 'ABIERTO', verifiedAt: '2026-09-16T12:00:00.000Z' }
+const cached: CachedCountingContext = { userId: '22222222-2222-4222-8222-222222222222', inventoryId: '11111111-1111-4111-8111-111111111111', inventoryStatus: 'ABIERTO', verifiedAt: '2026-09-16T12:00:00.000Z', authorization: { actorId: '22222222-2222-4222-8222-222222222222', userType: 'PERMANENT', capabilities: ['COUNT_C1'], inventoryScopes: ['11111111-1111-4111-8111-111111111111'], warehouseScopes: ['33333333-3333-4333-8333-333333333333'], schemaVersion: 1 } }
 
 class MemoryContextRepository implements CountingContextRepository {
   public value: CachedCountingContext | null = cached

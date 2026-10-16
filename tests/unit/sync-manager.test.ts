@@ -136,12 +136,13 @@ describe('SyncManager', () => {
     expect(outbox.records.every((item) => item.syncStatus === 'CONFIRMED')).toBe(true)
   })
 
-  it('42501 se vuelve REJECTED visible, sin borrar el payload ni reintentar', async () => {
+  it('revocación 42501 preserva evidencia como REVIEW_REQUIRED sin reintentar', async () => {
     const outbox = new MemoryOutbox([record(1)])
     gatewayInstance = gateway(() => { throw new SyncTransportError('TERMINAL_AUTHORIZATION', 'SYNC_AUTHORIZATION_BLOCKED') })
     const result = await new SyncManager({ inventoryId, userId }, outbox, gatewayInstance).run()
-    expect(result).toMatchObject({ rejected: 1, failed: 0, diagnostic: 'SYNC_AUTHORIZATION_BLOCKED' })
-    expect(outbox.records[0]).toMatchObject({ syncStatus: 'REJECTED', lastSyncError: 'SYNC_AUTHORIZATION_BLOCKED', codigo: '00001', cantidadContada: 1 })
+    expect(result).toMatchObject({ reviewRequired: 1, rejected: 0, failed: 0, diagnostic: 'SYNC_AUTHORIZATION_BLOCKED' })
+    expect(outbox.records[0]).toMatchObject({ syncStatus: 'REVIEW_REQUIRED', lastSyncError: 'AUTHORIZATION_REVOKED', codigo: '00001', cantidadContada: 1 })
+    expect(await outbox.claimNextSyncBatch({ inventoryId, userId, max: 20, now: '2026-09-17T13:00:00.000Z' })).toEqual([])
   })
 
   it('CONGELADO conserva el payload y expone el rechazo terminal del servidor', async () => {

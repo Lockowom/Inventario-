@@ -5,7 +5,10 @@ export class DexieCountingContextRepository implements CountingContextRepository
   public constructor(private readonly database: Inven3WebDatabase) {}
   public async get(): Promise<CachedCountingContext | null> {
     const row = await this.database.countingContext.get('active')
-    return row ? cachedCountingContextSchema.parse(row) : null
+    // Schema upgrades intentionally invalidate role-only cache rows. They
+    // cannot be interpreted as a capability grant during offline operation.
+    const parsed = row ? cachedCountingContextSchema.safeParse(row) : null
+    return parsed?.success ? parsed.data : null
   }
   public async save(context: CachedCountingContext): Promise<void> {
     const valid = cachedCountingContextSchema.parse(context)

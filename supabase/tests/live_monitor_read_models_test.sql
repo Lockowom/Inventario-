@@ -43,7 +43,7 @@ select * from public.sync_counts('a6200000-0000-0000-0000-000000000001','a630000
 ]');
 select throws_ok(
   $$ select public.get_live_monitor_summary('a6200000-0000-0000-0000-000000000001') $$,
-  '42501', 'Not authorized for live monitor', 'counter cannot read the monitor'
+  '42501', 'CAPABILITY_REQUIRED', 'counter cannot read the monitor'
 );
 reset role;
 

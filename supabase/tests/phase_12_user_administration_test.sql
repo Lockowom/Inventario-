@@ -22,7 +22,7 @@ select ok(not has_table_privilege('anon', 'public.user_management_events', 'SELE
 set local role service_role;
 select throws_ok(
   $$select public.admin_upsert_user_profile_from_edge('12000000-0000-0000-0000-000000000003', '12000000-0000-0000-0000-000000000002', 'Counter', 'CONTADOR', true, array['12000000-0000-0000-0000-000000000010']::uuid[], 'USER_CREATED')$$,
-  '42501', 'Administrator authorization is required', 'non-admin cannot provision a profile');
+  '42501', 'CAPABILITY_REQUIRED', 'non-admin cannot provision a profile');
 reset role;
 select is((select count(*) from public.user_management_events), 0::bigint, 'non-admin cannot read user audit events');
 
@@ -39,7 +39,7 @@ select is((select count(*) from public.user_management_events where target_user_
 set local role service_role;
 select throws_ok(
   $$select public.admin_upsert_user_profile_from_edge('12000000-0000-0000-0000-000000000001', '12000000-0000-0000-0000-000000000001', 'F12 Admin', 'CONTADOR', false, '{}'::uuid[], 'USER_UPDATED')$$,
-  '23514', 'At least one active administrator is required', 'the final active administrator cannot be deactivated or downgraded');
+  '42501', 'SELF_MODIFICATION_DENIED', 'an administrator cannot deactivate or downgrade itself');
 
 select * from finish();
 rollback;

@@ -52,7 +52,7 @@ select throws_ok($$select public.create_cut('a6100000-0000-0000-0000-00000000000
 reset role;
 
 select set_config('request.jwt.claim.sub', 'a6000000-0000-0000-0000-000000000004', true); set local role authenticated;
-select throws_ok($$select public.correct_uncut_count('a6300000-0000-0000-0000-000000000001', '{"ubicacion":"A-01-01","codigo":"LEGACY","cantidad_contada":1}'::jsonb, 'other')$$, '42501', 'Not authorized to correct this count', 'unassigned counter cannot correct another record');
+select throws_ok($$select public.correct_uncut_count('a6300000-0000-0000-0000-000000000001', '{"ubicacion":"A-01-01","codigo":"LEGACY","cantidad_contada":1}'::jsonb, 'other')$$, '42501', 'CAPABILITY_REQUIRED', 'unassigned counter cannot correct another record');
 reset role;
 
 select set_config('request.jwt.claim.sub', 'a6000000-0000-0000-0000-000000000002', true); set local role authenticated;
