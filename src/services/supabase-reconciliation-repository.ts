@@ -19,6 +19,8 @@ export type RecountSubtask={
 export type RecountMission={
  id:string;case_id:string;inventory_id:string;round:2|3;status:'QUEUED'|'ACTIVE'|'COMPLETED'|'CANCELLED';execution_state?:'QUEUED'|'CLAIMED'|'ACTIVE'|'COMPLETED'|'CANCELLED';sla_due_at?:string|null;sla_state?:'ON_TIME'|'C2_OVERDUE_OPERATIONAL'|null;
  codigo:string;descripcion:string;reference_type:'SERIAL'|'PARTIDA'|'LEGACY';reference_value:string|null;
+ /** Provenance for an analyst/monitor only. It contains identifiers, never prior quantities. */
+ source_chain?:{source_cut_id:string|null;sealed_reference_id:string|null;source_c2_mission_id:string|null}|null;
  known_locations:string[];observations:RecountMissionObservation[];/** Missing only for a cached pre-C2.0 mission. */ subtasks?:RecountSubtask[];
 }
 export type RecountQueue={inventory_id:string;round:2|3|null;c1_completed:boolean;queued_count:number;active:RecountMission|null}

@@ -11,5 +11,11 @@ transacción y `SKIP LOCKED` de recounts, y prohíbe que el ejecutor C2 reclame
 la C3 originada en su propia misión.
 
 Al completar C3, su resultado queda en la misión y el caso queda
-`PENDIENTE_ANALISIS`. No se modifica evidencia previa, no se libera RP y no se
-ejecuta ningún ajuste ERP.
+`PENDIENTE_ANALISIS`. Incluso si la cantidad coincide con C1, C2 o sistema, no
+se selecciona una cantidad ganadora: un dictamen posterior debe tomar esa
+decisión. No se modifica evidencia previa, no se libera RP y no se ejecuta
+ningún ajuste ERP.
+
+La caché de ejecución también respeta la ceguera: una misión C3 guarda
+`reference_value = null` y su outbox se almacena por actor. Así un nuevo
+usuario del mismo equipo no puede heredar datos ni pendientes del anterior.

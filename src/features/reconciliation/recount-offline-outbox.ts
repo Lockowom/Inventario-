@@ -1,6 +1,6 @@
 import type { RecountFindingType, RecountMission, SupabaseReconciliationRepository } from '../../services/supabase-reconciliation-repository'
 
-type OfflineOperation =
+export type OfflineOperation =
   | { id: string; kind: 'RECORD'; missionId: string; subtaskId: string; location: string; quantity: number | null; serial: string | null; batch: string | null; logisticUnit: string | null; createdAt: string }
   | { id: string; kind: 'RESOLVE'; missionId: string; subtaskId: string; status: 'ZERO_CONFIRMED' | 'INACCESSIBLE' | 'ESCALATED'; reason: string | null; createdAt: string }
   | { id: string; kind: 'FINISH_SWEEP'; missionId: string; subtaskId: string; createdAt: string }
@@ -10,16 +10,23 @@ type OfflineOperationInput<T = OfflineOperation> = T extends unknown ? Omit<T, '
 
 const OUTBOX_KEY = 'inven3.c2-2.outbox'
 const MISSION_KEY = 'inven3.c2-2.mission'
+let activeActorId: string | null = null
 
 function storage(): Storage | null { try { return typeof localStorage === 'undefined' ? null : localStorage } catch { return null } }
-function read<T>(key: string, fallback: T): T { try { const value = storage()?.getItem(key); return value ? JSON.parse(value) as T : fallback } catch { return fallback } }
-function write(key: string, value: unknown) { try { storage()?.setItem(key, JSON.stringify(value)) } catch { /* storage remains an optimization; live data stays server-authoritative */ } }
+function actorKey(key: string) { return activeActorId ? `${key}:${activeActorId}` : `${key}:anonymous` }
+function read<T>(key: string, fallback: T): T { try { const value = storage()?.getItem(actorKey(key)); return value ? JSON.parse(value) as T : fallback } catch { return fallback } }
+function write(key: string, value: unknown) { try { storage()?.setItem(actorKey(key), JSON.stringify(value)) } catch { /* storage remains an optimization; live data stays server-authoritative */ } }
+function blindMission(mission: RecountMission | null): RecountMission | null {
+  return mission?.round === 3 ? { ...mission, reference_value: null } : mission
+}
 
 export const recountOfflineOutbox = {
+  setActor(actorId: string | null) { activeActorId = actorId },
+  activeActor: () => activeActorId,
   list: (): OfflineOperation[] => read<OfflineOperation[]>(OUTBOX_KEY, []),
   pendingForMission: (missionId: string) => recountOfflineOutbox.list().filter((item) => item.missionId === missionId),
-  cacheMission: (mission: RecountMission | null) => write(MISSION_KEY, mission),
-  cachedMission: (): RecountMission | null => read<RecountMission | null>(MISSION_KEY, null),
+  cacheMission: (mission: RecountMission | null) => write(MISSION_KEY, blindMission(mission)),
+  cachedMission: (): RecountMission | null => blindMission(read<RecountMission | null>(MISSION_KEY, null)),
   clearMission: () => write(MISSION_KEY, null),
   enqueue(operation: OfflineOperationInput) {
     const pending = recountOfflineOutbox.list()

@@ -1,5 +1,5 @@
 begin;
-select plan(18);
+select plan(23);
 
 insert into auth.users(id,aud,role,email,encrypted_password,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
 ('f1500000-0000-0000-0000-000000000001','authenticated','authenticated','f15-admin@example.invalid','','{}','{}',now(),now()),
@@ -115,6 +115,7 @@ reset role;
 
 select is((select confirmed_physical_quantity from public.reconciliation_cases where inventory_id='f1510000-0000-0000-0000-000000000001' and codigo='F15A001P'),9,'C2 sums locations and confirms C1 total');
 select is((select status::text from public.reconciliation_cases where inventory_id='f1510000-0000-0000-0000-000000000001' and codigo='F15A001P'),'FISICO_CONFIRMADO','matching C2 confirms the physical result');
+select is((select count(*) from public.recount_missions m join public.reconciliation_cases r on r.id=m.case_id where r.codigo='F15A001P' and m.round=3),0::bigint,'matching C2 never creates C3');
 
 select set_config('request.jwt.claim.sub','f1500000-0000-0000-0000-000000000004',true);
 set local role authenticated;
@@ -134,10 +135,13 @@ reset role;
 
 select is((select status::text from public.reconciliation_cases where inventory_id='f1510000-0000-0000-0000-000000000001' and codigo='F15A002P'),'REQUIERE_3ER_CONTEO','C1/C2 mismatch requires C3');
 select is((select count(*) from public.recount_missions m join public.reconciliation_cases r on r.id=m.case_id where r.codigo='F15A002P' and m.round=3 and m.status='QUEUED'),1::bigint,'C3 mission is created automatically');
+select ok((select source_c2_mission_id is not null from public.recount_missions m join public.reconciliation_cases r on r.id=m.case_id where r.codigo='F15A002P' and m.round=3),'C3 has a direct completed-C2 source chain');
 
 select set_config('request.jwt.claim.sub','f1500000-0000-0000-0000-000000000002',true);
 set local role authenticated;
 select lives_ok($$select public.claim_next_recount_mission('f1510000-0000-0000-0000-000000000001'::uuid)$$,'analyst claims C3 from queue');
+select is(public.get_my_recount_queue('f1510000-0000-0000-0000-000000000001')->'active'->>'reference_value',null::text,'C3 active payload does not disclose expected batch identity');
+select ok(not (public.get_my_recount_queue('f1510000-0000-0000-0000-000000000001')->'active' ? 'system_quantity'),'C3 active payload does not disclose system quantity');
 
 select * from public.sync_counts(
  'f1510000-0000-0000-0000-000000000001','f1520000-0000-0000-0000-000000000002',
@@ -151,9 +155,10 @@ select lives_ok($$select public.complete_my_recount_mission(
  ((public.get_my_recount_queue('f1510000-0000-0000-0000-000000000001')->'active'->>'id')::uuid))$$,'multi-location C3 completes');
 reset role;
 
-select is((select confirmed_physical_quantity from public.reconciliation_cases where inventory_id='f1510000-0000-0000-0000-000000000001' and codigo='F15A002P'),10,'C3 total becomes confirmed physical quantity');
-select is((select status::text from public.reconciliation_cases where inventory_id='f1510000-0000-0000-0000-000000000001' and codigo='F15A002P'),'FISICO_CONFIRMADO','C3 confirms the case');
-select is((select count(*) from public.reconciliation_events e join public.reconciliation_cases r on r.id=e.case_id where r.inventory_id='f1510000-0000-0000-0000-000000000001'),7::bigint,'single event ledger records C2/C3 creation, claims and completions');
+select is((select confirmed_physical_quantity from public.reconciliation_cases where inventory_id='f1510000-0000-0000-0000-000000000001' and codigo='F15A002P'),null::integer,'C3 total remains evidence and is not auto-confirmed');
+select is((select status::text from public.reconciliation_cases where inventory_id='f1510000-0000-0000-0000-000000000001' and codigo='F15A002P'),'PENDIENTE_ANALISIS','C3 completion requires an explicit later decision');
+select is((select c3_result from public.recount_missions m join public.reconciliation_cases r on r.id=m.case_id where r.codigo='F15A002P' and m.round=3),'C3_CONFIRMS_DIFFERENCE','C3 stores its evidence result without choosing a stock outcome');
+select is((select count(*) from public.reconciliation_events e join public.reconciliation_cases r on r.id=e.case_id where r.inventory_id='f1510000-0000-0000-0000-000000000001'),6::bigint,'single event ledger records C2/C3 creation, claims and completions exactly once');
 
 select * from finish();
 rollback;
