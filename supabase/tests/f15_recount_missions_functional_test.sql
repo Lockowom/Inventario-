@@ -153,7 +153,7 @@ reset role;
 
 select is((select confirmed_physical_quantity from public.reconciliation_cases where inventory_id='f1510000-0000-0000-0000-000000000001' and codigo='F15A002P'),10,'C3 total becomes confirmed physical quantity');
 select is((select status::text from public.reconciliation_cases where inventory_id='f1510000-0000-0000-0000-000000000001' and codigo='F15A002P'),'FISICO_CONFIRMADO','C3 confirms the case');
-select is((select count(*) from public.reconciliation_events e join public.reconciliation_cases r on r.id=e.case_id where r.inventory_id='f1510000-0000-0000-0000-000000000001'),6::bigint,'single event ledger records C2/C3 claims and completions');
+select is((select count(*) from public.reconciliation_events e join public.reconciliation_cases r on r.id=e.case_id where r.inventory_id='f1510000-0000-0000-0000-000000000001'),7::bigint,'single event ledger records C2/C3 creation, claims and completions');
 
 select * from finish();
 rollback;
