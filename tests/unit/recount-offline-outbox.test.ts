@@ -30,4 +30,15 @@ describe('C2 offline outbox', () => {
     expect(recountOfflineOutbox.list()).toHaveLength(1)
     expect(recountOfflineOutbox.cachedMission()?.id).toBe('m-a')
   })
+
+  it('preserva evidencia C3 revocada una vez y no entra en retry infinito', async () => {
+    recountOfflineOutbox.enqueue({ kind: 'RECORD', missionId: 'm3', subtaskId: 's3', location: 'A-01-01', quantity: 1, serial: null, batch: null, logisticUnit: null })
+    const recordSubtask = vi.fn(async () => { throw new Error('AUTHORIZATION_REVOKED') })
+    await recountOfflineOutbox.flush({ recordSubtask } as never, 'm3')
+    expect(recordSubtask).toHaveBeenCalledTimes(1)
+    expect(recountOfflineOutbox.pendingForMission('m3')).toEqual([])
+    expect(recountOfflineOutbox.reviewRequiredForMission('m3')).toMatchObject([{ missionId: 'm3', syncState: 'REVIEW_REQUIRED', reviewReason: 'AUTHORIZATION_REVOKED' }])
+    await recountOfflineOutbox.flush({ recordSubtask } as never, 'm3')
+    expect(recordSubtask).toHaveBeenCalledTimes(1)
+  })
 })

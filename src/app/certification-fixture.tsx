@@ -4,6 +4,7 @@ import { MasterSkuScreen } from '../features/master/master-sku-screen'
 import { CountingScreen, type CountingRuntime } from '../features/counting/counting-screen'
 import { CutsScreen } from '../features/cuts/cuts-screen'
 import { DeviceHealthScreen } from '../features/device-health/device-health-screen'
+import { RecountQueueScreen } from '../features/reconciliation/recount-queue-screen'
 import { PendingCountCapacityError, type CountListFilter, type CountRepository } from '../domain/ports/count-repository'
 import type { MasterSkuRepository } from '../domain/ports/master-sku-repository'
 import type { LocalCountRecord } from '../domain/count/contracts'
@@ -140,6 +141,19 @@ const fixtureCutsRepository = {
   correct: async () => ({ revision_number: 1 }),
 } as unknown as SupabaseCutsRepository
 
+const c3FixtureDependencies = {
+  supervision: {
+    myProfile: async () => ({ user_id: userId, display_name: 'Analista C3', role: 'ANALISTA' as const, active: true }),
+    inventories: async () => [{ id: inventoryId, name: 'Inventario C3 de certificación', status: 'ABIERTO' }],
+  },
+  reconciliation: {
+    recountQueue: async () => ({
+      inventory_id: inventoryId, round: 3 as const, c1_completed: true, queued_count: 0,
+      active: { id: 'c3000000-0000-4000-8000-000000000001', case_id: 'c3000000-0000-4000-8000-000000000002', inventory_id: inventoryId, round: 3 as const, status: 'ACTIVE' as const, execution_state: 'ACTIVE', sla_state: 'ON_TIME', sla_due_at: null, codigo: 'C3-001', descripcion: 'Evidencia física independiente', reference_type: 'PARTIDA' as const, reference_value: null, known_locations: ['TECHO'], observations: [], subtasks: [{ id: 'c3000000-0000-4000-8000-000000000003', location: 'TECHO', strategy: 'BATCH_LOCATION_RECOUNT' as const, status: 'PENDING' as const, logistic_unit: null, counted_quantity: null, exception_reason: null, created_at: fixedAt, started_at: null, completed_at: null, scanned_series_count: 0, recent_series: [] }] },
+    }),
+  },
+} as const
+
 /** DEV-only deterministic composition for Playwright; it has no production route. */
 export function CertificationFixture() {
   const state = readCertificationFixtureState(window.location.search)
@@ -152,6 +166,7 @@ export function CertificationFixture() {
     {report && <DeviceHealthScreen report={report} loading={false} error={null} onRefresh={() => undefined} onFullCheck={() => undefined} />}
     {state.startsWith('counting-') && <CountingScreen runtime={runtime} syncCoordinator={fixtureSyncCoordinator} captureGate={state === 'counting-health-blocked' ? { blocked: true, message: 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.' } : undefined} />}
     {state === 'layout' && <><SupervisionScreen /><MasterSkuScreen /></>}
+    {state === 'recount-c3' && <RecountQueueScreen dependencies={c3FixtureDependencies as never} />}
     {['cuts-ready', 'rectification', 'artifacts'].includes(state) && <CutsScreen cutsRepository={fixtureCutsRepository} rectificationsRepository={repository} />}
   </main>
 }

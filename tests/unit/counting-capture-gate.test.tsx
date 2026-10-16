@@ -35,7 +35,7 @@ describe('CountingScreen Device Health capture gate', () => {
     expect(screen.getAllByRole('button', { name: /Escanear/i }).every((button) => (button as HTMLButtonElement).disabled)).toBe(true)
     expect(screen.getByRole('heading', { name: 'MIS CONTEOS' })).toBeVisible()
     expect(screen.getByLabelText('Buscar por código, serie, partida o ubicación')).toBeEnabled()
-    expect(screen.getByRole('button', { name: 'REINTENTAR SINCRONIZACIÓN' })).toBeEnabled()
+    expect(await screen.findByRole('button', { name: 'REINTENTAR SINCRONIZACIÓN' })).toBeEnabled()
     expect(screen.getByText('Pendiente de sincronización')).toBeVisible()
     expect(screen.getByText('Confirmado en servidor')).toBeVisible()
     expect(screen.getByText('Pendiente de reintento')).toBeVisible()

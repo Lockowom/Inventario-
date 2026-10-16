@@ -139,6 +139,18 @@ test.describe('F9A certificación responsive y accesible', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   })
 
+  test('C3 muestra ejecución ciega y no filtra la referencia esperada', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/?fixture=recount-c3')
+    await expect(page.getByRole('heading', { name: 'RECONTEOS' })).toBeVisible()
+    await expect(page.getByText('C3 · C3-001')).toBeVisible()
+    await expect(page.getByText(/C3 CIEGO/)).toBeVisible()
+    await expect(page.getByRole('button', { name: /TECHO BATCH LOCATION RECOUNT/ })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'FINALIZAR C3' })).toBeDisabled()
+    await expect(page.getByText(/LOTE-01|Softland:|C1:/)).toHaveCount(0)
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  })
+
   for (const [code, product, visibleField, hiddenField] of [
     ['00002', 'Producto serializado de certificación', 'SERIE', 'PARTIDA'],
     ['00001', 'Producto de certificación', 'PARTIDA', 'SERIE'],

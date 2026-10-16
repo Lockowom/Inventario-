@@ -26,6 +26,9 @@ function assert(value, message) { if (!value) throw new Error(message) }
 const cleanup = `
 delete from public.recount_mission_lifecycle_events where inventory_id='${ids.inventory}';
 delete from public.reconciliation_events where inventory_id='${ids.inventory}';
+delete from public.recount_subtask_serial_scans where subtask_id in (select id from public.recount_mission_subtasks where inventory_id='${ids.inventory}');
+delete from public.recount_subtask_findings where subtask_id in (select id from public.recount_mission_subtasks where inventory_id='${ids.inventory}');
+delete from public.recount_mission_subtasks where inventory_id='${ids.inventory}';
 delete from public.recount_mission_observations where mission_id in (select id from public.recount_missions where inventory_id='${ids.inventory}');
 delete from public.preseal_guard_events where count_record_id in (select id from public.count_records where inventory_id='${ids.inventory}');
 delete from public.audit_events where inventory_id='${ids.inventory}';
@@ -90,6 +93,31 @@ try {
   assert(assignees === '1', `Expected one C3 assignee, received ${assignees}`)
   assert(auditClaims === '1', `Expected one THIRD_ASSIGNED audit event, received ${auditClaims}`)
   assert(explain.includes('recount_missions_c3_queue_idx'), `C3 queue query did not use its focused index:\n${explain}`)
+
+  // C3 has no reassignment path: C2 reassignment is deliberately round-2
+  // only, so an in-flight independent count cannot be reassigned mid-flight.
+  const reassignAttempt = await runSql(`begin; set local role authenticated; set local request.jwt.claim.sub='${ids.admin}'; do $$begin perform public.reassign_recount_mission('${c3Id}'::uuid,'C3 no se reasigna'); exception when insufficient_privilege then null; end$$; commit; select status||'|'||assigned_user_id from public.recount_missions where id='${c3Id}';`)
+  assert(reassignAttempt === `ACTIVE|${ids.c3a}`, `C3 reassignment changed an active mission: ${reassignAttempt}`)
+
+  // A capability revocation after an online claim blocks both a subsequent
+  // claim/read attempt and completion. Evidence is not converted into a
+  // valid result while authorization is stale.
+  await runSql(`update public.profiles set user_type='EXTERNAL_AUDITOR' where user_id='${ids.c3a}';`)
+  let revokedCompletion = ''
+  try {
+    await runSql(`begin; set local role authenticated; set local request.jwt.claim.sub='${ids.c3a}'; select public.complete_my_recount_mission_zero('${c3Id}'::uuid); commit;`)
+  } catch (error) { revokedCompletion = String(error) }
+  assert(revokedCompletion.includes('AUTHORIZATION_REVOKED'), `Revoked C3 completion was not denied: ${revokedCompletion}`)
+  const afterRevocation = await runSql(`select status||'|'||coalesce(completed_at::text,'') from public.recount_missions where id='${c3Id}';`)
+  assert(afterRevocation.startsWith('ACTIVE|'), `Revoked C3 completion changed mission state: ${afterRevocation}`)
+  const revokedClaim = await runSql(`begin; set local role authenticated; set local request.jwt.claim.sub='${ids.c3a}'; do $$begin perform public.claim_next_recount_mission('${ids.inventory}'::uuid); exception when insufficient_privilege then null; end$$; commit;`)
+  assert(revokedClaim === '', `Revoked C3 actor unexpectedly claimed a mission: ${revokedClaim}`)
+
+  await runSql(`update public.profiles set user_type='PERMANENT' where user_id='${ids.c3a}'; begin; set local role authenticated; set local request.jwt.claim.sub='${ids.c3a}'; select public.complete_my_recount_mission_zero('${c3Id}'::uuid); commit;`)
+  const completionAudit = await runSql(`select count(*) from public.reconciliation_events where case_id='${ids.case}' and event_type='THIRD_RECORDED';`)
+  const completed = await runSql(`select status||'|'||coalesce(c3_result,'') from public.recount_missions where id='${c3Id}';`)
+  assert(completed.startsWith('COMPLETED|'), `Restored C3 completion did not finish: ${completed}`)
+  assert(completionAudit === '1', `Expected one C3 completion audit event, received ${completionAudit}`)
   console.log(explain)
-  console.log('PASS CUT2-07 PostgreSQL concurrency: one C2 completion/C3 creation and one C3 claim winner.')
+  console.log('PASS CUT2-07 PostgreSQL concurrency: C3 creation/claim winner, no C3 reassignment, and revocation-safe completion.')
 } finally { await runSql(cleanup).catch(() => {}) }

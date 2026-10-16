@@ -23,6 +23,27 @@ CUT2-07C agrega una carrera PostgreSQL local de dos conexiones que certifica:
 - dos actores C3 no pueden reclamar la misma misión (`SKIP LOCKED`);
 - el índice `recount_missions_c3_queue_idx` se usa para la cola C3.
 
+CUT2-07D agrega una defensa de revocación sobre la misión ya reclamada:
+
+- claim, `sync_counts`, subtareas, series, hallazgos y finalización C3 vuelven
+  a comprobar `RECOUNT_C3`, la asignación y el scope actual;
+- las filas de perfil, assignment y grants se bloquean antes del chequeo, de
+  modo que revocación y mutación se serializan;
+- `reassign_recount_mission` rechaza C3 explícitamente: C3 activa no se
+  reasigna mediante la vía C2;
+- una evidencia offline rechazada por revocación se conserva por actor como
+  `REVIEW_REQUIRED` y no entra en reintento infinito.
+
+Evidencia focal posterior a CUT2-07D:
+
+- `npm run test:cut2-07:concurrency` — PASS: creación única, claim único,
+  `SKIP LOCKED`, reasignación C3 denegada, revocación deniega completion y
+  una restauración posterior produce un solo audit de finalización;
+- `supabase test db --local supabase/tests/cut2_07_c3_contract_test.sql` —
+  PASS: 22 aserciones;
+- `tests/unit/recount-offline-outbox.test.ts` — PASS: 4 pruebas, incluida la
+  preservación `AUTHORIZATION_REVOKED`.
+
 La ejecución final debe registrar DB reset, pgTAP, cliente, Chromium,
 typecheck, lint, build, lint/advisor de DB y pruebas de concurrencia antes de
 declarar `READY_FOR_CUT2_C3_LOCAL`.

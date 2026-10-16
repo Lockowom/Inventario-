@@ -1,5 +1,5 @@
 begin;
-select plan(16);
+select plan(26);
 
 select has_column('public','recount_missions','source_c2_mission_id','C3 keeps direct C2 provenance');
 select has_column('public','recount_missions','c3_result','C3 stores decision evidence result');
@@ -17,6 +17,16 @@ select ok(position('cut2_07_c3_originator' in lower(pg_get_functiondef('public.c
 select ok(position('recount_c3' in lower(pg_get_functiondef('public.claim_next_recount_mission(uuid)'::regprocedure)))>0,'C3 capability is distinct in claim authority');
 select ok(position('erp_adjusted' in lower(pg_get_functiondef('app_private.finalize_c3_decision_evidence()'::regprocedure)))>0,'C3 audit explicitly records no ERP adjustment');
 select ok(position('pendiente_analisis' in lower(pg_get_functiondef('app_private.finalize_c3_decision_evidence()'::regprocedure)))>0,'C3 completion leaves decision to a later flow');
+select has_function('app_private','lock_actor_authorization_context',array['uuid','uuid'],'C3 serializes authorization rows before a mutation');
+select has_function('app_private','require_c3_mission_mutation_authority',array['uuid','uuid'],'C3 mutation authorization helper exists');
+select has_trigger('public','recount_mission_subtasks','recount_subtasks_require_c3_authority','C3 subtask writes revalidate current authority');
+select has_trigger('public','recount_subtask_serial_scans','recount_serial_scans_require_c3_authority','C3 serial scans revalidate current authority');
+select has_trigger('public','recount_subtask_findings','recount_findings_require_c3_authority','C3 findings revalidate current authority');
+select ok(position('require_c3_mission_mutation_authority' in lower(pg_get_functiondef('app_private.complete_recount_mission_internal(uuid,uuid,boolean)'::regprocedure)))>0,'C3 completion revalidates current capability and assignment');
+select is(has_function_privilege('anon','app_private.lock_actor_authorization_context(uuid,uuid)','EXECUTE'),false,'anon cannot lock a C3 authorization context');
+select is(has_function_privilege('authenticated','app_private.require_c3_mission_mutation_authority(uuid,uuid)','EXECUTE'),false,'authenticated cannot invoke C3 authorization internals directly');
+select ok(position('search_path' in lower(pg_get_functiondef('app_private.require_c3_mission_mutation_authority(uuid,uuid)'::regprocedure)))>0 and position('app_private' in lower(pg_get_functiondef('app_private.require_c3_mission_mutation_authority(uuid,uuid)'::regprocedure)))>0,'C3 authority helper fixes its search path');
+select ok(position('cut2_07d_sync_revocation_lock' in lower(pg_get_functiondef('public.sync_counts(uuid,uuid,public.device_platform,text,text,jsonb)'::regprocedure)))>0,'offline sync serializes its authorization context before C3 writes');
 
 select * from finish();
 rollback;

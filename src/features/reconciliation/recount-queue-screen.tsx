@@ -9,11 +9,17 @@ import { sortExecutionLocations } from '../../domain/reconciliation/c2-2-algorit
 
 type Inventory = { id: string; name: string; status: string }
 type Profile = { user_id: string; display_name: string; role: 'CONTADOR' | 'ANALISTA' | 'ADMIN'; active: boolean }
-const reconciliation = new SupabaseReconciliationRepository()
-const supervision = new SupabaseSupervisionRepository()
+const defaultReconciliation = new SupabaseReconciliationRepository()
+const defaultSupervision = new SupabaseSupervisionRepository()
 const FINDINGS: RecountFindingType[] = ['DAMAGED', 'EXPIRED', 'ILLEGIBLE_SERIAL', 'ILLEGIBLE_BATCH', 'WRONG_LOCATION', 'WRONG_LABEL', 'DUPLICATE_PHYSICAL_LABEL', 'OTHER']
+type RecountQueueDependencies = {
+  reconciliation?: Pick<SupabaseReconciliationRepository, 'recountQueue' | 'claimNextMission' | 'recordSubtask' | 'resolveSubtask' | 'finishSerialSweep' | 'addLocation' | 'reportFinding' | 'completeMission' | 'abandonMission'>
+  supervision?: Pick<SupabaseSupervisionRepository, 'myProfile' | 'inventories'>
+}
 
-export function RecountQueueScreen({ captureGate }: { captureGate?: CaptureGate }) {
+export function RecountQueueScreen({ captureGate, dependencies }: { captureGate?: CaptureGate; dependencies?: RecountQueueDependencies }) {
+  const reconciliation = dependencies?.reconciliation ?? defaultReconciliation
+  const supervision = dependencies?.supervision ?? defaultSupervision
   const [profile, setProfile] = useState<Profile | null>(null)
   const [inventories, setInventories] = useState<Inventory[]>([])
   const [inventoryId, setInventoryId] = useState('')
@@ -53,7 +59,7 @@ export function RecountQueueScreen({ captureGate }: { captureGate?: CaptureGate 
       if (!open.length) setMessage('No hay inventarios ABIERTO autorizados para tu usuario.')
     }).catch((error) => { if (active) setMessage(error instanceof Error ? error.message : 'No fue posible cargar el contexto de reconteos.') })
     return () => { active = false }
-  }, [])
+  }, [supervision])
 
   const refresh = useCallback(async (announce = true) => {
     if (!inventoryId || !profile) return
@@ -63,13 +69,20 @@ export function RecountQueueScreen({ captureGate }: { captureGate?: CaptureGate 
       const queue = await reconciliation.recountQueue(inventoryId)
       const next = flushed ?? queue.active
       assignMission(next); setQueued(queue.queued_count); setRound(queue.round)
-      if (announce) setMessage(next ? `Misión C${next.round} activa. ${recountOfflineOutbox.pendingForMission(next.id).length} evento(s) local(es) pendiente(s).` : queue.c1_completed ? `${queue.queued_count} misión(es) C${queue.round ?? 2} disponible(s).` : 'C1 todavía está EN CURSO. C2 se habilita al finalizar cobertura.')
+      if (announce) {
+        const pending = next ? recountOfflineOutbox.pendingForMission(next.id).length : 0
+        const review = next ? recountOfflineOutbox.reviewRequiredForMission(next.id).length : 0
+        if (review) {
+          setMessage(`C${next?.round ?? 3}: ${review} evidencia(s) requieren revisión por cambio de autorización. No se reenviarán automáticamente.`)
+          setFeedback({ tone: 'WARNING', message: 'REVIEW_REQUIRED · evidencia local protegida.' })
+        } else setMessage(next ? `Misión C${next.round} activa. ${pending} evento(s) local(es) pendiente(s).` : queue.c1_completed ? `${queue.queued_count} misión(es) C${queue.round ?? 2} disponible(s).` : 'C1 todavía está EN CURSO. C2 se habilita al finalizar cobertura.')
+      }
     } catch (error) {
       const cached = recountOfflineOutbox.cachedMission()
       if (cached && cached.inventory_id === inventoryId) { assignMission(cached); setMessage('Sin conexión: continúas la misión descargada. Los avances se sincronizarán al reconectar.') }
       else setMessage(error instanceof Error ? error.message : 'No fue posible cargar la cola de reconteos.')
     } finally { setBusy(false) }
-  }, [inventoryId, profile])
+  }, [inventoryId, profile, reconciliation])
 
   useEffect(() => { if (inventoryId && profile) void refresh() }, [inventoryId, profile, refresh])
 
