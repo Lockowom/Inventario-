@@ -151,6 +151,16 @@ test.describe('F9A certificación responsive y accesible', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   })
 
+  test('C3 conserva el contexto ciego tras recargar la aplicación', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/?fixture=recount-c3')
+    await expect(page.getByText(/C3 CIEGO/)).toBeVisible()
+    await page.reload()
+    await expect(page.getByRole('heading', { name: 'RECONTEOS' })).toBeVisible()
+    await expect(page.getByText('C3 · C3-001')).toBeVisible()
+    await expect(page.getByText(/LOTE-01|Softland:|C1:/)).toHaveCount(0)
+  })
+
   for (const [code, product, visibleField, hiddenField] of [
     ['00002', 'Producto serializado de certificación', 'SERIE', 'PARTIDA'],
     ['00001', 'Producto de certificación', 'PARTIDA', 'SERIE'],

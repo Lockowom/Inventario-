@@ -1,5 +1,5 @@
 begin;
-select plan(26);
+select plan(31);
 
 select has_column('public','recount_missions','source_c2_mission_id','C3 keeps direct C2 provenance');
 select has_column('public','recount_missions','c3_result','C3 stores decision evidence result');
@@ -27,6 +27,11 @@ select is(has_function_privilege('anon','app_private.lock_actor_authorization_co
 select is(has_function_privilege('authenticated','app_private.require_c3_mission_mutation_authority(uuid,uuid)','EXECUTE'),false,'authenticated cannot invoke C3 authorization internals directly');
 select ok(position('search_path' in lower(pg_get_functiondef('app_private.require_c3_mission_mutation_authority(uuid,uuid)'::regprocedure)))>0 and position('app_private' in lower(pg_get_functiondef('app_private.require_c3_mission_mutation_authority(uuid,uuid)'::regprocedure)))>0,'C3 authority helper fixes its search path');
 select ok(position('cut2_07d_sync_revocation_lock' in lower(pg_get_functiondef('public.sync_counts(uuid,uuid,public.device_platform,text,text,jsonb)'::regprocedure)))>0,'offline sync serializes its authorization context before C3 writes');
+select ok(position('from public.profiles' in lower(pg_get_functiondef('app_private.lock_actor_authorization_context(uuid,uuid)'::regprocedure))) < position('from public.inventory_assignments' in lower(pg_get_functiondef('app_private.lock_actor_authorization_context(uuid,uuid)'::regprocedure))) and position('from public.inventory_assignments' in lower(pg_get_functiondef('app_private.lock_actor_authorization_context(uuid,uuid)'::regprocedure))) < position('from public.inventory_capability_grants' in lower(pg_get_functiondef('app_private.lock_actor_authorization_context(uuid,uuid)'::regprocedure))),'C3 authorization lock order is profile then assignment then capability grant');
+select ok(position('for update' in lower(pg_get_functiondef('app_private.complete_recount_mission_internal(uuid,uuid,boolean)'::regprocedure)))>0,'C3 completion locks its mission before authority revalidation');
+select has_function('public','get_live_monitor_missions',array['uuid','integer'],'Monitor mission projection exists for C2/C3 provenance');
+select ok(position('source_c2_mission_id' in lower(pg_get_functiondef('public.get_live_monitor_missions(uuid,integer)'::regprocedure)))>0 and position('source_cut_id' in lower(pg_get_functiondef('public.get_live_monitor_missions(uuid,integer)'::regprocedure)))>0,'Monitor projection carries C3 source C2 and cut identifiers');
+select ok(position('v_mission.round<>2' in lower(pg_get_functiondef('public.reassign_recount_mission(uuid,text)'::regprocedure)))>0,'C3 remains excluded from the C2-only reassignment route');
 
 select * from finish();
 rollback;

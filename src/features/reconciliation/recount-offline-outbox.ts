@@ -13,7 +13,20 @@ type OfflineOperationInput<T = OfflineOperation> = T extends unknown ? Omit<T, '
 
 const OUTBOX_KEY = 'inven3.c2-2.outbox'
 const MISSION_KEY = 'inven3.c2-2.mission'
+const SNAPSHOT_SCHEMA_VERSION = 2
 let activeActorId: string | null = null
+
+/**
+ * Persisted C2/C3 context is deliberately an envelope, rather than a naked
+ * mission object.  It makes an old cache format fail closed and binds the
+ * cache to the signed-in actor that obtained the online claim.
+ */
+type OfflineMissionSnapshot = {
+  schemaVersion: number
+  actorId: string
+  mission: RecountMission | null
+  verifiedAt: string
+}
 
 function storage(): Storage | null { try { return typeof localStorage === 'undefined' ? null : localStorage } catch { return null } }
 function actorKey(key: string) { return activeActorId ? `${key}:${activeActorId}` : `${key}:anonymous` }
@@ -21,6 +34,11 @@ function read<T>(key: string, fallback: T): T { try { const value = storage()?.g
 function write(key: string, value: unknown) { try { storage()?.setItem(actorKey(key), JSON.stringify(value)) } catch { /* storage remains an optimization; live data stays server-authoritative */ } }
 function blindMission(mission: RecountMission | null): RecountMission | null {
   return mission?.round === 3 ? { ...mission, reference_value: null } : mission
+}
+function readSnapshot(): OfflineMissionSnapshot | null {
+  const snapshot = read<OfflineMissionSnapshot | null>(MISSION_KEY, null)
+  if (!snapshot || snapshot.schemaVersion !== SNAPSHOT_SCHEMA_VERSION || snapshot.actorId !== activeActorId) return null
+  return { ...snapshot, mission: blindMission(snapshot.mission) }
 }
 function terminalAuthorizationReason(error: unknown): OfflineReview['reviewReason'] | null {
   const message = error instanceof Error ? error.message : String(error)
@@ -35,8 +53,17 @@ export const recountOfflineOutbox = {
   list: (): OfflineOperation[] => read<OfflineOperation[]>(OUTBOX_KEY, []),
   pendingForMission: (missionId: string) => recountOfflineOutbox.list().filter((item) => item.missionId === missionId && item.syncState !== 'REVIEW_REQUIRED'),
   reviewRequiredForMission: (missionId: string) => recountOfflineOutbox.list().filter((item) => item.missionId === missionId && item.syncState === 'REVIEW_REQUIRED'),
-  cacheMission: (mission: RecountMission | null) => write(MISSION_KEY, blindMission(mission)),
-  cachedMission: (): RecountMission | null => blindMission(read<RecountMission | null>(MISSION_KEY, null)),
+  cacheMission: (mission: RecountMission | null) => {
+    if (!activeActorId) return
+    write(MISSION_KEY, {
+      schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+      actorId: activeActorId,
+      mission: blindMission(mission),
+      verifiedAt: new Date().toISOString(),
+    } satisfies OfflineMissionSnapshot)
+  },
+  cachedMission: (): RecountMission | null => readSnapshot()?.mission ?? null,
+  cachedSnapshot: (): OfflineMissionSnapshot | null => readSnapshot(),
   clearMission: () => write(MISSION_KEY, null),
   enqueue(operation: OfflineOperationInput) {
     const pending = recountOfflineOutbox.list()
