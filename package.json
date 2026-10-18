@@ -17,6 +17,8 @@
     "db:test": "supabase test db",
     "test:cut2-05:concurrency": "node scripts/cut2-05-postgres-concurrency.mjs",
     "test:cut2-07:concurrency": "node scripts/cut2-07-postgres-concurrency.mjs && node scripts/cut2-07e-postgres-concurrency.mjs",
+    "test:cut2-08:concurrency": "node scripts/cut2-08-postgres-concurrency.mjs",
+    "test:cut2-08:performance": "node scripts/cut2-08-findings-performance.mjs",
     "db:types": "supabase gen types typescript --local > src/services/supabase.types.ts",
     "cap:sync": "npm run build && cap sync",
     "cap:android": "npm run build && cap sync android",

@@ -41,6 +41,47 @@ export class SupabaseLiveMonitorRepository {
     return (data ?? []) as Record<string, unknown>[]
   }
 
+  /** CUT2-08: this RPC scopes both rows and aggregate-ready blocker fields on
+   * the server. The browser never reconstructs foreign-warehouse findings. */
+  public async findings(inventoryId: string) {
+    const { data, error } = await clientOrThrow().rpc('get_live_monitor_findings', { p_inventory_id: inventoryId, p_limit: 100 })
+    if (error) throw new Error('No fue posible cargar los hallazgos autorizados.')
+    return (data ?? []) as Record<string, unknown>[]
+  }
+
+  public async findingDetail(findingId: string) {
+    const { data, error } = await clientOrThrow().rpc('get_reference_finding_detail', { p_finding_id: findingId })
+    if (error || !data) throw new Error('No fue posible cargar el detalle autorizado del hallazgo.')
+    return data as Record<string, unknown>
+  }
+
+  public async findingActions(findingId: string) {
+    const { data, error } = await clientOrThrow().rpc('get_my_reference_finding_actions', { p_finding_id: findingId })
+    if (error || !data) throw new Error('No fue posible comprobar las acciones autorizadas.')
+    return data as Record<string, boolean>
+  }
+
+  public async findingAssignees(findingId: string) {
+    const { data, error } = await clientOrThrow().rpc('list_reference_finding_assignees', { p_finding_id: findingId })
+    if (error) throw new Error('No fue posible cargar los responsables autorizados.')
+    return (data ?? []) as Array<{ user_id: string; display_name: string }>
+  }
+
+  public async assignFinding(findingId: string, assigneeId: string) {
+    const { error } = await clientOrThrow().rpc('assign_reference_finding', { p_finding_id: findingId, p_assigned_to: assigneeId })
+    if (error) throw new Error(error.message)
+  }
+
+  public async resolveFinding(findingId: string, code: string, note: string) {
+    const { error } = await clientOrThrow().rpc('resolve_reference_finding', { p_finding_id: findingId, p_resolution_code: code, p_resolution_note: note })
+    if (error) throw new Error(error.message)
+  }
+
+  public async addFindingEvidence(findingId: string, note: string) {
+    const { error } = await clientOrThrow().rpc('add_reference_finding_evidence', { p_finding_id: findingId, p_metadata: { note, source: 'MONITOR_UI' }, p_storage_path: null, p_sha256: null })
+    if (error) throw new Error(error.message)
+  }
+
   public async c2Execution(inventoryId: string) {
     const { data, error } = await clientOrThrow().rpc('get_c2_execution_metrics', { p_inventory_id: inventoryId })
     if (error || !data) throw new Error('No fue posible cargar la ejecución C2.')

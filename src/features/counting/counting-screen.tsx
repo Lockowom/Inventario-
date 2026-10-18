@@ -14,9 +14,12 @@ import { OperationalFeedback, type FeedbackTone } from '../../ui/feedback/operat
 import { interactionSounds } from '../../ui/sound/interaction-sound-service'
 import { useExperiencePreferences } from '../../ui/preferences/experience-preferences'
 import { useSwipe } from '../../ui/gestures/use-gestures'
+import { c1FindingOfflineOutbox } from '../findings/c1-finding-offline-outbox'
+import { SupabaseFindingsRepository } from '../../services/supabase-findings-repository'
 
 export interface CountingRuntime extends SavePhysicalCountDependencies { context: ActiveCountingContext }
 export interface CaptureGate { blocked: boolean; message: string | null }
+const findingsRepository = new SupabaseFindingsRepository()
 
 export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, captureGate }: { runtime: CountingRuntime | null; syncCoordinator?: SyncCoordinator | null; startupSyncMessage?: string; captureGate?: CaptureGate }) {
   const [draft, setDraft] = useState<PhysicalCountDraft>(emptyPhysicalCountDraft)
@@ -30,6 +33,11 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
   const [syncState, setSyncState] = useState<CountSyncUiState>('IDLE')
   const [rejectedCount, setRejectedCount] = useState(0)
   const [feedback, setFeedback] = useState<{ tone: FeedbackTone; message: string }>({ tone: 'IDLE', message: '' })
+  const [findingNote, setFindingNote] = useState('')
+  const [findingCritical, setFindingCritical] = useState(false)
+  const [findingOpen, setFindingOpen] = useState(false)
+  const [findingPending, setFindingPending] = useState(0)
+  const [findingReviewReasons, setFindingReviewReasons] = useState<string[]>([])
   const syncRuns = useRef(0)
   const codeInput = useRef<HTMLInputElement>(null)
   const serialInput = useRef<HTMLInputElement>(null)
@@ -43,6 +51,23 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
     else quantityInput.current?.focus()
   }, [master])
   const { preferences } = useExperiencePreferences()
+
+  const runFindingSync = useCallback(async () => {
+    if (!runtime || (typeof navigator !== 'undefined' && !navigator.onLine)) return
+    c1FindingOfflineOutbox.setActor(runtime.context.userId)
+    const result = await c1FindingOfflineOutbox.flush((item) => findingsRepository.reportC1Finding(item))
+    setFindingPending(result.pending + result.reviewRequired)
+    setFindingReviewReasons(c1FindingOfflineOutbox.reviewRequired().map((item) => item.reviewReason ?? 'REVIEW_REQUIRED'))
+  }, [runtime])
+
+  useEffect(() => {
+    if (!runtime) return
+    c1FindingOfflineOutbox.setActor(runtime.context.userId)
+    setFindingPending(c1FindingOfflineOutbox.list().length)
+    setFindingReviewReasons(c1FindingOfflineOutbox.reviewRequired().map((item) => item.reviewReason ?? 'REVIEW_REQUIRED'))
+    if (typeof navigator !== 'undefined' && navigator.onLine) void runFindingSync()
+    return () => { c1FindingOfflineOutbox.setActor(null) }
+  }, [runtime, runFindingSync])
 
   const runSync = useCallback(async (forceRetry = false) => {
     if (!syncCoordinator || !runtime) return
@@ -104,13 +129,13 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
 
   useEffect(() => {
     if (!runtime || !syncCoordinator) return
-    const requestSync = () => { void runSync() }
+    const requestSync = () => { void runSync(); void runFindingSync() }
     const onResume = () => { if (document.visibilityState === 'visible') requestSync() }
     requestSync()
     window.addEventListener('online', requestSync)
     document.addEventListener('visibilitychange', onResume)
     return () => { window.removeEventListener('online', requestSync); document.removeEventListener('visibilitychange', onResume) }
-  }, [runtime, runSync, syncCoordinator])
+  }, [runtime, runSync, runFindingSync, syncCoordinator])
 
   useEffect(() => {
     let active = true
@@ -212,6 +237,42 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
       setMessage(nextMessage); setFeedback({ tone: 'ERROR', message: nextMessage }); interactionSounds.playError()
     } finally { setSaving(false) }
   }
+  async function reportFinding() {
+    if (!master || !activeRuntime || invalidCode) {
+      setMessage('Identifique primero el producto para registrar un hallazgo.')
+      return
+    }
+    const description = findingNote.trim()
+    if (!description) { setMessage('Describa la evidencia física del hallazgo.'); return }
+    const referenceValue = master.controlType === 'SERIAL' ? draft.serie?.trim() || null : master.controlType === 'PARTIDA' ? draft.partida?.trim() || null : null
+    if (master.controlType !== 'LEGACY' && !referenceValue) { setMessage(`Ingrese ${master.controlType === 'SERIAL' ? 'la serie' : 'la partida'} antes de reportar el hallazgo.`); return }
+    c1FindingOfflineOutbox.setActor(activeRuntime.context.userId)
+    c1FindingOfflineOutbox.enqueue({
+      inventoryId: activeRuntime.context.inventoryId,
+      referenceType: master.controlType,
+      codigo: draft.codigo,
+      referenceValue,
+      findingType: 'OTHER',
+      description,
+      critical: findingCritical,
+      capturedAt: new Date().toISOString(),
+      evidence: {
+        note: description,
+        location: draft.ubicacion,
+        quantity: draft.cantidadContada || null,
+        serial: draft.serie || null,
+        batch: draft.partida || null,
+        physical_uom: master.controlType === 'SERIAL' ? 'UN' : null,
+        capture_context: 'C1',
+      },
+    })
+    setFindingNote(''); setFindingCritical(false); setFindingOpen(false)
+    setFindingPending(c1FindingOfflineOutbox.list().length)
+    setFindingReviewReasons(c1FindingOfflineOutbox.reviewRequired().map((item) => item.reviewReason ?? 'REVIEW_REQUIRED'))
+    setMessage('HALLAZGO GUARDADO LOCALMENTE')
+    setFeedback({ tone: 'SUCCESS', message: 'La evidencia permanece vinculada a su identidad y se sincronizará con autorización actual.' })
+    await runFindingSync()
+  }
 
   return <section className="counting-screen" aria-labelledby="counting-title">
     <p className="eyebrow">Offline-first · Inventario ABIERTO</p><h1 id="counting-title">CONTEO FÍSICO</h1>
@@ -233,6 +294,15 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
         : master && <Field label="CANTIDAD CONTADA"><TextInput inputRef={quantityInput} value={draft.cantidadContada} onChange={(value) => setDraft((current) => ({ ...current, cantidadContada: value }))} disabled={disabled} inputMode="numeric" /></Field>}
     </div>
     <button className="button-primary counting-save" type="button" disabled={disabled} onClick={() => void save()}>{saving ? 'GUARDANDO…' : 'GUARDAR CONTEO'}</button>
+    <section className="counting-finding" aria-labelledby="counting-finding-title">
+      <h2 id="counting-finding-title">HALLAZGO FÍSICO</h2>
+      <p>Registre evidencia observada; no modifica stock ni resuelve el hallazgo automáticamente.</p>
+      {findingPending > 0 && <p className="form-warning" role="status">{findingPending} hallazgo(s) local(es) pendiente(s) o en revisión.</p>}
+      {findingReviewReasons.map((reason, index) => <p className="form-warning" key={`${reason}-${index}`} role="status">REVISIÓN REQUERIDA: {findingReviewLabel(reason)}</p>)}
+      {!findingOpen
+        ? <button className="button-secondary" type="button" disabled={disabled || !master} onClick={() => setFindingOpen(true)}>REPORTAR HALLAZGO</button>
+        : <div className="counting-finding__form"><Field label="EVIDENCIA"><textarea value={findingNote} onChange={(event) => setFindingNote(event.target.value)} maxLength={4000} disabled={disabled} /></Field><label><input type="checkbox" checked={findingCritical} onChange={(event) => setFindingCritical(event.target.checked)} disabled={disabled} /> Hallazgo crítico</label><div><button className="button-primary" type="button" disabled={disabled} onClick={() => void reportFinding()}>GUARDAR HALLAZGO</button><button className="button-secondary" type="button" onClick={() => setFindingOpen(false)}>CANCELAR</button></div></div>}
+    </section>
     <MyCounts runtime={activeRuntime} refreshKey={refreshCounts} />
   </section>
 }
@@ -240,6 +310,7 @@ export function CountingScreen({ runtime, syncCoordinator, startupSyncMessage, c
 function Field({ label, children }: { label: string; children: ReactNode }) { return <label className="field"><span>{label}</span><span className="field__controls">{children}</span></label> }
 function TextInput({ value, onChange, onBlur, disabled, maxLength, inputMode, inputRef, pattern, title, className }: { value: string; onChange: (value: string) => void; onBlur?: () => void; disabled: boolean; maxLength?: number; inputMode?: 'numeric'; inputRef?: RefObject<HTMLInputElement | null>; pattern?: string; title?: string; className?: string }) { return <input ref={inputRef} value={value} onChange={(event) => onChange(event.target.value)} onBlur={onBlur} disabled={disabled} maxLength={maxLength} inputMode={inputMode} pattern={pattern} title={title} className={className} /> }
 function ScanButton({ field, onScan, disabled }: { field: ScanField; onScan: (field: ScanField) => Promise<void>; disabled: boolean }) { return <button type="button" className="button-secondary" disabled={disabled} aria-label={`Escanear ${field}`} onClick={() => void onScan(field)}>ESCANEAR</button> }
+function findingReviewLabel(reason: string) { return reason === 'REFERENCE_SEALED' ? 'la referencia se selló antes de sincronizar' : reason === 'AUTHORIZATION_REVOKED' ? 'la autorización fue revocada antes de sincronizar' : reason === 'STALE_ASSIGNMENT' ? 'la asignación cambió antes de sincronizar' : 'la evidencia requiere revisión operativa' }
 
 function ProductIdentification({ master, hasCode, invalid }: { master: MasterSku | null; hasCode: boolean; invalid: boolean }) {
   if (invalid) return <p className="counting-product-card counting-product-card--error" role="alert">⚠ CÓDIGO NO ENCONTRADO EN MAESTRO</p>

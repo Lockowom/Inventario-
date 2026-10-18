@@ -5,6 +5,7 @@ import { CountingScreen, type CountingRuntime } from '../features/counting/count
 import { CutsScreen } from '../features/cuts/cuts-screen'
 import { DeviceHealthScreen } from '../features/device-health/device-health-screen'
 import { RecountQueueScreen } from '../features/reconciliation/recount-queue-screen'
+import { LiveMonitorScreen } from '../features/live-monitor/live-monitor-screen'
 import { PendingCountCapacityError, type CountListFilter, type CountRepository } from '../domain/ports/count-repository'
 import type { MasterSkuRepository } from '../domain/ports/master-sku-repository'
 import type { LocalCountRecord } from '../domain/count/contracts'
@@ -154,6 +155,44 @@ const c3FixtureDependencies = {
   },
 } as const
 
+// These deterministic monitor fixtures exercise the same screen and action
+// wiring as production, while keeping Playwright entirely local and avoiding
+// a credentialed browser session.
+function findingsMonitorFixture(restricted = false) {
+  const finding = {
+    id: 'f8000000-0000-4000-8000-000000000001', finding_type: 'PHYSICAL_DAMAGE', severity: 'CRITICAL', state: 'OPEN',
+    source_stage: 'C1', normalized_reference_key: 'LEGACY|F08-001', reference_type: 'LEGACY', codigo: 'F08-001',
+    description: 'Etiqueta física dañada', assigned_to: null as string | null, reported_at: fixedAt, source_mission_id: null,
+    source_cut_id: cutId, blocks_seal: true, blocks_recount_completion: false, blocks_rp: true, blocks_close: true,
+    evidence_count: 1, last_evidence_at: fixedAt,
+  }
+  const evidence: Array<Record<string, unknown>> = [{ id: 'evidence-1', captured_at: fixedAt, metadata: { note: 'Etiqueta dañada en A-01-01' } }]
+  const timeline: Array<Record<string, unknown>> = [{ event_type: 'REPORTED', created_at: fixedAt }]
+  let typedResolution: string | null = null
+  return {
+    inventories: async () => [{ id: inventoryId, name: 'Inventario hallazgos A', status: 'ABIERTO' }],
+    summary: async () => ({ counts: {}, reference: {}, missions: {}, devices: {}, inventory: {} }), coverage: async () => [], activity: async () => [], missions: async () => [], otaDevices: async () => [],
+    processC2Sla: async () => undefined, c2Execution: async () => ({}), c2OperationalMissions: async () => [], subscribe: () => () => undefined,
+    findings: async () => [finding],
+    findingDetail: async () => ({ ...finding, status: finding.state, inventory_name: 'Inventario hallazgos A', warehouse_name: 'Bodega A', identity: { normalized_reference_key: finding.normalized_reference_key }, reported_by: userId, reported_by_name: 'Contador A', assigned_to: finding.assigned_to, assigned_to_name: finding.assigned_to ? 'Analista autorizado A' : null, blockers: { seal: true, recount_completion: false, rp: true, close: true }, evidence, timeline, source_chain: { source_cut_number: 8 }, resolution_code: typedResolution, resolution_note: typedResolution ? 'Evidencia revisada' : null, resolved_by_name: typedResolution ? 'Analista autorizado A' : null, resolved_at: typedResolution ? fixedAt : null }),
+    findingActions: async () => restricted ? { assign: false, add_evidence: false, resolve: false } : { assign: true, add_evidence: true, resolve: true },
+    findingAssignees: async () => [{ user_id: 'f8000000-0000-4000-8000-000000000002', display_name: 'Analista autorizado A' }],
+    assignFinding: async (_id: string, assigneeId: string) => { finding.assigned_to = assigneeId; timeline.push({ event_type: 'ASSIGNED', created_at: fixedAt }) },
+    addFindingEvidence: async (_id: string, note: string) => { evidence.push({ id: `evidence-${evidence.length + 1}`, captured_at: fixedAt, metadata: { note } }); timeline.push({ event_type: 'EVIDENCE_ADDED', created_at: fixedAt }); if (finding.state === 'RESOLVED') { finding.state = 'OPEN'; timeline.push({ event_type: 'REOPENED', created_at: fixedAt }) } },
+    resolveFinding: async () => { typedResolution = 'NO_ADJUSTMENT_REQUIRED'; finding.state = 'RESOLVED'; timeline.push({ event_type: 'RESOLVED', created_at: fixedAt }) },
+  }
+}
+
+const c2FixtureDependencies = {
+  supervision: c3FixtureDependencies.supervision,
+  reconciliation: {
+    recountQueue: async () => ({
+      inventory_id: inventoryId, round: 2 as const, c1_completed: true, queued_count: 0,
+      active: { id: 'c2000000-0000-4000-8000-000000000001', case_id: 'c2000000-0000-4000-8000-000000000002', inventory_id: inventoryId, round: 2 as const, status: 'ACTIVE' as const, execution_state: 'ACTIVE', sla_state: 'ON_TIME', sla_due_at: null, codigo: 'C2-001', descripcion: 'Evidencia física independiente', reference_type: 'PARTIDA' as const, reference_value: null, known_locations: ['BODEGA'], observations: [], subtasks: [{ id: 'c2000000-0000-4000-8000-000000000003', location: 'BODEGA', strategy: 'BATCH_LOCATION_RECOUNT' as const, status: 'PENDING' as const, logistic_unit: null, counted_quantity: null, exception_reason: null, created_at: fixedAt, started_at: null, completed_at: null, scanned_series_count: 0, recent_series: [] }] },
+    }),
+  },
+} as const
+
 /** DEV-only deterministic composition for Playwright; it has no production route. */
 export function CertificationFixture() {
   const state = readCertificationFixtureState(window.location.search)
@@ -167,6 +206,9 @@ export function CertificationFixture() {
     {state.startsWith('counting-') && <CountingScreen runtime={runtime} syncCoordinator={fixtureSyncCoordinator} captureGate={state === 'counting-health-blocked' ? { blocked: true, message: 'Captura bloqueada por Health Check. Revise los controles marcados como FAIL.' } : undefined} />}
     {state === 'layout' && <><SupervisionScreen /><MasterSkuScreen /></>}
     {state === 'recount-c3' && <RecountQueueScreen dependencies={c3FixtureDependencies as never} />}
+    {state === 'recount-c2' && <RecountQueueScreen dependencies={c2FixtureDependencies as never} />}
+    {state === 'findings-monitor' && <LiveMonitorScreen repository={findingsMonitorFixture() as never} />}
+    {state === 'findings-monitor-restricted' && <LiveMonitorScreen repository={findingsMonitorFixture(true) as never} />}
     {['cuts-ready', 'rectification', 'artifacts'].includes(state) && <CutsScreen cutsRepository={fixtureCutsRepository} rectificationsRepository={repository} />}
   </main>
 }

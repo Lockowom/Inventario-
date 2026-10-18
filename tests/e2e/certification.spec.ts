@@ -161,6 +161,94 @@ test.describe('F9A certificación responsive y accesible', () => {
     await expect(page.getByText(/LOTE-01|Softland:|C1:/)).toHaveCount(0)
   })
 
+  test('F09 C3 permite reportar un finding sin revelar la referencia ni el resultado previo', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/?fixture=recount-c3')
+    const finding = page.locator('fieldset.recount-finding')
+    await expect(finding.getByText('REPORTAR HALLAZGO')).toBeVisible()
+    await finding.locator('select').selectOption('DAMAGED')
+    await finding.locator('input').fill('Daño físico observado')
+    await expect(finding.getByRole('button', { name: 'REPORTAR' })).toBeEnabled()
+    await finding.getByRole('button', { name: 'REPORTAR' }).click()
+    await expect(page.getByText(/LOTE-01|Softland:|C1:|Disponible|Diferencia/)).toHaveCount(0)
+  })
+
+  test('F01/F10 C1 conserva un hallazgo físico offline tras recargar sin convertirlo en un conteo', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/?fixture=counting-health-offline')
+    const screen = page.locator('section.counting-screen')
+    const code = screen.locator('label.field').filter({ hasText: /^CODIGO/ }).locator('input').first()
+    await code.fill('00003')
+    await code.blur()
+    await expect(screen.getByText('Producto legacy de certificación')).toBeVisible()
+    await screen.getByRole('button', { name: 'REPORTAR HALLAZGO' }).click()
+    await screen.getByRole('textbox', { name: 'EVIDENCIA' }).fill('Etiqueta física dañada mientras estaba offline')
+    await screen.getByRole('button', { name: 'GUARDAR HALLAZGO' }).click()
+    await expect(screen.getByText('HALLAZGO GUARDADO LOCALMENTE')).toBeVisible()
+    await page.reload()
+    await expect(page.getByRole('heading', { name: 'CONTEO FÍSICO' })).toBeVisible()
+    await expect(page.getByText(/hallazgo\(s\) local\(es\) pendiente/)).toBeVisible()
+  })
+
+  test('F02/F03/F11 lista scoped, abre detalle y asigna un finding con responsable legible', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 })
+    await page.goto('/?fixture=findings-monitor')
+    await expect(page.getByRole('heading', { name: 'MONITOR OPERATIVO' })).toBeVisible()
+    await expect(page.getByText('PHYSICAL DAMAGE')).toBeVisible()
+    await page.getByRole('button', { name: 'VER DETALLE' }).click()
+    await expect(page.getByRole('heading', { name: 'Detalle de hallazgo' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Detalle de hallazgo' }).getByText('LEGACY|F08-001')).toBeVisible()
+    await page.getByLabel('Asignar hallazgo').selectOption({ label: 'Analista autorizado A' })
+    await expect(page.getByText(/Asignado: Analista autorizado A/)).toBeVisible()
+    await expect(page.getByText('F08-B-FOREIGN')).toHaveCount(0)
+  })
+
+  test('F04/F05 agrega evidencia y resuelve con decisión tipada, no texto libre', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 })
+    await page.goto('/?fixture=findings-monitor')
+    await page.getByRole('button', { name: 'VER DETALLE' }).click()
+    await page.getByLabel('Nueva evidencia').fill('Etiqueta verificada físicamente')
+    await page.getByRole('button', { name: 'AGREGAR EVIDENCIA' }).click()
+    await expect(page.getByText('Etiqueta verificada físicamente')).toBeVisible()
+    await page.getByLabel('Decisión tipada').selectOption('NO_ADJUSTMENT_REQUIRED')
+    await page.getByLabel('Nota de resolución').fill('Evidencia revisada por analista')
+    await page.getByRole('button', { name: 'RESOLVER CON DECISIÓN TIPADA' }).click()
+    await expect(page.getByText(/Resolución histórica: NO_ADJUSTMENT_REQUIRED/)).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Detalle de hallazgo' }).getByText(/CRITICAL · RESOLVED/)).toBeVisible()
+    await page.getByLabel('Nueva evidencia').fill('Evidencia crítica posterior')
+    await page.getByRole('button', { name: 'AGREGAR EVIDENCIA' }).click()
+    await expect(page.getByText('Evidencia crítica posterior')).toBeVisible()
+    await expect(page.getByText('REOPENED')).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Detalle de hallazgo' }).getByText(/CRITICAL · OPEN/)).toBeVisible()
+    await expect(page.getByText(/Resolución histórica: NO_ADJUSTMENT_REQUIRED/)).toBeVisible()
+  })
+
+  test('F06 usuario sin FINDING_RESOLVE no recibe acción efectiva de resolución', async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 900 })
+    await page.goto('/?fixture=findings-monitor-restricted')
+    await page.getByRole('button', { name: 'VER DETALLE' }).click()
+    await expect(page.getByRole('button', { name: 'RESOLVER CON DECISIÓN TIPADA' })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'AGREGAR EVIDENCIA' })).toHaveCount(0)
+  })
+
+  test('F08 C2 mantiene ceguera al reportar un finding', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/?fixture=recount-c2')
+    await expect(page.getByRole('heading', { name: 'RECONTEOS' })).toBeVisible()
+    const finding = page.locator('fieldset.recount-finding')
+    await expect(finding.getByText('REPORTAR HALLAZGO')).toBeVisible()
+    await finding.locator('select').selectOption('DAMAGED')
+    await finding.locator('input').fill('Daño físico C2')
+    await finding.getByRole('button', { name: 'REPORTAR' }).click()
+    await expect(page.getByText(/Softland:|C1:|Disponible|Diferencia|Resultado previo/)).toHaveCount(0)
+  })
+
+  test('F07 actor sin resolución no puede inferir una decisión tipada desde el detalle', async ({ page }) => {
+    await page.goto('/?fixture=findings-monitor-restricted')
+    await page.getByRole('button', { name: 'VER DETALLE' }).click()
+    await expect(page.getByText(/NO_ADJUSTMENT_REQUIRED|ADJUSTMENT_REQUIRED/)).toHaveCount(0)
+  })
+
   for (const [code, product, visibleField, hiddenField] of [
     ['00002', 'Producto serializado de certificación', 'SERIE', 'PARTIDA'],
     ['00001', 'Producto de certificación', 'PARTIDA', 'SERIE'],

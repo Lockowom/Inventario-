@@ -59,4 +59,49 @@ describe('C2 offline outbox', () => {
     localStorage.setItem('inven3.c2-2.mission:counter-a', JSON.stringify({ schemaVersion: 1, actorId: 'counter-a', mission: { id: 'old' }, verifiedAt: '2026-01-01T00:00:00Z' }))
     expect(recountOfflineOutbox.cachedMission()).toBeNull()
   })
+
+  it('persiste un finding offline a través de reinicio, lo entrega al actor original una vez y no lo expone al siguiente usuario', async () => {
+    const pending = recountOfflineOutbox.enqueue({ kind: 'FINDING', missionId: 'm2', subtaskId: 's2', finding: 'DAMAGED', note: 'Daño físico capturado offline' })
+
+    // Simula destruir y recrear el estado de aplicación: sólo localStorage
+    // sobrevive, y su clave está ligada al actor autenticado.
+    recountOfflineOutbox.setActor(null)
+    recountOfflineOutbox.setActor('counter-b')
+    expect(recountOfflineOutbox.list()).toEqual([])
+
+    recountOfflineOutbox.setActor('counter-a')
+    expect(recountOfflineOutbox.list()).toMatchObject([{ id: pending.id, kind: 'FINDING', missionId: 'm2', subtaskId: 's2', finding: 'DAMAGED', note: 'Daño físico capturado offline' }])
+
+    const reportFinding = vi.fn(async () => undefined)
+    await recountOfflineOutbox.flush({ reportFinding } as never, 'm2')
+    expect(reportFinding).toHaveBeenCalledTimes(1)
+    expect(reportFinding).toHaveBeenCalledWith('s2', 'DAMAGED', 'Daño físico capturado offline')
+    await recountOfflineOutbox.flush({ reportFinding } as never, 'm2')
+    expect(reportFinding).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserva finding revocado como REVIEW_REQUIRED y no lo reintenta después de reinicio', async () => {
+    recountOfflineOutbox.enqueue({ kind: 'FINDING', missionId: 'm3', subtaskId: 's3', finding: 'WRONG_LOCATION', note: 'Ubicación cambió offline' })
+    const reportFinding = vi.fn(async () => { throw new Error('AUTHORIZATION_REVOKED') })
+
+    await recountOfflineOutbox.flush({ reportFinding } as never, 'm3')
+    recountOfflineOutbox.setActor(null)
+    recountOfflineOutbox.setActor('counter-a')
+
+    expect(recountOfflineOutbox.reviewRequiredForMission('m3')).toMatchObject([{ kind: 'FINDING', missionId: 'm3', syncState: 'REVIEW_REQUIRED', reviewReason: 'AUTHORIZATION_REVOKED' }])
+    await recountOfflineOutbox.flush({ reportFinding } as never, 'm3')
+    expect(reportFinding).toHaveBeenCalledTimes(1)
+  })
+
+  it('preserva la evidencia del propietario anterior cuando la misión cambia de asignación offline', async () => {
+    recountOfflineOutbox.enqueue({ kind: 'FINDING', missionId: 'm-stale', subtaskId: 's-stale', finding: 'WRONG_LOCATION', note: 'Evidencia capturada antes de reasignar' })
+    const reportFinding = vi.fn(async () => { throw new Error('MISSION_ASSIGNMENT_CHANGED') })
+    await recountOfflineOutbox.flush({ reportFinding } as never, 'm-stale')
+    expect(recountOfflineOutbox.reviewRequiredForMission('m-stale')).toMatchObject([{ missionId: 'm-stale', syncState: 'REVIEW_REQUIRED', reviewReason: 'MISSION_ASSIGNMENT_CHANGED' }])
+    recountOfflineOutbox.setActor('counter-b')
+    expect(recountOfflineOutbox.reviewRequiredForMission('m-stale')).toEqual([])
+    recountOfflineOutbox.setActor('counter-a')
+    await recountOfflineOutbox.flush({ reportFinding } as never, 'm-stale')
+    expect(reportFinding).toHaveBeenCalledTimes(1)
+  })
 })
