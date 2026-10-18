@@ -2,9 +2,10 @@
 
 ## Estado
 
-**READY_FOR_CUT2_FINDINGS_LOCAL.** CUT2-08 permanece local y no habilita
-CUT2-09. La familia canónica es `public.reference_findings`; `REVIEW_REQUIRED`
-sigue siendo un estado local del outbox, no una segunda tabla de hallazgos.
+**Pre-freeze CUT2-08J5 en validación local.** CUT2-08 permanece local y no
+habilita CUT2-08K ni CUT2-09. La familia canónica es
+`public.reference_findings`; `REVIEW_REQUIRED` sigue siendo un estado local del
+outbox, no una segunda tabla de hallazgos.
 
 ## Hallazgos corregidos durante CUT2-08H
 
@@ -151,3 +152,51 @@ inactivo reciben DENY. Los RPC SECURITY DEFINER mantienen search path vacío,
 objetos cualificados, revocación de PUBLIC y grants mínimos.
 
 No se realizó push, deploy, uso remoto ni CUT2-08K.
+
+## Pre-freeze J5 — E2E conectado a servidor local
+
+`npm run test:cut2-08:server-e2e` cruza Auth, PostgREST y RPCs del Supabase
+local con usuarios autenticados reales y el outbox C1 actor-bound. No usa
+fixtures de respuesta. Sus casos trazables son:
+
+- **S01:** captura offline C1, `preview_rolling_cut_v2` y
+  `create_rolling_cut_v2` reales sellan la referencia; el flush devuelve
+  `REVIEW_REQUIRED / REFERENCE_SEALED`, persiste un único finding/evidence,
+  conserva `captured_at` y el revisor scoped obtiene detail/timeline.
+- **S02:** una revocación se realiza a través de la frontera administrativa
+  local existente (`admin_upsert_user_profile_from_edge`). La mutación C1
+  normal se deniega; `preserve_revoked_offline_c1_finding` deja un único
+  `AUTHORIZATION_REVOKED_OFFLINE` revisable en servidor, con actor, identidad,
+  evidencia y `source_event_key` originales.
+- **S03:** varios flushes de ítems `REVIEW_REQUIRED` no producen llamadas
+  mutativas, ni finding/evidence/audit duplicados.
+- **S04:** la reasignación stale es N/A para la entrada C1: su payload no
+  contiene assignee y el RPC sólo valida actor/capability/scope. La protección
+  stale de misiones C2/C3 se mantiene cubierta por CUT2-07.
+- **S05:** cambio de usuario y recreación del outbox no exponen ni envían los
+  ítems de A como B; al volver A conserva sus dos registros terminales.
+
+El cleanup del harness elimina también los eventos administrativos creados por
+su revocación antes de retirar los perfiles temporales. Esto evita contaminar
+las pruebas de RLS de administración. Todos los datos creados son fixtures
+locales efímeros.
+
+### Totales J5
+
+| Control | Resultado local |
+| --- | --- |
+| Reset limpio | PASS — migración `20261018090000` aplicada desde cero |
+| pgTAP completa | PASS — 44 archivos / 816 aserciones |
+| Cliente | PASS — 81 archivos / 470 pruebas |
+| Chromium | PASS — 49/49 escenarios de UI, sin timeout ni skip obligatorio |
+| E2E servidor local | PASS — S01–S05, Auth + PostgREST + RPCs reales |
+| Concurrencia | PASS — create/create, resolve/resolve, assign/resolve y ambas órdenes resolve/evidence |
+| Performance | PASS — 10.000 findings; los índices existentes siguen siendo suficientes |
+| Typecheck / lint / build | PASS — build sólo conserva avisos heredados de zod/chunk size |
+| DB lint | PASS — 0 warnings CUT2-08; 3 warnings heredados |
+| Security Advisor | PASS — 0 hallazgos |
+
+No se creó un commit de certificación J5. El HEAD permanece
+`0ceb56524b6711a19a0e07d420cf48c176565b69`; los cambios pre-freeze quedan
+intencionalmente sin commit para la revisión CUT2-08K, sin push ni operación
+remota.

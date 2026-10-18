@@ -63,3 +63,18 @@ para asignación, evidencia y resolución tipada. No se añadió ninguna familia
 tabla ni autoridad de cliente adicional. La certificación final mantiene
 aislamiento de bodega/inventario, ceguera C2/C3, evidencia append-only y el
 estado local REVIEW_REQUIRED separado del artefacto canónico.
+
+## Extensión local J5 — preservación por revocación
+
+La auditoría inicial distinguía correctamente `REVIEW_REQUIRED` (estado del
+outbox) del finding canónico, pero la primera implementación de revocación
+sólo preservaba el payload en el dispositivo. J5 completa ese hueco sin crear
+otra familia: tras la denegación de la mutación C1, un actor activo con vínculo
+actual o histórico al mismo inventario puede preservar **sólo para revisión**
+un `AUTHORIZATION_REVOKED_OFFLINE`. La frontera exige que ya no tenga
+`FINDING_REPORT`, por lo que no puede funcionar como bypass.
+
+El resultado queda en `reference_findings` y `finding_evidence`, es
+idempotente por `source_event_key`, conserva provenance y se muestra sólo por
+el read-model `VIEW_MONITOR` scoped. El mismo flujo no modifica conteos, no
+reabre C1 y no altera snapshots o releases.

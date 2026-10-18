@@ -75,9 +75,21 @@ hallazgo estaba offline, el artefacto canónico queda enlazado al sello con
 
 `sync_offline_c1_reference_finding` hace explícito el resultado post-sello al
 cliente: devuelve `REVIEW_REQUIRED / REFERENCE_SEALED` tras preservar el
-finding y la evidencia canónicos. Una denegación de autoridad actual conserva
-`REVIEW_REQUIRED / AUTHORIZATION_REVOKED`. Ambas razones son terminales en el
-outbox ligado al actor; sólo un error de transporte permanece reintentable.
+finding y la evidencia canónicos. Si la autorización actual fue revocada, el
+cliente intenta primero esa mutación normal (que se deniega) y luego llama al
+límite mínimo `preserve_revoked_offline_c1_finding`. Este último exige actor
+activo, una asignación presente o histórica del mismo inventario y ausencia de
+la capability actual `FINDING_REPORT`; crea exactamente un finding
+`AUTHORIZATION_REVOKED_OFFLINE` de revisión, nunca un C1 autorizado. Conserva
+actor, `captured_at`, identidad y `source_event_key`, y es idempotente por esa
+clave. Ambas razones son terminales en el outbox ligado al actor; sólo un error
+de transporte permanece reintentable.
+
+El detalle scoped deriva `review_context` desde datos del servidor:
+`OFFLINE_LATE_COUNT → REFERENCE_SEALED` y
+`AUTHORIZATION_REVOKED_OFFLINE → AUTHORIZATION_REVOKED`. Un revisor con
+`VIEW_MONITOR` scoped ve evidencia, timeline y enlace a la referencia sellada
+sin depender del dispositivo que capturó el evento.
 
 ## Operación en Monitor
 

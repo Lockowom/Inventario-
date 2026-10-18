@@ -1,5 +1,5 @@
 begin;
-select plan(20);
+select plan(27);
 
 insert into auth.users(id,aud,role,email,encrypted_password,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
  ('c8870000-0000-0000-0000-000000000001','authenticated','authenticated','c08-c1-admin@example.test','','{}','{}',now(),now()),
@@ -69,16 +69,41 @@ reset role;
 select is((current_setting('cut2_08.postseal_sync',true)::jsonb)->>'sync_state','REVIEW_REQUIRED','offline sync marks a post-seal finding terminal for review');
 select is((current_setting('cut2_08.postseal_sync',true)::jsonb)->>'review_reason','REFERENCE_SEALED','post-seal review reason is distinct from authorization revocation');
 
--- The client keeps this rejected physical payload actor-bound as REVIEW_REQUIRED;
--- current server authority must still deny any canonical operational mutation.
-delete from public.inventory_assignments
+-- Current authority still denies the operational mutation.  The actor-bound
+-- client then invokes the narrow review-preservation boundary, which retains
+-- evidence as a non-operational canonical artifact rather than a stale C1
+-- report.  Keeping the inactive assignment records historical scope without
+-- restoring current authority.
+update public.inventory_assignments set active=false
 where inventory_id='c8880000-0000-0000-0000-000000000001'
   and user_id='c8870000-0000-0000-0000-000000000002';
 select set_config('request.jwt.claim.sub','c8870000-0000-0000-0000-000000000002',true);
 set local role authenticated;
 select throws_ok($$select public.sync_offline_c1_reference_finding('c8880000-0000-0000-0000-000000000001','LEGACY','C08-C1',null,'AUTHORIZATION_REVOKED_OFFLINE','captura física tras revocación',false,'c08-c1-revoked-event-1','2026-10-17T12:20:00Z',jsonb_build_object('note','evidencia preservada localmente'))$$,'42501','CAPABILITY_REQUIRED','revoked offline actor cannot write an authorized canonical finding');
 reset role;
-select is((select count(*) from public.reference_findings where source_event_key='c08-c1-revoked-event-1'),0::bigint,'authorization revocation cannot insert a stale authorized finding');
+select set_config('request.jwt.claim.sub','c8870000-0000-0000-0000-000000000002',true);
+set local role authenticated;
+select set_config('cut2_08.revoked_sync', public.preserve_revoked_offline_c1_finding(
+ 'c8880000-0000-0000-0000-000000000001','LEGACY','C08-C1',null,'OTHER',
+ 'captura física tras revocación',false,'c08-c1-revoked-event-1','2026-10-17T12:20:00Z',
+ jsonb_build_object('note','evidencia preservada localmente')
+)::text,true);
+reset role;
+select is((current_setting('cut2_08.revoked_sync',true)::jsonb)->>'sync_state','REVIEW_REQUIRED','revoked offline evidence becomes terminal review, not an authorized mutation');
+select is((current_setting('cut2_08.revoked_sync',true)::jsonb)->>'review_reason','AUTHORIZATION_REVOKED','revoked offline review has its own canonical reason');
+select is((select finding_type::text from public.reference_findings where source_event_key='c08-c1-revoked-event-1'),'AUTHORIZATION_REVOKED_OFFLINE','authorization revocation persists a distinct canonical review finding');
+select is((select source_stage::text from public.reference_findings where source_event_key='c08-c1-revoked-event-1'),'SYSTEM','authorization revocation review artifact cannot masquerade as C1 authority');
+select is((select count(*) from public.finding_evidence e join public.reference_findings f on f.id=e.finding_id where f.source_event_key='c08-c1-revoked-event-1'),1::bigint,'authorization revocation preserves exactly one review evidence record');
+select is((select count(*) from public.reference_finding_events e join public.reference_findings f on f.id=e.finding_id where f.source_event_key='c08-c1-revoked-event-1' and e.event_type='REPORTED'),1::bigint,'authorization revocation emits one canonical report audit');
+select set_config('request.jwt.claim.sub','c8870000-0000-0000-0000-000000000002',true);
+set local role authenticated;
+select is(public.preserve_revoked_offline_c1_finding(
+ 'c8880000-0000-0000-0000-000000000001','LEGACY','C08-C1',null,'OTHER',
+ 'captura física tras revocación',false,'c08-c1-revoked-event-1','2026-10-17T12:20:00Z',
+ jsonb_build_object('note','evidencia preservada localmente')
+)->>'review_reason','AUTHORIZATION_REVOKED','revoked evidence source-event retry is an idempotent terminal review response');
+reset role;
+select is((select count(*) from public.reference_findings where source_event_key='c08-c1-revoked-event-1'),1::bigint,'authorization revocation retries cannot duplicate canonical review findings');
 
 select set_config('request.jwt.claim.sub','c8870000-0000-0000-0000-000000000001',true);
 set local role authenticated;
