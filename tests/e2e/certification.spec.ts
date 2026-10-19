@@ -15,10 +15,15 @@ test.describe('F9A certificación responsive y accesible', () => {
   ] as const) {
     test(`Device Health muestra ${state} con contrato y sin overflow`, async ({ page }) => {
       await page.setViewportSize({ width: 390, height: 844 })
-      // HEALTH_READY starts the scanner capability probe. Chromium can leave
-      // both DOMContentLoaded and load pending while that native-like probe is
-      // unresolved. Commit only proves navigation reached Vite; the explicit
-      // rendered-health expectation below is the functional readiness gate.
+      // Warm the complete fixture graph before the first READY navigation.
+      // The fixture imports all operational screens; the cold Vite transform
+      // can exceed the READY assertion budget while the test page is already
+      // waiting. HEALTH_BLOCKED exercises the same DeviceHealth component and
+      // makes the following READY assertion a product check, not a bundler race.
+      if (state === 'health-ready') {
+        await page.goto('/?fixture=health-blocked', { waitUntil: 'commit' })
+        await expect(page.getByRole('heading', { name: 'HEALTH CHECK DEL DISPOSITIVO' })).toBeVisible({ timeout: 55_000 })
+      }
       await page.goto(`/?fixture=${state}`, { waitUntil: 'commit' })
       await expect(page.getByRole('heading', { name: 'HEALTH CHECK DEL DISPOSITIVO' })).toBeVisible({ timeout: 45_000 })
       await expect(page.getByText(label)).toBeVisible()
