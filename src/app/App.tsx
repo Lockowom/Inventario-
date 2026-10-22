@@ -6,6 +6,7 @@ import { SupervisionScreen } from '../features/supervision/supervision-screen'
 import { LiveMonitorScreen } from '../features/live-monitor/live-monitor-screen'
 import { CountingScreen } from '../features/counting/counting-screen'
 import { CutsScreen } from '../features/cuts/cuts-screen'
+import { RpReleaseScreen } from '../features/rp-release/rp-release-screen'
 import { createCountingRuntime, createSyncCoordinator, getCountingContextRepository } from '../features/counting/counting-runtime'
 import { authService } from '../features/auth/auth-service'
 import { LoginScreen } from '../features/auth/login-screen'
@@ -183,6 +184,8 @@ function AuthenticatedRuntime() {
           ? <ReconciliationScreen />
           : visibleView === 'cuts'
             ? <CutsScreen />
+            : visibleView === 'rp-release'
+              ? <RpReleaseScreen />
             : visibleView === 'master'
               ? <MasterSkuScreen />
               : <UserManagementScreen role={role} />

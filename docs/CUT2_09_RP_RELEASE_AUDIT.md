@@ -50,3 +50,19 @@ incompatibilidad real: `recount_mission_status` sólo define `QUEUED`, `ACTIVE`,
 CUT2-09 creará un artefacto exportable, auditable y scoped. No integra,
 escribe ni ajusta Softland/ERP; no modifica `count_records`, disponibilidad,
 misiones C1/C2/C3, snapshots sellados ni findings.
+
+## C2 — evidencia de cierre local
+
+La extensión C mantiene una única autoridad: `rp_release_audits.references_snapshot`
+es la fuente inmutable del manifiesto y del XLSX, mientras `rp_release_events`
+solamente registra `RELEASE_READY` y `RELEASE_EXPORTED` de forma idempotente.
+Los RPCs SECURITY DEFINER de historial, detalle, READY y exportación exigen
+actor activo, `RP_RELEASE` y scope vigente; no se expuso acceso anónimo ni se
+añadieron escrituras ERP o de stock.
+
+La recertificación local pasó pgTAP completo (48/927), cliente (176/473),
+Chromium (49/49), concurrencia PostgreSQL y performance con 1.500 referencias.
+El diagnóstico de los fallos históricos no produjo un bypass: el supuesto
+problema de pgTAP era un reset aún en curso y el de Chromium un árbol Vite
+huérfano. El flujo nuevo se verifica contra PostgreSQL local mediante R01–R10;
+la UI Chromium no reemplaza esas pruebas de frontera server-side.

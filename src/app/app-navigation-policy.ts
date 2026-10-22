@@ -1,6 +1,6 @@
 import type { AppRole } from '../domain/auth/contracts'
 
-export type AppView = 'home' | 'device-status' | 'counting' | 'recounts' | 'control-center' | 'monitor' | 'supervision' | 'data-load' | 'reconciliation' | 'cuts' | 'master' | 'users'
+export type AppView = 'home' | 'device-status' | 'counting' | 'recounts' | 'control-center' | 'monitor' | 'supervision' | 'data-load' | 'reconciliation' | 'cuts' | 'rp-release' | 'master' | 'users'
 
 export type NavigationItem = { id: AppView; label: string; detail: string }
 
@@ -14,6 +14,7 @@ const analystItems: NavigationItem[] = [
   { id: 'control-center', label: 'Centro de Control', detail: 'Cobertura, actividad y conciliación' },
   { id: 'data-load', label: 'Carga de datos', detail: 'Maestro + referencia RP' },
   { id: 'cuts', label: 'Cortes', detail: 'Cierres y respaldos' },
+  { id: 'rp-release', label: 'Liberación RP', detail: 'Snapshot, manifiesto y XLSX' },
   { id: 'master', label: 'Maestro SKU', detail: 'Estado y excepciones' },
 ]
 

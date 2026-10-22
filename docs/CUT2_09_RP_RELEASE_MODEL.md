@@ -103,3 +103,26 @@ escribe stock, movimientos, Softland/ERP, C1/C2/C3, findings ni lifecycle.
 `cut2_09_rp_release_core_test.sql` cubre DRAFT, snapshot/audit, retry,
 `PREVIEW_STALE`, C2/C3 y findings. El contrato B3 de seguridad/blockers cubre
 scope, inyección, UOM, orphan, inmutabilidad y ausencia de mutación C1/C2/C3.
+## CUT2-09C: manifiesto y exportación local
+
+`rp_release_batches` sigue siendo el único release canónico y
+`rp_release_audits.references_snapshot` sigue siendo la única fuente de filas
+para exportar. CUT2-09C no consulta elegibilidad en vivo al descargar ni crea
+movimientos ERP.
+
+- `mark_rp_release_ready` bloquea la fila DRAFT, rederiva el manifiesto y exige
+  que el número de filas del snapshot coincida. Sólo entonces transiciona a
+  `READY`; el retry con la misma solicitud es idempotente.
+- El manifiesto contiene release, inventario, bodega, creador, instante de
+  creación, cardinalidad, versión, fingerprint y digest ordenado. El digest
+  ordena por bodega, identidad, SKU, valor de identidad y referencia sellada.
+- `prepare_rp_release_export` exige `READY`, capability `RP_RELEASE` y scope
+  actual. Registra `RELEASE_EXPORTED` idempotentemente por request id y entrega
+  sólo el snapshot inmutable al cliente.
+- El cliente crea un libro XLSX con `RP_RELEASE` y una única hoja `MANIFEST`.
+  Los textos que comienzan por `=`, `+`, `-` o `@` se escapan con apóstrofo; no
+  hay fórmulas. El contenido lógico es reproducible, aunque el contenedor ZIP
+  puede variar sus metadatos binarios entre ejecuciones.
+
+`READY` es una certificación de snapshot/manifiesto, no una liberación de ERP,
+ni un ajuste de stock, ni una exportación a un proveedor externo.
