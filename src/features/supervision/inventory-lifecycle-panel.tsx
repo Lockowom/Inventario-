@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { SupabaseInventoryLifecycleRepository, type InventoryLifecycle } from '../../services/supabase-inventory-lifecycle-repository'
+import { InventoryClosePanel } from './inventory-close-panel'
 
 const repository=new SupabaseInventoryLifecycleRepository()
 
@@ -43,19 +44,6 @@ export function InventoryLifecyclePanel({
   finally{setBusy(false)}
  }
 
- async function closeInventory(){
-  if(!state?.can_close_inventory)return
-  if(!window.confirm('Cerrar el inventario es el cierre operativo final. Confirma que todos los casos de conciliación fueron resueltos.'))return
-  try{
-   setBusy(true);setMessage('')
-   await repository.close(inventoryId)
-   await refresh()
-   await onChanged()
-   setMessage('Inventario cerrado correctamente.')
-  }catch(error){setMessage(error instanceof Error?error.message:'No fue posible cerrar el inventario.')}
-  finally{setBusy(false)}
- }
-
  if(!state)return <section className="inventory-lifecycle"><h2>FASE DEL INVENTARIO</h2><p>{message||'Cargando ciclo operativo…'}</p></section>
 
  return <section className="inventory-lifecycle" aria-labelledby="inventory-lifecycle-title">
@@ -96,7 +84,7 @@ export function InventoryLifecyclePanel({
 
   {state.c1_status==='COMPLETADO'&&state.open_cases>0&&<p className="inventory-lifecycle__note">Continúa por <strong>Reconteos</strong> para C2/C3 y por <strong>Conciliación</strong> para el dictamen final. No se permiten nuevos C1.</p>}
 
-  {state.can_close_inventory&&<button className="button-primary" type="button" disabled={busy} onClick={()=>void closeInventory()}>{busy?'CERRANDO…':'CERRAR INVENTARIO'}</button>}
+  {state.c1_status==='COMPLETADO'&&<InventoryClosePanel inventoryId={inventoryId} onChanged={async()=>{await refresh();await onChanged()}}/>}
   {state.inventory_status==='CERRADO'&&<p className="inventory-lifecycle__closed">Inventario cerrado. El snapshot físico y la conciliación quedaron finalizados.</p>}
 
   <p className="inventory-lifecycle__actor">Control disponible para {role}.</p>

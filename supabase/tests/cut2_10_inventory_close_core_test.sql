@@ -54,7 +54,7 @@ set c1_completed_at=null,
     c1_reference_fingerprint=null
 where id='ca200000-0000-0000-0000-000000000003';
 select set_config('request.jwt.claim.sub','ca100000-0000-0000-0000-000000000001',true); set local role authenticated;
-select throws_ok($$select public.close_inventory_final('ca200000-0000-0000-0000-000000000003',current_setting('c10.stale')::jsonb->>'fingerprint','ca300000-0000-0000-0000-000000000004')$$,'40001','PREVIEW_STALE','C10: material change rejects stale preview before request write');
+select throws_ok($$select public.close_inventory_final('ca200000-0000-0000-0000-000000000003',current_setting('c10.stale')::jsonb->>'fingerprint','ca300000-0000-0000-0000-000000000004')$$,'P0001','PREVIEW_STALE','C10C: stale preview is a deterministic domain rejection, not a retryable serialization error');
 select is((select count(*) from public.inventory_close_requests where inventory_id='ca200000-0000-0000-0000-000000000003'),0::bigint,'C10: stale close has no partial request');
 reset role;
 select set_config('request.jwt.claim.sub','ca100000-0000-0000-0000-000000000002',true); set local role authenticated;

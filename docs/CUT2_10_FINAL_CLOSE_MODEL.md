@@ -206,3 +206,39 @@ rechaza `INVENTORY_CLOSED`; por tanto no puede crear un hallazgo de C1 después
 del cierre. La evidencia tardía no utiliza ese writer: conserva sus contratos
 de intake y `REVIEW_REQUIRED` de CUT2-04/CUT2-08. Esta separación evita que un
 hallazgo pre-seal tardío cambie el material de un cierre histórico.
+
+## CUT2-10C — Capa operativa de cierre
+
+El único punto de entrada visible es el panel **CIERRE DE INVENTARIO** dentro
+del ciclo de vida de Supervisión. No calcula elegibilidad localmente: sólo
+llama a `preview_inventory_close` y `close_inventory_final`. La preview
+presenta estado actual/objetivo, huella resumida, actualización, cuentas de
+C2/C3, findings, reviews, sellos, huérfanos y RP, y muestra los códigos de
+bloqueo junto a una explicación operacional. Un cierre requiere una
+confirmación explícita que deja claro que no ajusta ERP, no modifica stock, no
+genera XLSX ni crea una liberación RP.
+
+El writer continúa siendo la autoridad para capability, scope, fingerprint,
+idempotencia, lifecycle y auditoría. El cliente genera sólo el `request_id` y
+no envía una lista material de recursos. `PREVIEW_STALE` refresca la preview y
+no hace retry automático; `INVENTORY_NOT_READY` repone blockers actuales y
+`INVENTORY_ALREADY_CLOSED` bloquea el CTA y muestra el estado terminal. Un
+guard síncrono de la interacción impide doble submit incluso antes de que React
+publique el estado `closing`.
+
+### Corrección crítica C10C
+
+El writer B devolvía `PREVIEW_STALE` con SQLSTATE `40001`. Ese código significa
+reintento de serialización para el gateway PostgREST local, por lo que una
+previsualización obsoleta —que es un rechazo determinista de dominio— terminaba
+en timeout HTTP y no podía llegar al usuario. La migración aditiva
+`20261026100000_cut2_10c_preview_stale_http.sql` conserva exactamente los
+locks, la revalidación, `SECURITY DEFINER`, `search_path` vacío y los grants
+mínimos del escritor; sólo cambia ese error a `P0001`. El contrato pgTAP cubre
+el nuevo código y Chromium valida ahora el mensaje de stale y la actualización
+posterior.
+
+La misma certificación detectó que el UUID legado de bodega aceptado por
+PostgreSQL no cumplía el validador RFC estricto de Zod. El contrato de
+transporte acepta ahora el formato UUID hexadecimal de PostgreSQL, sin relajar
+ninguna autorización ni transformar identificadores del servidor.

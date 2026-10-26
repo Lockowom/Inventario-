@@ -129,3 +129,47 @@ El arnés de carreras genera UUIDs de fixture por ejecución. Con ello dos
 invocaciones superpuestas no pueden contaminar la aserción de unicidad de una
 ejecución independiente; la serialización que se certifica continúa ocurriendo
 en PostgreSQL mediante los locks del escritor, no en el cliente.
+
+## CUT2-10C — validación local de UI y Chromium
+
+El arnés `npm run test:cut2-10c:browser-local` usa exclusivamente Supabase
+local, Auth local, Vite en `127.0.0.1` y Chromium. El service role se limita al
+bootstrap Node y se comprueba que no aparezca en la red, bundle ni storage del
+navegador. Cada ejecución crea UUIDs propios y limpia actores, inventarios,
+referencias, findings, misiones, releases, requests, navegador y árbol Vite en
+`finally`; no hace truncates globales ni contacta hosts remotos.
+
+La matriz C01–C10 cubre preview listo, finding bloqueante, C2/C3, RP
+pending/draft/READY, stale en la interfaz, capability y scope extranjeros,
+confirmación/doble click, ausencia de mutación de stock y guards post-cierre.
+Los escenarios de autenticación usan tokens reales; el navegador sólo recibe
+la clave anónima local. También verifica desktop (1440px), tablet (834px) y
+móvil (390px) sin overflow horizontal de la aplicación.
+
+El panel tiene pruebas unitarias de readiness, blocker, stale sin retry,
+confirmación fuerte, doble submit, cerrado, denial, recuperación de not-ready
+y Escape/foco. La interacción no usa APIs exclusivas de navegador sin el
+adaptador ya disponible, por lo que conserva el contrato Web/Android
+Capacitor.
+
+Resultados de cierre C10C ejecutados localmente:
+
+| Evidencia | Resultado |
+| --- | --- |
+| C01–C10, corrida 1 | PASS 10/10 |
+| C01–C10, corrida 2 | PASS 10/10 |
+| C01–C10, corrida 3 | PASS 10/10 |
+| Repetibilidad | PASS 30/30, sin retries |
+| Reset `supabase db reset --local --no-seed --yes` + C01–C10 | PASS 10/10 |
+| pgTAP completo | PASS 51 archivos / 986 aserciones |
+| Cliente completo | PASS 85 archivos / 484 pruebas |
+| Carreras PostgreSQL CUT2-10 | PASS |
+| E2E local-real CUT2-09 | PASS R01–R10 |
+| Typecheck, lint y build | PASS |
+| DB lint / Security Advisor | sólo warnings/info heredados; 0 hallazgos CUT2-10 nuevos |
+
+El `EXPLAIN (ANALYZE, BUFFERS)` de B3 sobre 1.500 referencias selladas se
+mantiene vigente: readiness ejecutó en 79,255 ms, 13.508 buffers shared hit y
+sin lecturas de disco; C10C no altera el hot path de readiness ni añade
+índices. El build C10C transformó 305 módulos y conserva únicamente los avisos
+heredados de anotaciones Rollup y tamaño de chunk.

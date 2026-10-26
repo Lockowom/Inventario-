@@ -22,6 +22,7 @@
     "test:cut2-08:performance": "node scripts/cut2-08-findings-performance.mjs",
     "test:cut2-09c:e2e": "node scripts/cut2-09c-server-e2e.mjs",
     "test:cut2-09c:browser-local": "node scripts/cut2-09c-rp-local-browser-e2e.mjs",
+    "test:cut2-10c:browser-local": "node scripts/cut2-10c-local-browser-e2e.mjs",
     "db:types": "supabase gen types typescript --local > src/services/supabase.types.ts",
     "cap:sync": "npm run build && cap sync",
     "cap:android": "npm run build && cap sync android",
