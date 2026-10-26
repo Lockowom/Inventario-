@@ -39,6 +39,9 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     build: { outDir: 'dist', sourcemap: true },
-    test: { environment: 'jsdom', globals: true, setupFiles: './vitest.setup.ts', exclude: ['node_modules/**', 'dist/**', 'tests/e2e/**', 'tests/visual/**', 'tests/ios-virtual/**'] },
+    // The suite has many jsdom files that each allocate a full browser-like
+    // environment. Limiting concurrent files prevents worker RPC starvation
+    // without weakening individual test or hook timeouts.
+    test: { environment: 'jsdom', globals: true, setupFiles: './vitest.setup.ts', maxWorkers: 4, minWorkers: 1, exclude: ['node_modules/**', 'dist/**', 'tests/e2e/**', 'tests/visual/**', 'tests/ios-virtual/**'] },
   }
 })

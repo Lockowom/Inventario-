@@ -183,3 +183,25 @@ operación administrativa explícita, auditada y fuera de CUT2-10A.
 Este bloque no modifica migraciones, RPCs, manifiestos, XLSX, harnesses R01–R10
 ni interfaz RP. El control de diff de CUT2-10A debe limitarse a los dos
 documentos `docs/CUT2_10_*`.
+
+## Certificación B4 local
+
+La implementación B materializa los códigos de la matriz mediante
+`app_private.inventory_close_readiness`; no mantiene una tabla paralela ni una
+autoridad de cliente. Las pruebas conductuales de CUT2-10 cubren las fuentes
+de blocker disponibles en el modelo actual, el request replay y las escrituras
+directas denegadas. Las pruebas de scope usan un inventario extranjero con la
+misma bodega canónica: se deniega antes de devolver el payload de readiness,
+por lo que no hay filtración de estado, referencias o releases.
+
+La relación actual es uno a uno entre inventario y bodega. Por eso
+``partial warehouse close`` no es un estado representable: cualquier cierre
+usa la bodega del inventario y `require_inventory_capability` la comprueba
+como parte de la misma autoridad. Una evolución multi-bodega requerirá un
+contrato nuevo y pruebas propias; CUT2-10B no filtra una selección parcial.
+
+La ejecución local con 1.500 referencias selladas arrojó 79,255 ms para la
+autoridad de readiness, 13.508 shared-buffer hits y cero lecturas de disco.
+El wrapper PL/pgSQL no expone planes internos por subconsulta; se conservaron
+los índices existentes porque ninguna fuente concreta demostró una regresión o
+un N+1 que justificara un índice adicional.

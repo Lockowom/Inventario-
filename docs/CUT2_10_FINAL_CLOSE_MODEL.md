@@ -188,3 +188,21 @@ la autoridad descrita mediante cambios aditivos, tests de concurrencia reales y
 validación local completa. No queda una decisión de negocio sin especificar:
 para el modelo actual el cierre es por inventario+bodega, exige release `READY`
 o cobertura auditable para toda referencia elegible, y no ejecuta ERP.
+
+## Estado de implementación CUT2-10B
+
+La migración `20261024200701_cut2_10b_inventory_close_core.sql` implementa
+readiness, preview y close final siguiendo este contrato. El estado de
+certificación, incluidos los comandos aún bloqueados por la infraestructura
+local, se conserva en `CUT2_10_LOCAL_VALIDATION.md`; no debe confundirse la
+existencia de la migración con la certificación del gate.
+
+## Endurecimiento B3 local
+
+La implementación confirma el orden efectivo `capability/scope → inventory
+FOR UPDATE → request idempotente FOR UPDATE → readiness recomputada →
+lifecycle/auditoría`. El writer pre-seal adquiere el mismo lock de inventario y
+rechaza `INVENTORY_CLOSED`; por tanto no puede crear un hallazgo de C1 después
+del cierre. La evidencia tardía no utiliza ese writer: conserva sus contratos
+de intake y `REVIEW_REQUIRED` de CUT2-04/CUT2-08. Esta separación evita que un
+hallazgo pre-seal tardío cambie el material de un cierre histórico.
