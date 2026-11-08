@@ -4,8 +4,19 @@ Sistema de captura para Inventario General físico, offline-first, con soporte A
 
 ## Estado
 
-**Fase actual:** Fase 11 — Conciliación de Inventario por Analista, en desarrollo y revisión. F10A ya completó el pipeline QA/BETA de candidatos Android/iOS y su paridad; su cierre sigue requiriendo smoke físico de los artefactos exactos. F9 quedó consolidada. Producción continúa bloqueada y no se han ejecutado despliegues, migraciones ni promoción productiva.
+**Estado actual:** CUT2-11 — Certificación QA / Preproducción.
 
+CUT2-03 a CUT2-10 se encuentran implementados y certificados localmente.
+
+CUT2-11A completó la reconstrucción del nuevo ambiente QA, auditoría de seguridad y hardening de funciones SECURITY DEFINER.
+
+El ambiente QA `LOCK AND FREE` opera actualmente con 111 migraciones alineadas y sin drift de schema.
+
+CUT2-11B se encuentra en certificación remota end-to-end. C1, C2, C3, findings, autenticación y separación de roles ya cuentan con evidencia remota. Permanecen pendientes las carreras remotas de cierre y la certificación Chromium completa por rol.
+
+Android físico queda diferido a CUT2-11C.
+
+Producción permanece bloqueada hasta completar QA remoto, Android físico, piloto operacional y auditoría final.
 ## Inicio rápido
 
 ```bash

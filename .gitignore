@@ -10,5 +10,9 @@ android/app/build/
 ios/App/App/public/
 playwright-report/
 test-results/
+artifacts/
 tests/visual/*.spec.ts-snapshots/
 /.tmp-cut2-08*
+
+# Temporary Supabase QA preflight evidence
+qa2_schema_preflight.sql

@@ -4,7 +4,7 @@ import { describe, expect, test } from 'vitest'
 
 const root = process.cwd()
 const script = path.join(root, 'scripts', 'release-preflight.mjs')
-const qaUrl = 'https://uazunvlxlszdyweddxtb.supabase.co'
+const qaUrl = 'https://kpsdephjbvkwvazxubtb.supabase.co'
 const qaKey = 'sb_publishable_test_only_not_a_real_secret'
 
 function run(extraEnv: Record<string, string | undefined> = {}, args: string[] = []) {
