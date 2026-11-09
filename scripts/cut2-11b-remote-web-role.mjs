@@ -82,8 +82,6 @@ try {
     await page.getByRole('heading', { name: heading, exact: true }).waitFor()
     journeys.push(label)
   }
-  await page.getByRole('button', { name: 'CERRAR SESIÓN' }).first().click()
-  await page.getByRole('button', { name: 'INICIAR SESIÓN' }).waitFor()
   const snapshot = await page.evaluate(() => ({
     headings: [...document.querySelectorAll('h1,h2,h3')].map((node) => node.textContent?.trim()).filter(Boolean),
     actions: [...document.querySelectorAll('button')].map((node) => node.textContent?.trim()).filter(Boolean),
@@ -95,6 +93,8 @@ try {
   if (role === 'QA_ADMIN' && !actionText.includes('Usuarios')) throw new Error('ADMIN_UI_CAPABILITY_MISSING')
   if (role === 'QA_ANALISTA' && actionText.includes('Usuarios')) throw new Error('ANALYST_GLOBAL_ADMIN_EXPOSED')
   if (role === 'QA_CONTADOR' && /Liberación RP|Usuarios|REVISAR CIERRE/.test(actionText)) throw new Error('COUNTER_PRIVILEGED_UI_EXPOSED')
+  await page.getByRole('button', { name: 'CERRAR SESIÓN' }).first().click()
+  await page.getByRole('button', { name: 'INICIAR SESIÓN' }).waitFor()
   console.log(JSON.stringify({ role, login: 'PASS', logout: 'PASS', journeys, externalHosts: [...externalHosts], serviceRoleInBrowser: false, headings: snapshot.headings, actions: snapshot.actions }))
 } finally {
   if (browser) await browser.close().catch(() => {})
