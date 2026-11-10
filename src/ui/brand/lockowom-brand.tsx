@@ -1,5 +1,5 @@
-export function LockowomMark({ compact = false, animated = true }: { compact?: boolean; animated?: boolean }) {
-  return <span className={`lockowom-brand ${compact ? 'lockowom-brand--compact' : ''} ${animated ? 'lockowom-brand--animated' : ''}`} aria-label="Lockowom Systems">
+export function Inven3Brand({ compact = false, animated = true }: { compact?: boolean; animated?: boolean }) {
+  return <span className={`lockowom-brand ${compact ? 'lockowom-brand--compact' : ''} ${animated ? 'lockowom-brand--animated' : ''}`} aria-label="INVEN3 by Lockowom Systems">
     <svg className="lockowom-mark" viewBox="0 0 64 64" role="img" aria-hidden="true">
       <defs>
         <linearGradient id="lockowom-cobalt" x1="8" y1="8" x2="56" y2="56" gradientUnits="userSpaceOnUse">
@@ -13,16 +13,23 @@ export function LockowomMark({ compact = false, animated = true }: { compact?: b
       <path className="lockowom-mark__cut" d="M10 18 31 30 54 18M31 30v28" />
     </svg>
     <span className="lockowom-wordmark">
-      <strong>LOCKOWOM</strong>
-      <small>SYSTEMS</small>
+      <strong>INVEN3</strong>
+      <small><span>by</span> LOCKOWOM SYSTEMS</small>
     </span>
   </span>
 }
 
-export function LockowomSplash() {
-  return <main className="brand-splash" aria-label="Iniciando Lockowom Systems">
+export function LockowomCorporateMark({ compact = false }: { compact?: boolean }) {
+  return <span className={`lockowom-corporate ${compact ? 'lockowom-corporate--compact' : ''}`} aria-label="Lockowom Systems">
+    <span aria-hidden="true">L</span>
+    <strong>LOCKOWOM SYSTEMS</strong>
+  </span>
+}
+
+export function Inven3Splash() {
+  return <main className="brand-splash" aria-label="Iniciando INVEN3">
     <div className="brand-splash__orb" aria-hidden="true" />
-    <LockowomMark animated />
+    <Inven3Brand animated />
     <p>Inventario · Logística · Control</p>
     <span className="brand-splash__progress" aria-hidden="true"><i /></span>
   </main>
