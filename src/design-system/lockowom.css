@@ -87,7 +87,7 @@ body {
 @keyframes lockowom-orbit { to { transform: rotate(360deg); } }
 @keyframes lockowom-progress { from { transform: translateX(-140%); } to { transform: translateX(360%); } }
 
-html[data-motion="reduced"] .brand-splash__orb,
+html[data-motion="reduced"] .brand-splash__orb { animation: none; }
 @media (prefers-reduced-motion: reduce) {
   .brand-splash__orb { animation: none; }
 }
