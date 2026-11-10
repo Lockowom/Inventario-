@@ -1,0 +1,104 @@
+:root {
+  --brand-primary: #006CFF;
+  --brand-primary-strong: #0057D9;
+  --brand-primary-soft: #2B7FFF;
+  --brand-accent: #37C9FF;
+  --brand-deep: #07111F;
+  --brand-surface: #0A0F17;
+  --brand-surface-raised: #121A24;
+  --brand-border: #203148;
+  --brand-text: #F5F9FF;
+  --brand-muted: #98A7B8;
+  --brand-success: #20C997;
+  --brand-warning: #F5A623;
+  --brand-critical: #FF5C62;
+  --brand-focus-ring: 0 0 0 3px color-mix(in srgb, var(--brand-accent) 32%, transparent);
+}
+
+body {
+  background:
+    radial-gradient(circle at 18% -10%, color-mix(in srgb, var(--brand-primary) 18%, transparent), transparent 34rem),
+    linear-gradient(180deg, #07101c 0%, var(--brand-surface) 34rem, #070c12 100%);
+}
+
+.button-primary {
+  background: linear-gradient(135deg, var(--brand-primary) 0%, #087EF5 56%, var(--brand-accent) 145%);
+  color: white;
+  box-shadow: 0 .55rem 1.4rem color-mix(in srgb, var(--brand-primary) 24%, transparent);
+  transition: transform var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard), filter var(--motion-fast) var(--ease-standard);
+}
+
+.button-primary:not(:disabled):active { transform: scale(.985); }
+@media (hover: hover) and (pointer: fine) {
+  .button-primary:not(:disabled):hover { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 .75rem 1.8rem color-mix(in srgb, var(--brand-primary) 30%, transparent); }
+}
+
+.eyebrow { color: var(--brand-accent); }
+.field input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible { outline: none; box-shadow: var(--brand-focus-ring); border-color: var(--brand-accent); }
+
+.lockowom-brand { display: inline-flex; align-items: center; gap: .78rem; min-width: 0; }
+.lockowom-mark { width: 3.35rem; height: 3.35rem; flex: 0 0 auto; overflow: visible; filter: drop-shadow(0 .25rem .7rem color-mix(in srgb, var(--brand-primary) 28%, transparent)); }
+.lockowom-mark__trace { fill: none; stroke: var(--brand-accent); stroke-width: 2; stroke-linejoin: round; stroke-dasharray: 220; stroke-dashoffset: 0; opacity: .12; }
+.lockowom-mark__fill { transform-origin: center; }
+.lockowom-mark__cut { fill: none; stroke: color-mix(in srgb, white 72%, var(--brand-accent)); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; opacity: .68; }
+.lockowom-wordmark { display: grid; line-height: 1; min-width: 0; }
+.lockowom-wordmark strong { letter-spacing: .055em; font-size: clamp(1.08rem, 2.6vw, 1.6rem); white-space: nowrap; font-weight: 900; }
+.lockowom-wordmark small { margin-top: .36rem; color: var(--brand-muted); font-size: .56rem; font-weight: 800; letter-spacing: .16em; white-space: nowrap; }\n.lockowom-wordmark small span { color: var(--brand-accent); font-weight: 700; letter-spacing: .04em; text-transform: lowercase; margin-right: .25rem; }
+.lockowom-brand--compact { gap: .55rem; }
+.lockowom-brand--compact .lockowom-mark { width: 2rem; height: 2rem; }
+.lockowom-brand--compact .lockowom-wordmark strong { font-size: .92rem; }
+.lockowom-brand--compact .lockowom-wordmark small { font-size: .48rem; margin-top: .26rem; }
+
+.lockowom-brand--animated .lockowom-mark__trace { animation: lockowom-trace 900ms var(--ease-enter) both; }
+.lockowom-brand--animated .lockowom-mark__fill { animation: lockowom-mark-in 760ms 160ms var(--ease-enter) both; }
+.lockowom-brand--animated .lockowom-wordmark { animation: lockowom-wordmark-in 520ms 420ms var(--ease-enter) both; }
+
+.brand-splash { min-height: 100dvh; display: grid; place-content: center; justify-items: center; gap: 1.1rem; padding: calc(var(--safe-top) + 2rem) 1.5rem calc(var(--safe-bottom) + 2rem); overflow: hidden; position: relative; isolation: isolate; background: radial-gradient(circle at 50% 43%, color-mix(in srgb, var(--brand-primary) 18%, transparent), transparent 16rem); }
+.brand-splash .lockowom-brand { flex-direction: column; text-align: center; gap: 1rem; }
+.brand-splash .lockowom-mark { width: 6.6rem; height: 6.6rem; }
+.brand-splash .lockowom-wordmark strong { font-size: clamp(1.75rem, 7vw, 2.7rem); }
+.brand-splash .lockowom-wordmark small { font-size: .72rem; }
+.brand-splash > p { margin: 0; color: var(--brand-muted); font-size: .82rem; letter-spacing: .12em; text-transform: uppercase; }
+.brand-splash__orb { position: absolute; z-index: -1; width: 18rem; height: 18rem; border: 1px solid color-mix(in srgb, var(--brand-accent) 24%, transparent); border-radius: 50%; box-shadow: inset 0 0 3.5rem color-mix(in srgb, var(--brand-primary) 12%, transparent), 0 0 4rem color-mix(in srgb, var(--brand-primary) 10%, transparent); animation: lockowom-orbit 2.8s linear infinite; }
+.brand-splash__progress { width: min(13rem, 58vw); height: .2rem; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--brand-border) 74%, transparent); }
+.brand-splash__progress i { display: block; width: 38%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, transparent, var(--brand-primary), var(--brand-accent), transparent); animation: lockowom-progress 1.2s var(--ease-standard) infinite; }
+
+.login-shell { min-height: 100dvh; display: grid; place-items: center; padding: calc(var(--safe-top) + clamp(1rem,4vw,2.5rem)) calc(var(--safe-right) + clamp(1rem,4vw,2.5rem)) calc(var(--safe-bottom) + clamp(1rem,4vw,2.5rem)) calc(var(--safe-left) + clamp(1rem,4vw,2.5rem)); background: radial-gradient(circle at 15% 12%, color-mix(in srgb, var(--brand-primary) 22%, transparent), transparent 24rem), linear-gradient(145deg, #07101b, #09121d 52%, #05090e); }
+.login-card { position: relative; width: min(100%, 32rem); overflow: hidden; padding: clamp(1.4rem,5vw,2.4rem); border: 1px solid color-mix(in srgb, var(--brand-border) 85%, transparent); border-radius: 1.35rem; background: linear-gradient(180deg, color-mix(in srgb, var(--brand-surface-raised) 94%, transparent), color-mix(in srgb, var(--brand-surface) 98%, transparent)); box-shadow: 0 1.6rem 4rem rgb(0 0 0 / 36%); animation: lockowom-card-in 420ms var(--ease-enter) both; }
+.login-card::before { content: ""; position: absolute; inset: 0 0 auto; height: .18rem; background: linear-gradient(90deg, transparent, var(--brand-primary), var(--brand-accent), transparent); }
+.login-card__brand { display: flex; justify-content: center; margin-bottom: 2rem; }
+.login-card__brand .lockowom-brand { flex-direction: column; text-align: center; }
+.login-card__brand .lockowom-mark { width: 4.8rem; height: 4.8rem; }
+.login-card h1 { margin: .25rem 0 0; font-size: clamp(1.65rem,6vw,2.15rem); }
+.login-description { margin: .6rem 0 1.4rem; color: var(--brand-muted); }
+.login-submit { margin-top: 1.25rem; min-height: 3.4rem; letter-spacing: .025em; }
+.login-secure-note { display: flex; align-items: center; justify-content: center; gap: .45rem; margin: 1.1rem 0 0; color: var(--brand-muted); font-size: .78rem; }
+.login-secure-note::before { content: "◆"; color: var(--brand-accent); font-size: .58rem; }
+
+.app-topbar__brand { display:flex; align-items:center; min-width:0; }
+.app-topbar__brand > span:not(.lockowom-brand) { display:none; }
+.app-navigation__item--active { border-color: color-mix(in srgb, var(--brand-primary) 62%, var(--color-border)) !important; background: color-mix(in srgb, var(--brand-primary) 14%, transparent) !important; color: #dcecff !important; }
+.app-navigation__item--active::before { background: var(--brand-primary) !important; }
+
+@keyframes lockowom-trace { from { stroke-dashoffset: 220; opacity: .9; } 75% { opacity: 1; } to { stroke-dashoffset: 0; opacity: .12; } }
+@keyframes lockowom-mark-in { from { opacity: 0; transform: scale(.72) rotate(-8deg); filter: blur(6px); } to { opacity: 1; transform: scale(1) rotate(0); filter: blur(0); } }
+@keyframes lockowom-wordmark-in { from { opacity: 0; transform: translateY(.55rem); } to { opacity: 1; transform: translateY(0); } }
+@keyframes lockowom-card-in { from { opacity:0; transform:translateY(12px) scale(.99); } to { opacity:1; transform:none; } }
+@keyframes lockowom-orbit { to { transform: rotate(360deg); } }
+@keyframes lockowom-progress { from { transform: translateX(-140%); } to { transform: translateX(360%); } }
+
+html[data-motion="reduced"] .brand-splash__orb { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .brand-splash__orb { animation: none; }
+}
+
+@media (max-width: 420px) {
+  .lockowom-brand--compact .lockowom-wordmark small { display: none; }
+  .login-card { border-radius: 1rem; }
+}
+
+.lockowom-corporate { display:inline-flex; align-items:center; gap:.45rem; color:var(--brand-muted); font-size:.72rem; letter-spacing:.08em; }
+.lockowom-corporate > span { display:grid; place-items:center; width:1.4rem; height:1.4rem; border:1px solid color-mix(in srgb,var(--brand-accent) 50%,var(--brand-border)); border-radius:.35rem; color:var(--brand-accent); font-weight:900; }
+.lockowom-corporate strong { font-size:.7rem; }
+.product-signature { margin:.55rem 0 0; color:var(--brand-muted); font-size:.75rem; }
+.product-signature strong { color:var(--brand-text); }
