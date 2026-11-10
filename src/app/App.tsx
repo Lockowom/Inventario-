@@ -36,7 +36,7 @@ import { ExperienceProvider } from '../ui/preferences/experience-preferences'
 import { ExperiencePanel } from '../ui/preferences/experience-panel'
 import { SoundRuntime } from '../ui/sound/sound-runtime'
 import { getPlatformCapabilities } from '../platform/runtime-platform'
-import { LockowomMark, LockowomSplash } from '../ui/brand/lockowom-brand'
+import { Inven3Brand, Inven3Splash } from '../ui/brand/lockowom-brand'
 
 export function App() {
   if (isCertificationFixtureEnabled({ dev: import.meta.env.DEV, fixture: import.meta.env.VITE_CERTIFICATION_FIXTURE })) return <CertificationFixture />
@@ -62,7 +62,7 @@ function AuthBoundary() {
     const localSignOut = authService.onLocalSignOut(() => { if (active) setState('SIGNED_OUT') })
     return () => { active = false; authChanges.unsubscribe(); localSignOut.unsubscribe() }
   }, [])
-  if (state === 'CHECKING') return <LockowomSplash />
+  if (state === 'CHECKING') return <Inven3Splash />
   if (state === 'SIGNED_OUT') return <LoginScreen onSignedIn={() => setState('SIGNED_IN')} />
   return <AuthenticatedRuntime />
 }
@@ -203,5 +203,5 @@ function InfrastructureDiagnostic({ supabaseState }: { supabaseState: 'CONFIGURE
   const platform = capabilities.platform
   const storage = capabilities.hasCertifiedDurableStorage ? 'READY' : 'PENDIENTE WIN-06'
   const status = [['Plataforma', platform === 'web' ? 'Web' : platform], ['Storage', storage], ['Supabase', supabaseState], ['Entorno', releaseMetadata.environment.toUpperCase()], ['Canal', displayReleaseChannel(releaseMetadata)], ['Versión', releaseMetadata.displayVersion]] as const
-  return <section className="diagnostic" aria-labelledby="app-title"><div className="diagnostic__brand"><LockowomMark animated={false} /></div><p className="diagnostic__subtitle">Modo build: {import.meta.env.DEV ? 'Development' : 'Production'}</p><dl className="status-grid">{status.map(([label, value]) => <div className="status-card" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>
+  return <section className="diagnostic" aria-labelledby="app-title"><div className="diagnostic__brand"><Inven3Brand animated={false} /></div><p className="diagnostic__subtitle">Modo build: {import.meta.env.DEV ? 'Development' : 'Production'}</p><dl className="status-grid">{status.map(([label, value]) => <div className="status-card" key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl></section>
 }
