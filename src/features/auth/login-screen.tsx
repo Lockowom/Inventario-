@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from 'react'
+import { LockowomMark } from '../../ui/brand/lockowom-brand'
 import { authService } from './auth-service'
 
 export interface LoginService {
@@ -29,8 +30,9 @@ export function LoginScreen({ service = authService, onSignedIn }: { service?: L
 
   return <main className="login-shell">
     <section className="login-card" aria-labelledby="login-title">
+      <div className="login-card__brand"><LockowomMark animated /></div>
       <p className="eyebrow">Acceso seguro</p>
-      <h1 id="login-title">INVEN3</h1>
+      <h1 id="login-title">Control operacional</h1>
       <p className="login-description">Ingrese con una cuenta autorizada para el inventario activo.</p>
       {error && <p className="form-error" role="alert">{error}</p>}
       <form onSubmit={(event) => void submit(event)}>
@@ -38,6 +40,7 @@ export function LoginScreen({ service = authService, onSignedIn }: { service?: L
         <label className="field"><span>Contraseña</span><input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
         <button className="button-primary login-submit" type="submit" disabled={submitting}>{submitting ? 'VALIDANDO…' : 'INICIAR SESIÓN'}</button>
       </form>
+      <p className="login-secure-note">Conexión segura · Lockowom Systems</p>
     </section>
   </main>
 }
