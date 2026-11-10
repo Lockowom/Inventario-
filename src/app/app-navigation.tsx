@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { AppRole } from '../domain/auth/contracts'
+import { LockowomMark } from '../ui/brand/lockowom-brand'
 import { navigationItemsForRole, type AppView } from './app-navigation-policy'
 
 export type DeviceStatusBadge = 'LISTO' | 'ONLINE' | 'REVISAR' | 'OFFLINE' | 'COMPROBANDO'
@@ -46,7 +47,7 @@ export function AppNavigation({ role, activeView, onSelect, onDeviceStatus = () 
       <button className="app-menu-toggle" type="button" aria-label="Abrir menú" aria-controls="primary-navigation" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
         <span aria-hidden="true">☰</span><span>MENÚ</span>
       </button>
-      <div className="app-topbar__brand"><strong>INVEN3</strong><span>Operación de inventario</span></div>
+      <div className="app-topbar__brand"><LockowomMark compact animated={false} /></div>
       <button className={`app-device-status app-device-status--${status.toLowerCase()}`} type="button" aria-label={`Estado del dispositivo: ${status}`} onClick={onDeviceStatus}><span aria-hidden="true">●</span><span>{status}</span></button>
       <button className="app-sign-out" type="button" onClick={onSignOut}>CERRAR SESIÓN</button>
     </header>
