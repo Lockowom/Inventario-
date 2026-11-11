@@ -12,7 +12,7 @@ const defaultReconciliation = new SupabaseReconciliationRepository()
 const defaultSupervision = new SupabaseSupervisionRepository()
 const FINDINGS: RecountFindingType[] = ['DAMAGED', 'EXPIRED', 'ILLEGIBLE_SERIAL', 'ILLEGIBLE_BATCH', 'WRONG_LOCATION', 'WRONG_LABEL', 'DUPLICATE_PHYSICAL_LABEL', 'OTHER']
 type RecountQueueDependencies = {
-  reconciliation?: Pick<SupabaseReconciliationRepository, 'recountQueue' | 'claimNextMission' | 'recordSubtask' | 'resolveSubtask' | 'finishSerialSweep' | 'addLocation' | 'reportFinding' | 'completeMission' | 'abandonMission'>
+  reconciliation?: Pick<SupabaseReconciliationRepository, 'recountQueue' | 'claimNextMission' | 'recordSubtask' | 'resolveSubtask' | 'finishSerialSweep' | 'addLocation' | 'reportFinding' | 'completeMission' | 'abandonMission' | 'subscribeMissionQueue'>
   supervision?: Pick<SupabaseSupervisionRepository, 'myProfile' | 'inventories'>
 }
 
@@ -74,7 +74,7 @@ export function RecountQueueScreen({ dependencies }: { dependencies?: RecountQue
         if (review) {
           setMessage(`C${next?.round ?? 3}: ${review} evidencia(s) requieren revisión por cambio de autorización. No se reenviarán automáticamente.`)
           setFeedback({ tone: 'WARNING', message: 'REVIEW_REQUIRED · evidencia local protegida.' })
-        } else setMessage(next ? `Misión C${next.round} activa. ${pending} evento(s) local(es) pendiente(s).` : queue.c1_completed ? `${queue.queued_count} misión(es) C${queue.round ?? 2} disponible(s).` : 'C1 todavía está EN CURSO. C2 se habilita al finalizar cobertura.')
+        } else setMessage(next ? `Misión C${next.round} activa. ${pending} evento(s) local(es) pendiente(s).` : queue.queued_count ? `${queue.queued_count} misión(es) C${queue.round ?? 2} disponible(s).` : 'No hay misiones activas para este inventario.')
       }
     } catch (error) {
       const cached = recountOfflineOutbox.cachedMission()
@@ -84,6 +84,10 @@ export function RecountQueueScreen({ dependencies }: { dependencies?: RecountQue
   }, [inventoryId, profile, reconciliation])
 
   useEffect(() => { if (inventoryId && profile) void refresh() }, [inventoryId, profile, refresh])
+  useEffect(() => {
+    if (!inventoryId || !profile || !reconciliation.subscribeMissionQueue) return
+    return reconciliation.subscribeMissionQueue(inventoryId, () => { void refresh(false) })
+  }, [inventoryId, profile, reconciliation, refresh])
 
   async function claim() {
     if (blocked || !inventoryId) return

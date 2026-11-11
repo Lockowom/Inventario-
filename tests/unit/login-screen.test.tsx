@@ -8,7 +8,7 @@ describe('LoginScreen', () => {
     const onSignedIn = vi.fn()
     render(<LoginScreen service={{ signIn }} onSignedIn={onSignedIn} />)
 
-    expect(screen.getByLabelText('Versión de la aplicación')).toHaveTextContent('INVEN3 · v0.0.00.01')
+    expect(screen.getByLabelText('Versión de la aplicación')).toHaveTextContent('INVEN3 · v0.0.00.02')
 
     fireEvent.change(screen.getByLabelText('Correo'), { target: { value: 'qa-analista@inven3-qa.test' } })
     fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'secreto-qa' } })

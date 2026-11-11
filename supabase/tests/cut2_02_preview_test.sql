@@ -57,7 +57,7 @@ select i.id, i.warehouse_id, 'd2060000-0000-0000-0000-000000000001', 'PHYSICAL_M
 
 select set_config('request.jwt.claim.sub', 'd2010000-0000-0000-0000-000000000001', true); set local role authenticated;
 select is((public.preview_rolling_cut_v2('d2020000-0000-0000-0000-000000000001') #>> '{summary,rp_ready_estimate}')::integer, 1, 'T02: eligible reference is estimated RP ready');
-select is((select item ->> 'estimated_result' from jsonb_array_elements(public.preview_rolling_cut_v2('d2020000-0000-0000-0000-000000000001') -> 'items') item where item ->> 'codigo' = 'SKU-DIFF'), 'C2_REQUIRED_ESTIMATE', 'T03: quantity difference is C2 estimate only');
+select is((select item ->> 'estimated_result' from jsonb_array_elements(public.preview_rolling_cut_v2('d2020000-0000-0000-0000-000000000001') -> 'items') item where item ->> 'codigo' = 'SKU-DIFF'), 'BLOCKED', 'T03: live C2 discrepancy blocks the release preview until independently reconciled');
 select is((select item ->> 'block_reason' from jsonb_array_elements(public.preview_rolling_cut_v2('d2020000-0000-0000-0000-000000000001') -> 'items') item where item ->> 'codigo' = 'SKU-ORPHAN'), 'ORPHAN_REFERENCE', 'T04: orphan is blocked');
 select is((select item ->> 'block_reason' from jsonb_array_elements(public.preview_rolling_cut_v2('d2020000-0000-0000-0000-000000000001') -> 'items') item where item ->> 'codigo' = 'SKU-NEG'), 'RISK_NEGATIVE_BALANCE', 'T06: negative available is blocked');
 select is((select item ->> 'block_reason' from jsonb_array_elements(public.preview_rolling_cut_v2('d2020000-0000-0000-0000-000000000001') -> 'items') item where item ->> 'codigo' = 'SKU-SERIAL'), 'DUPLICATE_SERIAL', 'T07: duplicate serial is blocked');
@@ -67,7 +67,7 @@ select is((public.preview_rolling_cut_v2('d2020000-0000-0000-0000-000000000001')
 select is((select item ->> 'block_reason' from jsonb_array_elements(public.preview_rolling_cut_v2('d2020000-0000-0000-0000-000000000001') -> 'items') item where item ->> 'codigo' = 'SKU-OZ'), 'OUT_OF_ASSIGNED_ZONE_REVIEW', 'T10: out-of-zone item is blocked');
 reset role;
 select is((select count(*) from public.count_records where inventory_id='d2020000-0000-0000-0000-000000000001'), 8::bigint, 'T15: preview does not mutate counts');
-select is((select count(*) from public.recount_missions where inventory_id='d2020000-0000-0000-0000-000000000001'), 0::bigint, 'T15: preview does not create missions');
+select is((select count(*) from public.recount_missions where inventory_id='d2020000-0000-0000-0000-000000000001'), 3::bigint, 'T15: preview does not mutate the live C2 missions already created by C1 reconciliation');
 select is((select count(*) from public.rp_release_batches where inventory_id='d2020000-0000-0000-0000-000000000001'), 0::bigint, 'T15: preview does not create RP releases');
 select set_config('request.jwt.claim.sub', 'd2010000-0000-0000-0000-000000000001', true); set local role authenticated;
 select is((public.preview_rolling_cut_v2('d2020000-0000-0000-0000-000000000001') ->> 'preview_fingerprint'), (public.preview_rolling_cut_v2('d2020000-0000-0000-0000-000000000001') ->> 'preview_fingerprint'), 'T14: fingerprint is deterministic');

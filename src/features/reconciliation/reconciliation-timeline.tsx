@@ -8,6 +8,9 @@ const labels:Record<string,string>={
  SECOND_RECORDED:'C2 finalizado',
  THIRD_ASSIGNED:'C3 iniciado',
  THIRD_RECORDED:'C3 finalizado',
+ LIVE_C2_CREATED:'C2 creada por conciliación en vivo',
+ LIVE_C1_BASIS_CHANGED:'Base C1 actualizada',
+ LIVE_C2_RESOLVED_BY_C1:'C2 resuelta por nueva evidencia C1',
  RESOLVED:'Conciliación resuelta',
 }
 
@@ -56,6 +59,9 @@ function eventDetail(event:ReconciliationEvent){
   const disposition=typeof event.payload.disposition==='string'?event.payload.disposition.replaceAll('_',' '):'Dictamen registrado'
   const reason=typeof event.payload.reason==='string'?event.payload.reason:''
   return reason?disposition+' · '+reason:disposition
+ }
+ if(event.event_type==='LIVE_C2_CREATED'||event.event_type==='LIVE_C1_BASIS_CHANGED'||event.event_type==='LIVE_C2_RESOLVED_BY_C1'){
+  return 'Conciliación actualizada sin exponer cantidades de referencia a operadores.'
  }
  return 'Evento registrado.'
 }

@@ -2,6 +2,8 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { RecountQueueScreen } from '../../src/features/reconciliation/recount-queue-screen'
 
+const subscribeMissionQueue=vi.fn((_inventoryId:string,_onChange:()=>void)=>()=>{})
+
 vi.mock('../../src/services/supabase-supervision-repository',()=>({
  SupabaseSupervisionRepository:class{
   myProfile(){return Promise.resolve({user_id:'user-1',display_name:'Counter',role:'CONTADOR',active:true})}
@@ -11,8 +13,9 @@ vi.mock('../../src/services/supabase-supervision-repository',()=>({
 
 vi.mock('../../src/services/supabase-reconciliation-repository',()=>({
  SupabaseReconciliationRepository:class{
+  subscribeMissionQueue(inventoryId:string,onChange:()=>void){return subscribeMissionQueue(inventoryId,onChange)}
   recountQueue(){return Promise.resolve({
-   inventory_id:'inv-1',round:2,c1_completed:true,queued_count:3,
+   inventory_id:'inv-1',round:2,c1_completed:false,queued_count:3,
    active:{
     id:'mission-1',case_id:'case-1',inventory_id:'inv-1',round:2,status:'ACTIVE',execution_state:'CLAIMED',sla_state:'ON_TIME',sla_due_at:'2026-10-20T10:00:00Z',
     codigo:'SKU001P',descripcion:'Producto prueba',reference_type:'PARTIDA',reference_value:'LOTE-01',
@@ -50,5 +53,7 @@ describe('F15 recount queue',()=>{
   expect(screen.getByRole('button',{name:'FINALIZAR C2'})).toBeDisabled()
   expect(screen.getByText(/SLA operativo/)).toBeTruthy()
   expect(screen.getByRole('button',{name:'LIBERAR SIN EVIDENCIA'})).toBeDisabled()
+  expect(subscribeMissionQueue).toHaveBeenCalledWith('inv-1',expect.any(Function))
+  expect(screen.queryByText(/C1 todavía está EN CURSO/)).toBeNull()
  })
 })

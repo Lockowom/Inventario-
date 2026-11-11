@@ -26,7 +26,7 @@ export type RecountMission={
 export type RecountQueue={inventory_id:string;round:2|3|null;c1_completed:boolean;queued_count:number;active:RecountMission|null}
 export type RecountMissionCompletion={mission_id:string;round:2|3;total_quantity:number;observation_count?:number;subtask_count?:number;case_id:string;case_status:string;confirmed_physical_quantity:number|null;next_round:3|null;review_required?:boolean}
 export type RecountFindingType='DAMAGED'|'EXPIRED'|'ILLEGIBLE_SERIAL'|'ILLEGIBLE_BATCH'|'WRONG_LOCATION'|'WRONG_LABEL'|'DUPLICATE_PHYSICAL_LABEL'|'OTHER'
-export type C2ExecutionMetrics={queued_missions:number;claimed_missions:number;active_missions:number;overdue_operational:number;reassignment_pending:number;pending_subtasks:number;completed_subtasks:number;serial_sweeps_active:number;targeted_searches:number;blocked:number;escalated:number}
+export type C2ExecutionMetrics={queued_missions:number;claimed_missions:number;active_missions:number;auto_resolved_by_c1:number;c3_queued:number;confirmed_physical_differences:number;overdue_operational:number;reassignment_pending?:number;pending_subtasks:number;completed_subtasks:number;serial_sweeps_active:number;targeted_searches:number;blocked:number;escalated:number}
 export type SystemReferenceImportResult={reference_version:number;row_count:number;fingerprint:string}
 export type MissingBatchException={codigo:string;reason:string;created_at:string}
 export type ReconciliationEvent={id:string;case_id:string;event_type:string;actor_user_id:string;actor_display_name:string;target_display_name:string|null;payload:Record<string,unknown>;created_at:string}
@@ -35,6 +35,14 @@ export type LiveReconciliationStatus='CUADRADO'|'DIFERENCIA'|'NUEVO_LOTE_SERIE'|
 export type LiveReconciliationRow={codigo:string;descripcion:string;unit_code:string;reference_type:'SERIAL'|'PARTIDA'|'LEGACY';reference_value:string|null;expiration_date:string|null;available_quantity:number;counted_quantity:number;difference_quantity:number;status:LiveReconciliationStatus;last_received_at:string|null}
 export type LiveReconciliationWorkspace={inventory_id:string;refreshed_at:string;metrics:{total_skus:number;counted_skus:number;matched_items:number;difference_items:number;new_references:number;non_available_items:number;available_units:number;counted_units:number;difference_units:number};rows:LiveReconciliationRow[]}
 export class SupabaseReconciliationRepository {
+ subscribeMissionQueue(inventoryId:string,onChange:()=>void){
+  const client=getSupabaseClient();if(!client)return()=>{}
+  const channel=client.channel(`recount-queue:${inventoryId}`)
+   .on('postgres_changes',{event:'*',schema:'public',table:'recount_missions',filter:`inventory_id=eq.${inventoryId}`},onChange)
+   .on('postgres_changes',{event:'*',schema:'public',table:'reconciliation_cases',filter:`inventory_id=eq.${inventoryId}`},onChange)
+   .subscribe()
+  return()=>{void client.removeChannel(channel)}
+ }
  recountQueue(inventoryId:string){return rpc<RecountQueue>('get_my_recount_queue',{p_inventory_id:inventoryId})}
  claimNextMission(inventoryId:string){return rpc<RecountMission|null>('claim_next_recount_mission',{p_inventory_id:inventoryId})}
  abandonMission(missionId:string,reason:string){return rpc<RecountMission>('abandon_my_recount_mission',{p_mission_id:missionId,p_reason:reason})}
