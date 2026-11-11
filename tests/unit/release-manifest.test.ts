@@ -14,17 +14,11 @@ function fixture() {
   fs.writeFileSync(path.join(dir, 'dist/index.html'), '<html>qa</html>')
   fs.writeFileSync(path.join(dir, 'release-policy.json'), JSON.stringify({
     product: 'INVEN3',
-    releaseVersion: '1.0.0',
     defaultEnvironment: 'qa',
     defaultChannel: 'beta',
     productionLocked: true,
-    native: {
-      androidVersionName: '1.0.0',
-      androidBaseVersionCode: 10000,
-      iosMarketingVersion: '1.0.0',
-      iosBaseBuildNumber: 10000,
-    },
   }))
+  fs.writeFileSync(path.join(dir, 'version.json'), JSON.stringify({ version: '0.0.00.01', versionCode: 1 }))
   return dir
 }
 
@@ -69,7 +63,9 @@ describe('release manifest candidate identity', () => {
     ))
     expect(manifest.commit).toBe(candidateSha)
     expect(manifest.commit).not.toBe(mergeSha)
-    expect(manifest.native.effectiveBuildNumber).toBe(10042)
+    expect(manifest.appVersion).toBe('0.0.00.01')
+    expect(manifest.versionCode).toBe(1)
+    expect(manifest.native).toEqual({ versionName: '0.0.00.01', versionCode: 1 })
   })
 
   test('rejects a build identity not bound to the candidate SHA', () => {
@@ -80,23 +76,25 @@ describe('release manifest candidate identity', () => {
     expect(result.stderr).toContain('build identity must be')
   })
 
-  test('rejects native build number not derived from the same run number', () => {
+  test('uses the canonical version code even if a runner provides a stale native number', () => {
     const dir = fixture()
     const candidateSha = 'c'.repeat(40)
     const result = run(dir, { INVEN3_CANDIDATE_SHA: candidateSha, INVEN3_NATIVE_BUILD_NUMBER: '10043' })
-    expect(result.ok).toBe(false)
-    expect(result.stderr).toContain('native build number is not bound')
+    expect(result.ok).toBe(true)
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'artifacts/release/INVEN3-release-manifest.json'), 'utf8'))
+    expect(manifest.versionCode).toBe(1)
   })
 
-  test('rejects unequal Android/iOS native base build policies', () => {
+  test('does not derive the canonical Android version from arbitrary release-policy metadata', () => {
     const dir = fixture()
     const policyPath = path.join(dir, 'release-policy.json')
     const policy = JSON.parse(fs.readFileSync(policyPath, 'utf8'))
-    policy.native.iosBaseBuildNumber = 10001
+    policy.legacyMetadata = { androidBaseVersionCode: 99999 }
     fs.writeFileSync(policyPath, JSON.stringify(policy))
     const result = run(dir, { INVEN3_CANDIDATE_SHA: 'c'.repeat(40) })
-    expect(result.ok).toBe(false)
-    expect(result.stderr).toContain('equal integer Android/iOS native base build numbers')
+    expect(result.ok).toBe(true)
+    const manifest = JSON.parse(fs.readFileSync(path.join(dir, 'artifacts/release/INVEN3-release-manifest.json'), 'utf8'))
+    expect(manifest.versionCode).toBe(1)
   })
 
   test('rejects a symbolic link inside dist when supported', () => {

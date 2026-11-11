@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('../../src/services/supabase', () => ({
+  getSupabaseRuntimeConfiguration: () => ({ configured: true, hostname: 'kpsdephjbvkwvazxubtb.supabase.co', projectRef: 'kpsdephjbvkwvazxubtb' }),
   getSupabaseClient: () => ({
     auth: {
       signInWithPassword: mocks.signInWithPassword,
@@ -29,6 +30,7 @@ vi.mock('../../src/features/counting/counting-runtime', () => ({
 }))
 
 import { AuthService } from '../../src/features/auth/auth-service'
+import { clearLatestAuthSignInDiagnostic, getLatestAuthSignInDiagnostic } from '../../src/features/auth/auth-diagnostics'
 import { persistAuthUserId, readPersistedAuthUserId } from '../../src/services/local-auth-identity'
 
 const userId = '22222222-2222-4222-8222-222222222222'
@@ -50,6 +52,7 @@ describe('AuthService', () => {
     mocks.clearCachedContext.mockReset()
     mocks.getCachedContext.mockResolvedValue(null)
     mocks.clearCachedContext.mockResolvedValue(undefined)
+    clearLatestAuthSignInDiagnostic()
   })
 
   it('normaliza el correo, exige una sesión real y persiste sólo el UUID local', async () => {
@@ -63,8 +66,19 @@ describe('AuthService', () => {
   })
 
   it('falla de forma segura cuando Auth no entrega sesión', async () => {
-    mocks.signInWithPassword.mockResolvedValue({ data: { session: null, user: null }, error: { message: 'bad credentials' } })
+    mocks.signInWithPassword.mockResolvedValue({ data: { session: null, user: null }, error: { code: 'invalid_credentials', status: 400, message: 'bad credentials' } })
     await expect(new AuthService().signIn('qa@inven3.test', 'mala')).rejects.toThrow('Credenciales inválidas o sesión no disponible.')
+    expect(getLatestAuthSignInDiagnostic()).toMatchObject({ operation: 'SIGN_IN', stage: 'REJECTED', code: 'invalid_credentials', status: 400 })
+  })
+
+  it('normaliza sólo el correo y transmite la contraseña exactamente como fue escrita', async () => {
+    const session = { access_token: 'token', user: { id: userId } }
+    const passwordWithWhitespaceAndUnicode = '  Pässword! '
+    mocks.signInWithPassword.mockResolvedValue({ data: { session, user: session.user }, error: null })
+
+    await expect(new AuthService().signIn('  QA-ADMIN@INVEN3.QA.INVALID  ', passwordWithWhitespaceAndUnicode)).resolves.toBe(session)
+
+    expect(mocks.signInWithPassword).toHaveBeenCalledWith({ email: 'qa-admin@inven3.qa.invalid', password: passwordWithWhitespaceAndUnicode })
   })
 
   it('prefiere el contexto autorizado local y no consulta Supabase si ya existe', async () => {

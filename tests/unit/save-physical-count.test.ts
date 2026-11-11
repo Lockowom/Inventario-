@@ -48,7 +48,8 @@ describe('guardado offline de conteo físico', () => {
     const counts = new MemoryCountRepository()
     const uuids = ['44444444-4444-4444-8444-444444444444', '55555555-5555-4555-8555-555555555555']
     const result = await savePhysicalCount({ inventoryId, userId, inventoryStatus: 'ABIERTO' }, draft, { masters: master, counts, now: () => new Date('2026-09-16T12:00:00.000Z'), createUuid: () => uuids.shift()! })
-    expect(result.record).toMatchObject({ id: '44444444-4444-4444-8444-444444444444', clientCountId: '55555555-5555-4555-8555-555555555555', deviceId, partida: '000045', capturedAt: '2026-09-16T12:00:00.000Z', syncStatus: 'PENDING' })
+    expect(result.record).toMatchObject({ id: '44444444-4444-4444-8444-444444444444', clientCountId: '55555555-5555-4555-8555-555555555555', inventoryId, deviceId, partida: '000045', capturedAt: '2026-09-16T12:00:00.000Z', syncStatus: 'PENDING' })
+    expect('sessionId' in result.record).toBe(false)
     expect(counts.records).toHaveLength(1)
   })
 

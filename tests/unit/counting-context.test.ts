@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { resolveCountingContext, type CountingContextVerifier } from '../../src/domain/count/resolve-counting-context'
 import { signOutAndClearCountingContext } from '../../src/domain/count/sign-out-counting-context'
 import type { CachedCountingContext, CountingContextRepository } from '../../src/domain/ports/counting-context-repository'
@@ -10,6 +10,7 @@ import { DexieCountingContextRepository } from '../../src/storage/web-indexeddb/
 import { Inven3WebDatabase } from '../../src/storage/web-indexeddb/inven3-web-database'
 import { SqliteCountingContextRepository } from '../../src/storage/mobile-sqlite/sqlite-counting-context-repository'
 import type { SqliteDatabase, SqliteResult } from '../../src/storage/mobile-sqlite/sqlite-database'
+import { cachedCountingContextSchema } from '../../src/domain/ports/counting-context-repository'
 
 const inventoryId = '11111111-1111-4111-8111-111111111111'
 const otherInventoryId = '33333333-3333-4333-8333-333333333333'
@@ -29,6 +30,10 @@ function verifier(result: Awaited<ReturnType<CountingContextVerifier['verifyServ
 }
 
 describe('last known authorized counting context', () => {
+  it('accepta el timestamp PostgreSQL con offset al persistir el lease autorizado', () => {
+    expect(cachedCountingContextSchema.safeParse({ ...cached, verifiedAt: '2026-11-10T19:00:00.123456+00:00' }).success).toBe(true)
+  })
+
   it('guarda el contexto tras una autorización online', async () => {
     const cache = new MemoryContextRepository()
     await expect(resolveCountingContext(verifier({ kind: 'AUTHORIZED', context: { userId, inventoryId, inventoryStatus: 'ABIERTO' }, verifiedAt: cached.verifiedAt, authorization }), cache)).resolves.toMatchObject({ kind: 'ONLINE' })
@@ -45,6 +50,21 @@ describe('last known authorized counting context', () => {
     const cache = new MemoryContextRepository(); cache.value = cached
     await expect(resolveCountingContext(verifier({ kind }), cache)).resolves.toEqual({ kind: 'BLOCKED', reason: kind })
     expect(cache.value).toBeNull()
+  })
+
+  it('requiere selección sin borrar un contexto durable que podrá restaurarse y revalidarse', async () => {
+    const cache = new MemoryContextRepository(); cache.value = cached
+    await expect(resolveCountingContext(verifier({ kind: 'INVENTORY_SELECTION_REQUIRED' }), cache, '')).resolves.toEqual({ kind: 'SELECTION_REQUIRED' })
+    expect(cache.value).toEqual(cached)
+  })
+
+  it('envía el inventario activo al verificador y sólo lo acepta tras una respuesta autorizada', async () => {
+    const cache = new MemoryContextRepository()
+    const verifyServer = vi.fn(async (activeInventoryId?: string) => activeInventoryId === otherInventoryId
+      ? { kind: 'AUTHORIZED' as const, context: { userId, inventoryId: otherInventoryId, inventoryStatus: 'ABIERTO' as const }, verifiedAt: cached.verifiedAt, authorization: { ...authorization, inventoryScopes: [otherInventoryId] } }
+      : { kind: 'NOT_AUTHORIZED' as const })
+    await expect(resolveCountingContext({ verifyServer }, cache, otherInventoryId)).resolves.toMatchObject({ kind: 'ONLINE', context: { inventoryId: otherInventoryId } })
+    expect(verifyServer).toHaveBeenCalledWith(otherInventoryId)
   })
 
   it('no reutiliza un ABIERTO antiguo cuando el servidor informa que el inventario está CERRADO', async () => {
@@ -94,7 +114,7 @@ describe('captura offline después de reiniciar', () => {
     const cache = new MemoryContextRepository(); cache.value = cached
     const resolved = await resolveCountingContext(verifier({ kind: 'UNAVAILABLE' }), cache)
     expect(resolved.kind).toBe('OFFLINE')
-    if (resolved.kind === 'BLOCKED') throw new Error('El contexto offline debía estar permitido')
+    if (resolved.kind === 'BLOCKED' || resolved.kind === 'SELECTION_REQUIRED') throw new Error('El contexto offline debía estar permitido')
     const counts = new MemoryCountRepository()
     const masters: MasterSkuRepository = { findByCode: async () => ({ inventoryId, codigo: '00001', descripcion: 'Maestro local', controlType: 'PARTIDA', cachedAt: cached.verifiedAt }), listByInventory: async () => [], getMetadata: async () => null, replaceSnapshot: async () => undefined }
     const draft: PhysicalCountDraft = { ubicacion: 'F-32-03', codigo: '00001', partida: '000045', cantidadContada: '2' }

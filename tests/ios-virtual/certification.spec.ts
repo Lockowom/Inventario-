@@ -5,8 +5,7 @@ import { join } from 'node:path'
 const artifactDir = join(process.cwd(), 'artifacts', 'ios-virtual')
 
 const scenarios = [
-  { fixture: 'health-ready', name: 'device-health-ready', marker: 'HEALTH CHECK DEL DISPOSITIVO' },
-  { fixture: 'counting-health-offline', name: 'counting-offline', marker: 'CONTEO FÍSICO' },
+  { fixture: 'counting-normal', name: 'counting-ready', marker: 'CONTEO FÍSICO' },
   { fixture: 'cuts-ready', name: 'cuts-ready', marker: 'CORTES' },
   { fixture: 'layout', name: 'supervision-layout', marker: 'SUPERVISIÓN' },
 ] as const
@@ -44,7 +43,7 @@ for (const scenario of scenarios) {
 
 test('iPhone 15 WebKit · landscape no desborda', async ({ page }) => {
   await page.setViewportSize({ width: 844, height: 390 })
-  await page.goto('/?fixture=counting-health-offline')
+  await page.goto('/?fixture=counting-normal')
   await expect(page.getByRole('heading', { name: 'CONTEO FÍSICO' })).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   await page.screenshot({

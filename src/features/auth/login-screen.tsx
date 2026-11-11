@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { authService } from './auth-service'
+import { releaseMetadata } from '../../config/release-metadata'
 
 export interface LoginService {
   signIn(email: string, password: string): Promise<unknown>
@@ -32,10 +33,11 @@ export function LoginScreen({ service = authService, onSignedIn }: { service?: L
       <p className="eyebrow">Acceso seguro</p>
       <h1 id="login-title">INVEN3</h1>
       <p className="login-description">Ingrese con una cuenta autorizada para el inventario activo.</p>
+      <p className="login-version" aria-label="Versión de la aplicación">INVEN3 · v{releaseMetadata.version}{releaseMetadata.environment === 'qa' ? ' · QA' : ''}</p>
       {error && <p className="form-error" role="alert">{error}</p>}
       <form onSubmit={(event) => void submit(event)}>
-        <label className="field"><span>Correo</span><input type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
-        <label className="field"><span>Contraseña</span><input type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
+        <label className="field"><span>Correo</span><input type="email" autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} inputMode="email" required value={email} onChange={(event) => setEmail(event.target.value)} /></label>
+        <label className="field"><span>Contraseña</span><input type="password" autoComplete="current-password" autoCapitalize="none" autoCorrect="off" spellCheck={false} required value={password} onChange={(event) => setPassword(event.target.value)} /></label>
         <button className="button-primary login-submit" type="submit" disabled={submitting}>{submitting ? 'VALIDANDO…' : 'INICIAR SESIÓN'}</button>
       </form>
     </section>

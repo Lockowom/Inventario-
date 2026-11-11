@@ -2,6 +2,7 @@ import type { DeviceHealthCheck, DeviceHealthMode, PassiveScannerHealthProbe } f
 import { setScannerComponentStatus } from '../../scanner/scanner-component-status'
 import type { PlatformAdapter, RestoredScannerResult, ScanField, ScanResult } from '../contracts'
 import { WebStorageAdapter } from './web-storage-adapter'
+import { releaseMetadata } from '../../config/release-metadata'
 
 class WebScannerHealthProbe implements PassiveScannerHealthProbe {
   public async probe(mode: DeviceHealthMode): Promise<readonly DeviceHealthCheck[]> {
@@ -31,8 +32,7 @@ class WebScannerAdapter {
 
 class WebLifecycleAdapter {
   public async getVersion(): Promise<string | null> {
-    const value = (import.meta.env.VITE_APP_VERSION ?? '0.1.0').trim()
-    return value || null
+    return releaseMetadata.version
   }
 }
 

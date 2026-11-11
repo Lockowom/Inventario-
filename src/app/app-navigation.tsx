@@ -2,16 +2,11 @@ import { useEffect, useState } from 'react'
 import type { AppRole } from '../domain/auth/contracts'
 import { navigationItemsForRole, type AppView } from './app-navigation-policy'
 
-export type DeviceStatusBadge = 'LISTO' | 'ONLINE' | 'REVISAR' | 'OFFLINE' | 'COMPROBANDO'
-
-export function AppNavigation({ role, activeView, onSelect, onDeviceStatus = () => undefined, onSignOut, deviceNeedsReview = false, deviceStatus }: {
+export function AppNavigation({ role, activeView, onSelect, onSignOut }: {
   role: AppRole | null
   activeView: AppView
   onSelect: (view: AppView) => void
-  onDeviceStatus?: () => void
   onSignOut: () => void
-  deviceNeedsReview?: boolean
-  deviceStatus?: DeviceStatusBadge
 }) {
   const [open, setOpen] = useState(false)
   const [isDesktop, setIsDesktop] = useState(() => window.matchMedia?.('(min-width: 960px)').matches ?? false)
@@ -39,15 +34,12 @@ export function AppNavigation({ role, activeView, onSelect, onDeviceStatus = () 
   }
 
   const navigationAvailable = open || isDesktop
-  const status = deviceStatus ?? (deviceNeedsReview ? 'REVISAR' : 'LISTO')
-
   return <>
     <header className="app-topbar">
       <button className="app-menu-toggle" type="button" aria-label="Abrir menú" aria-controls="primary-navigation" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
         <span aria-hidden="true">☰</span><span>MENÚ</span>
       </button>
       <div className="app-topbar__brand"><strong>INVEN3</strong><span>Operación de inventario</span></div>
-      <button className={`app-device-status app-device-status--${status.toLowerCase()}`} type="button" aria-label={`Estado del dispositivo: ${status}`} onClick={onDeviceStatus}><span aria-hidden="true">●</span><span>{status}</span></button>
       <button className="app-sign-out" type="button" onClick={onSignOut}>CERRAR SESIÓN</button>
     </header>
     <button className={`app-navigation-backdrop ${open ? 'app-navigation-backdrop--open' : ''}`} type="button" aria-label="Cerrar menú" tabIndex={open ? 0 : -1} onClick={() => setOpen(false)} />

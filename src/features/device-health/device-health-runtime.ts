@@ -10,13 +10,13 @@ import { SupabaseMasterSkuRepository } from '../../services/supabase-master-sku-
 import { hydrateLocalMasterSnapshot } from './master-snapshot-hydration'
 
 /** Infrastructure composition for F9A.4A. No screen or capture gating consumes it yet. */
-export function createDeviceHealthService(mode: DeviceHealthMode): DeviceHealthService {
+export function createDeviceHealthService(mode: DeviceHealthMode, activeInventoryId?: string): DeviceHealthService {
   const cache = getCountingContextRepository()
   const masters = getMasterSkuRepository()
   const remoteMasters = new SupabaseMasterSkuRepository()
   return new DeviceHealthService({
     mode,
-    resolveContext: () => resolveCountingContext({ verifyServer: verifyServerCountingContext }, cache),
+    resolveContext: () => resolveCountingContext({ verifyServer: verifyServerCountingContext }, cache, activeInventoryId),
     masters,
     hydrateMasterSnapshot: async (inventoryId) => {
       try {

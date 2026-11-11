@@ -1,5 +1,5 @@
 begin;
-select plan(23);
+select plan(29);
 insert into auth.users(id,aud,role,email,encrypted_password,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
  ('c6010000-0000-0000-0000-000000000001','authenticated','authenticated','c06-admin@example.test','','{}','{}',now(),now()),
  ('c6010000-0000-0000-0000-000000000002','authenticated','authenticated','c06-counter@example.test','','{}','{}',now(),now()),
@@ -35,6 +35,9 @@ select ok(not public.cut2_has_capability('c6020000-0000-0000-0000-000000000001',
 select is((public.get_my_counting_authorization_snapshot()->>'status'),'AUTHORIZED','server emits a verified offline authorization snapshot');
 select is((public.get_my_counting_authorization_snapshot()->>'actor_id'),'c6010000-0000-0000-0000-000000000002','snapshot is bound to the authenticated actor');
 select ok(public.get_my_counting_authorization_snapshot()->'capabilities' ? 'COUNT_C1','snapshot carries capability, not an isAdmin flag');
+select is((public.get_my_counting_authorization_snapshot(null::uuid)->>'status'),'AUTHORIZED','single assignment resolves without an explicit C1 selection');
+select is((public.get_my_counting_authorization_snapshot('c6020000-0000-0000-0000-000000000001'::uuid)->>'status'),'AUTHORIZED','explicit active C1 inventory is revalidated server-side');
+select is((public.get_my_counting_authorization_snapshot('c6020000-0000-0000-0000-000000000002'::uuid)->>'status'),'NOT_AUTHORIZED','a forged foreign active inventory is denied server-side');
 set local request.jwt.claim.sub='c6010000-0000-0000-0000-000000000003';
 select ok(public.cut2_has_capability('c6020000-0000-0000-0000-000000000001','VIEW_MONITOR'),'external auditor has scoped monitor read');
 select ok(not public.cut2_has_capability('c6020000-0000-0000-0000-000000000001','COUNT_C1'),'external auditor cannot count');
@@ -46,6 +49,9 @@ select ok(public.cut2_has_capability('c6020000-0000-0000-0000-000000000001','COU
 select ok(not public.cut2_has_capability('c6020000-0000-0000-0000-000000000001','RECOUNT_C2'),'temporary user cannot receive implicit C2');
 set local request.jwt.claim.sub='c6010000-0000-0000-0000-000000000001';
 select ok(public.cut2_has_capability('c6020000-0000-0000-0000-000000000002','MANAGE_USERS'),'global admin policy is explicit');
+select is((public.get_my_counting_authorization_snapshot()->>'status'),'INVENTORY_SELECTION_REQUIRED','legacy zero-argument snapshot also normalizes multiple inventories to selection required');
+select is((public.get_my_counting_authorization_snapshot(null::uuid)->>'status'),'INVENTORY_SELECTION_REQUIRED','multiple authorized open inventories require a selection instead of an ambiguity failure');
+select is((public.get_my_counting_authorization_snapshot('c6020000-0000-0000-0000-000000000002'::uuid)->>'status'),'AUTHORIZED','global admin may activate an authorized selected inventory');
 set local role service_role;
 select throws_ok($$select public.admin_upsert_user_profile_from_edge('c6010000-0000-0000-0000-000000000005','c6010000-0000-0000-0000-000000000006','C06 target','CONTADOR',true,array['c6020000-0000-0000-0000-000000000002']::uuid[],'USER_CREATED')$$,'42501','INVENTORY_SCOPE_DENIED','scoped analyst cannot create an assignment outside its inventory scope');
 select throws_ok($$select public.admin_upsert_user_profile_from_edge('c6010000-0000-0000-0000-000000000005','c6010000-0000-0000-0000-000000000005','C06 self','ADMIN',true,array['c6020000-0000-0000-0000-000000000001']::uuid[],'USER_UPDATED')$$,'42501','SELF_MODIFICATION_DENIED','actor cannot self-promote through Edge-only mutation');

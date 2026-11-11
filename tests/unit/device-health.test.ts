@@ -142,6 +142,15 @@ describe('DeviceHealthService', () => {
     expect(check(report, 'DEVICE_TIME').status).toBe('WARN')
   })
 
+  it('reports inventory selection as an actionable warning instead of a device or user failure', async () => {
+    const { health } = service({ resolveContext: async () => ({ kind: 'SELECTION_REQUIRED' }) })
+    const report = await health.check()
+    expect(report.overall).toBe('READY_WITH_WARNINGS')
+    expect(check(report, 'AUTH_USER')).toMatchObject({ status: 'PASS', blocking: true })
+    expect(check(report, 'INVENTORY_CONTEXT')).toMatchObject({ status: 'WARN', blocking: false })
+    expect(check(report, 'MASTER_SNAPSHOT')).toMatchObject({ status: 'WARN', blocking: false })
+  })
+
   it.each(['WARN', 'FAIL', 'UNAVAILABLE'] as const)('keeps scanner %s non-blocking', async (status) => {
     const { health } = service({ scanner: scanner([{ key: 'CAMERA_AVAILABLE', status: 'PASS', blocking: false, message: 'ok' }, { key: 'CAMERA_PERMISSION', status: 'PASS', blocking: false, message: 'ok' }, { key: 'SCANNER_AVAILABLE', status, blocking: false, message: 'manual' }]) })
     await expect(health.check()).resolves.toMatchObject({ overall: 'READY_WITH_WARNINGS' })

@@ -21,15 +21,18 @@ export function MasterSkuScreen() {
   const [exceptionReason,setExceptionReason]=useState('')
   const [busy,setBusy]=useState(false)
   const [message,setMessage]=useState('Consulta el Maestro activo y gestiona excepciones durante el conteo.')
-  const inventoryId=activeInventory?.inventoryId??localInventoryId
-  const selectInventory=(nextId:string)=>activeInventory?activeInventory.selectInventory(nextId):setLocalInventoryId(nextId)
+  // The Maestro used by C1 follows the same explicit, server-validated
+  // operational selection as capture; generic administration selections do
+  // not silently redirect C1's local snapshot.
+  const inventoryId=activeInventory?.c1InventoryId??localInventoryId
+  const selectInventory=(nextId:string)=>activeInventory?activeInventory.selectC1Inventory(nextId):setLocalInventoryId(nextId)
   const selectedInventory=useMemo(()=>inventories.find(item=>item.id===inventoryId)??null,[inventories,inventoryId])
 
   useEffect(()=>{
     let active=true
     if(activeInventory){
-      setInventories(activeInventory.inventories)
-      if(!activeInventory.loading&&!activeInventory.inventoryId)setMessage(activeInventory.error??'No existen inventarios autorizados.')
+      setInventories(activeInventory.operationalInventories)
+      if(!activeInventory.loading&&!activeInventory.c1InventoryId)setMessage(activeInventory.error??'Seleccione un inventario ABIERTO autorizado para consultar su Maestro.')
       return()=>{active=false}
     }
     void supervision.inventories().then(rows=>{

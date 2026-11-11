@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { CaptureGate } from '../counting/counting-screen'
 import { SupabaseReconciliationRepository, type RecountFindingType, type RecountMission, type RecountSubtask } from '../../services/supabase-reconciliation-repository'
 import { SupabaseSupervisionRepository } from '../../services/supabase-supervision-repository'
 import { recountOfflineOutbox } from './recount-offline-outbox'
@@ -17,7 +16,7 @@ type RecountQueueDependencies = {
   supervision?: Pick<SupabaseSupervisionRepository, 'myProfile' | 'inventories'>
 }
 
-export function RecountQueueScreen({ captureGate, dependencies }: { captureGate?: CaptureGate; dependencies?: RecountQueueDependencies }) {
+export function RecountQueueScreen({ dependencies }: { dependencies?: RecountQueueDependencies }) {
   const reconciliation = dependencies?.reconciliation ?? defaultReconciliation
   const supervision = dependencies?.supervision ?? defaultSupervision
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -40,7 +39,7 @@ export function RecountQueueScreen({ captureGate, dependencies }: { captureGate?
   const selectedInventory = useMemo(() => inventories.find((item) => item.id === inventoryId) ?? null, [inventories, inventoryId])
   const subtasks = useMemo(() => mission ? [...(mission.subtasks ?? [])].sort((left, right) => locationOrder(left, right)) : [], [mission])
   const selectedSubtask = useMemo(() => subtasks.find((item) => item.id === selectedSubtaskId) ?? subtasks.find((item) => item.status === 'ACTIVE' || item.status === 'PENDING') ?? null, [subtasks, selectedSubtaskId])
-  const blocked = Boolean(captureGate?.blocked)
+  const blocked = false
 
   const assignMission = (next: RecountMission | null) => {
     setMission(next); recountOfflineOutbox.cacheMission(next)
@@ -155,7 +154,7 @@ export function RecountQueueScreen({ captureGate, dependencies }: { captureGate?
   const pending = mission ? recountOfflineOutbox.pendingForMission(mission.id).length : 0
   return <section className="recount-queue" aria-labelledby="recount-title">
     <header><p className="eyebrow">C2 / C3 · ejecución física ciega</p><h1 id="recount-title">RECONTEOS</h1><p>La conciliación usa una referencia lógica; la ejecución se resuelve por ubicación. No se muestran Softland, C1, diferencias ni el resultado esperado.</p></header>
-    {captureGate?.blocked && <p className="form-error" role="alert">{captureGate.message ?? 'Captura bloqueada por Health Check.'}</p>}<OperationalFeedback tone={feedback.tone} message={feedback.message}/>
+    <OperationalFeedback tone={feedback.tone} message={feedback.message}/>
     {inventories.length > 0 && <label className="field"><span>Inventario abierto</span><select value={inventoryId} disabled={busy} onChange={(event) => setInventoryId(event.target.value)}>{inventories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>}
     {selectedInventory && profile && <p className="recount-queue__context">{selectedInventory.name} · {profile.display_name} · {profile.role}</p>}
     {!mission && inventoryId && <div className="recount-queue__empty"><div><strong>{queued} misiones disponibles</strong><small>{round ? ` · C${round}` : ''}</small></div><button className="button-primary" disabled={busy || blocked || !queued} onClick={() => void claim()}>{busy ? 'CARGANDO…' : 'INICIAR SIGUIENTE'}</button></div>}

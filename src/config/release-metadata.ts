@@ -1,3 +1,5 @@
+import canonicalVersion from '../../version.json'
+
 export type ReleaseEnvironment = 'local' | 'qa' | 'production'
 export type ReleaseChannel = 'development' | 'beta' | 'production'
 
@@ -13,6 +15,7 @@ export interface ReleaseMetadata {
   environment: ReleaseEnvironment
   channel: ReleaseChannel
   version: string
+  versionCode: number
   build: string | null
   displayVersion: string
   isProduction: boolean
@@ -38,18 +41,23 @@ function normalizeChannel(value?: string): ReleaseChannel {
 export function resolveReleaseMetadata(input: ReleaseMetadataInput): ReleaseMetadata {
   const environment = normalizeEnvironment(input.environment)
   const channel = normalizeChannel(input.channel)
-  const version = input.version?.trim() || '1.0.0'
+  // Functional release identity is intentionally not configurable at runtime.
+  // Channel/build can vary, but Web, Android and device reporting always share
+  // the Git-versioned source of truth.
+  const version = canonicalVersion.version
   const build = input.build?.trim() || null
-  const override = input.displayVersionOverride?.trim()
+  void input.version
+  void input.displayVersionOverride
 
   const channelSuffix = channel === 'production' ? '' : `-${channel}`
   const buildSuffix = build ? `+${build}` : ''
-  const displayVersion = override || `${version}${channelSuffix}${buildSuffix}`
+  const displayVersion = `${version}${channelSuffix}${buildSuffix}`
 
   return {
     environment,
     channel,
     version,
+    versionCode: canonicalVersion.versionCode,
     build,
     displayVersion,
     isProduction: environment === 'production' || channel === 'production',
@@ -59,7 +67,5 @@ export function resolveReleaseMetadata(input: ReleaseMetadataInput): ReleaseMeta
 export const releaseMetadata = resolveReleaseMetadata({
   environment: import.meta.env.VITE_RELEASE_ENV,
   channel: import.meta.env.VITE_RELEASE_CHANNEL,
-  version: import.meta.env.VITE_RELEASE_VERSION,
   build: import.meta.env.VITE_APP_BUILD,
-  displayVersionOverride: import.meta.env.VITE_APP_VERSION,
 })

@@ -2,6 +2,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
+const canonicalVersion = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'version.json'), 'utf8')).version
+
 const requiredFields = [
   'execution_id','gate','status','platform','candidate_sha','candidate_evidence_ref','candidate_evidence_sha256',
   'source_candidate_artifact_sha256','installed_artifact_sha256','install_method','signing_provenance',
@@ -77,7 +79,7 @@ function validate(record) {
     && record.source_candidate_artifact_sha256 === record.installed_artifact_sha256) {
     errors.push('RESIGNED_ARTIFACT_HASH_UNCHANGED')
   }
-  if (record.version !== '1.0.0') errors.push('INVALID_VERSION')
+  if (record.version !== canonicalVersion) errors.push('INVALID_VERSION')
   const candidateSha = String(record.candidate_sha ?? '')
   const build = String(record.build ?? '')
   if (!/^[0-9a-f]{40}$/i.test(candidateSha)

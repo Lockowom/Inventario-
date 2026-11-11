@@ -1,6 +1,6 @@
 import type { AppRole } from '../domain/auth/contracts'
 
-export type AppView = 'home' | 'device-status' | 'counting' | 'recounts' | 'control-center' | 'monitor' | 'supervision' | 'data-load' | 'reconciliation' | 'cuts' | 'rp-release' | 'master' | 'users'
+export type AppView = 'home' | 'counting' | 'recounts' | 'control-center' | 'monitor' | 'supervision' | 'data-load' | 'reconciliation' | 'cuts' | 'rp-release' | 'master' | 'users'
 
 export type NavigationItem = { id: AppView; label: string; detail: string }
 
@@ -26,7 +26,6 @@ export function navigationItemsForRole(role: AppRole | null): NavigationItem[] {
 }
 
 export function isAppViewAllowed(role: AppRole | null, view: AppView): boolean {
-  if (view === 'device-status') return role !== null
   return navigationItemsForRole(role).some((item) => item.id === view)
 }
 

@@ -6,9 +6,10 @@ describe('release metadata', () => {
     expect(resolveReleaseMetadata({})).toEqual({
       environment: 'local',
       channel: 'development',
-      version: '1.0.0',
+      version: '0.0.00.01',
+      versionCode: 1,
       build: null,
-      displayVersion: '1.0.0-development',
+      displayVersion: '0.0.00.01-development',
       isProduction: false,
     })
   })
@@ -17,12 +18,13 @@ describe('release metadata', () => {
     expect(resolveReleaseMetadata({
       environment: 'qa',
       channel: 'beta',
-      version: '1.0.0',
+      version: '99.99.99.99',
       build: 'a67c5648',
     })).toMatchObject({
       environment: 'qa',
       channel: 'beta',
-      displayVersion: '1.0.0-beta+a67c5648',
+      version: '0.0.00.01',
+      displayVersion: '0.0.00.01-beta+a67c5648',
       isProduction: false,
     })
   })
@@ -32,8 +34,8 @@ describe('release metadata', () => {
     expect(resolveReleaseMetadata({ environment: 'qa', channel: 'production' }).isProduction).toBe(true)
   })
 
-  it('preserves the explicit legacy build display override', () => {
+  it('does not allow a legacy display override to replace the canonical version', () => {
     expect(resolveReleaseMetadata({ displayVersionOverride: 'f9b-ios-qa-38992a0' }).displayVersion)
-      .toBe('f9b-ios-qa-38992a0')
+      .toBe('0.0.00.01-development')
   })
 })

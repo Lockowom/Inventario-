@@ -26,7 +26,7 @@ function runtime(): CountingRuntime {
 }
 
 async function resolve(controlType: MasterSku['controlType']) {
-  render(<CountingScreen runtime={runtime()} captureGate={{ blocked: false, message: null }} />)
+  render(<CountingScreen runtime={runtime()} />)
   const code = await screen.findByLabelText('CODIGO')
   fireEvent.change(code, { target: { value: controlType } })
   fireEvent.blur(code)
@@ -68,7 +68,7 @@ describe('Conteo Físico 2.0', () => {
     const code = screen.getByLabelText('CODIGO')
     fireEvent.change(code, { target: { value: 'NO-EXISTE' } })
     fireEvent.blur(code)
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('CÓDIGO NO ENCONTRADO EN MAESTRO'))
+    await waitFor(() => expect(screen.getByText(/SKU no registrado en este inventario/)).toBeVisible())
     expect(screen.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeDisabled()
   })
 

@@ -1,10 +1,5 @@
 import { z } from 'zod'
-
-// PostgreSQL's uuid type accepts any hexadecimal UUID-shaped value.  The
-// seeded warehouse identifier predates RFC-variant enforcement, so the client
-// transport contract must preserve that valid database identifier instead of
-// rejecting a scoped server response before the UI can render it.
-const postgresUuidSchema = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
+import { postgresUuidSchema } from '../postgres-id'
 
 export const inventoryCloseBlockerSchema = z.object({
   code: z.string().min(1),

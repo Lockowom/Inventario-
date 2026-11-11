@@ -21,7 +21,7 @@ describe('OTA security and workflow contracts', () => {
   it('keeps the OTA base Android-only, QA-bound and persistently signed', () => {
     const config = read('capacitor.config.ts')
     const workflow = read('.github/workflows/android-qa-base-ota.yml')
-    expect(config).toContain('https://uazunvlxlszdyweddxtb.supabase.co/functions/v1/ota-updates')
+    expect(config).toContain('https://kpsdephjbvkwvazxubtb.supabase.co/functions/v1/ota-updates')
     expect(config).toContain("autoUpdate: 'off'")
     expect(config).toContain('allowSetDefaultChannel: false')
     expect(workflow).toContain('INVEN3_QA_KEYSTORE_BASE64')

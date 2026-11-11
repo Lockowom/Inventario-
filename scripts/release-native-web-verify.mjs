@@ -70,6 +70,7 @@ if (!['android', 'ios'].includes(args.platform)) fail(123, '--platform must be a
 
 const root = process.cwd()
 const policy = readJson(path.join(root, 'release-policy.json'), 'release policy')
+const version = readJson(path.join(root, 'version.json'), 'version source')
 const manifestPath = path.resolve(root, args.manifest)
 const manifest = readJson(manifestPath, 'release manifest')
 const defaultNativeDir = args.platform === 'android'
@@ -83,7 +84,7 @@ if (policy.productionLocked !== true || manifest.productionLocked !== true) {
 if (manifest.schemaVersion !== 1 || manifest.product !== policy.product) {
   fail(124, 'release manifest identity is invalid')
 }
-if (manifest.version !== policy.releaseVersion || manifest.environment !== 'qa' || manifest.channel !== 'beta') {
+if (manifest.version !== version.version || manifest.versionCode !== version.versionCode || manifest.environment !== 'qa' || manifest.channel !== 'beta') {
   fail(124, 'release manifest is not the authorized QA/BETA version')
 }
 if (!/^[0-9a-f]{40}$/i.test(String(manifest.commit ?? '')) || !manifest.build) {

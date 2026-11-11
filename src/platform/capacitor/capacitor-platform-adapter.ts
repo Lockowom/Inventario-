@@ -7,6 +7,7 @@ import { forgetScannerIntent, processRestoredScannerResult, rememberScannerInten
 import { setScannerComponentStatus } from '../../scanner/scanner-component-status'
 import type { PlatformAdapter, RestoredScannerResult, ScanField, ScanResult } from '../contracts'
 import { CapacitorStorageAdapter } from './capacitor-storage-adapter'
+import { releaseMetadata } from '../../config/release-metadata'
 
 function platform() { return Capacitor.getPlatform() }
 function scannerCheck(supported: boolean): DeviceHealthCheck {
@@ -109,8 +110,7 @@ class CapacitorLifecycleAdapter {
       const version = (await App.getInfo()).version.trim()
       if (version) return version
     } catch { /* Build metadata is the safe fallback. */ }
-    const fallback = (import.meta.env.VITE_APP_VERSION ?? '0.1.0').trim()
-    return fallback || null
+    return releaseMetadata.version
   }
 }
 

@@ -56,7 +56,6 @@ describe('AppNavigation', () => {
 
   it('deniega vistas de gestión a CONTADOR aunque un caller intente seleccionarlas', () => {
     expect(isAppViewAllowed('CONTADOR', 'home')).toBe(false)
-    expect(isAppViewAllowed('CONTADOR', 'device-status')).toBe(true)
     expect(isAppViewAllowed('CONTADOR', 'counting')).toBe(true)
     expect(isAppViewAllowed('CONTADOR', 'recounts')).toBe(true)
     expect(isAppViewAllowed('CONTADOR', 'control-center')).toBe(false)
@@ -75,11 +74,10 @@ describe('AppNavigation', () => {
     expect(defaultAppViewForRole('ADMIN')).toBe('control-center')
   })
 
-  it('uses a compact device badge and keeps logout available in the drawer', () => {
-    const device = vi.fn(); const signOut = vi.fn()
-    render(<AppNavigation role="CONTADOR" activeView="counting" onSelect={vi.fn()} onDeviceStatus={device} deviceStatus="OFFLINE" onSignOut={signOut} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Estado del dispositivo: OFFLINE' }))
-    expect(device).toHaveBeenCalledOnce()
+  it('keeps logout available in the drawer without a device-health status control', () => {
+    const signOut = vi.fn()
+    render(<AppNavigation role="CONTADOR" activeView="counting" onSelect={vi.fn()} onSignOut={signOut} />)
+    expect(screen.queryByRole('button', { name: /Estado del dispositivo/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Abrir menú' }))
     const signOutButtons = screen.getAllByRole('button', { name: 'CERRAR SESIÓN' })
     fireEvent.click(signOutButtons.at(-1)!)

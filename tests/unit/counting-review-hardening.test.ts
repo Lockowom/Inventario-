@@ -27,10 +27,16 @@ describe('correcciones de revisión Fase 3', () => {
     expect(status.capacity).toBe(capacity)
     expect(status.message).toContain(text)
   })
-  it('bloquea contextos que no provienen de exactamente un inventario ABIERTO', () => {
+  it('requiere una selección explícita entre varios inventarios ABIERTO y conserva la selección única automática', () => {
     expect(selectAuthorizedCountingContext(userId, [{ id: inventoryId, status: 'CERRADO' }])).toBeNull()
-    expect(selectAuthorizedCountingContext(userId, [{ id: inventoryId, status: 'ABIERTO' }, { id: '33333333-3333-4333-8333-333333333333', status: 'ABIERTO' }])).toBeNull()
+    const secondInventoryId = '33333333-3333-4333-8333-333333333333'
+    expect(selectAuthorizedCountingContext(userId, [{ id: inventoryId, status: 'ABIERTO' }, { id: secondInventoryId, status: 'ABIERTO' }])).toBeNull()
+    expect(selectAuthorizedCountingContext(userId, [{ id: inventoryId, status: 'ABIERTO' }, { id: secondInventoryId, status: 'ABIERTO' }], secondInventoryId)).toMatchObject({ inventoryId: secondInventoryId })
     expect(selectAuthorizedCountingContext(userId, [{ id: inventoryId, status: 'ABIERTO' }])).toMatchObject({ userId, inventoryStatus: 'ABIERTO' })
+  })
+  it('acepta el UUID sintácticamente válido que PostgreSQL puede devolver desde fixtures QA', () => {
+    const qaSyntheticInventory = 'b11b0000-0000-0000-0000-000000000001'
+    expect(selectAuthorizedCountingContext(userId, [{ id: qaSyntheticInventory, status: 'ABIERTO' }])).toMatchObject({ userId, inventoryId: qaSyntheticInventory, inventoryStatus: 'ABIERTO' })
   })
   it('procesa appRestoredResult sin guardar automáticamente y conserva el campo', () => {
     const values = new Map<string, string>([['inven3.pending-scan-field', 'codigo']])

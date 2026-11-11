@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { masterControlTypeSchema, normalizeMasterCode, normalizeMasterDescription, type MasterSku } from '../master/contracts'
+import { postgresUuidSchema } from '../postgres-id'
 
 export const LOCATION_PATTERN = /^(?:TECHO|(A|B|C|C2|D|E|F|G|H|I)-[0-9]{2}-[0-9]{2})$/
 export const LOCATION_MAX_LENGTH = 8
@@ -53,7 +54,9 @@ export type ValidatedPhysicalCount = z.infer<typeof validatedPhysicalCountSchema
 export const localCountRecordSchema = validatedPhysicalCountSchema.extend({
   id: z.uuid(),
   clientCountId: z.uuid(),
-  inventoryId: z.uuid(),
+  // Inventory IDs are PostgreSQL UUID values.  Synthetic QA data can be
+  // canonical UUID-shaped without RFC version/variant bits.
+  inventoryId: postgresUuidSchema,
   userId: z.uuid(),
   deviceId: z.uuid(),
   capturedAt: z.string().datetime(),

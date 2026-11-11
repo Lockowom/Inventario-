@@ -26,4 +26,4 @@
 - Target remoto: sólo QA nuevo `kpsdephjbvkwvazxubtb`; QA histórico y producción no recibieron solicitudes.
 - No se ejecutaron `db reset`, `migration repair`, migraciones, operaciones ERP/Softland ni mutaciones de stock.
 - El acceso privilegiado empleado por los harnesses queda en proceso local; el navegador recibió únicamente configuración pública de QA.
-- Android queda expresamente fuera de este bloque y es el siguiente gate (`CUT2-11C`).
+- Android queda expresamente fuera de este bloque y es el siguiente gate (`CUT2-11C`). Su estado y evidencia física están en [CUT2_11C_ANDROID_QA_CERTIFICATION.md](CUT2_11C_ANDROID_QA_CERTIFICATION.md).

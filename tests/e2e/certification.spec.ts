@@ -1,66 +1,25 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
 const viewports = [320, 360, 390, 412, 420, 430, 600, 768, 900, 1024, 1440]
 
+async function resolveFixtureSku(page: Page, code = '00003') {
+  const screen = page.locator('section.counting-screen')
+  const input = screen.locator('label.field').filter({ hasText: /^CODIGO/ }).locator('input').first()
+  await input.fill(code)
+  await input.blur()
+  await expect(screen.getByText('✓ PRODUCTO IDENTIFICADO')).toBeVisible()
+}
+
 test.describe('F9A certificación responsive y accesible', () => {
-  // A cold Vite graph must compile the complete fixture dependency tree before
-  // the first browser scenario. Keep the functional assertion strict while
-  // giving that one cold-start path a deterministic CI budget.
   test.setTimeout(60_000)
-  for (const [state, label] of [
-    ['health-ready', 'DISPOSITIVO LISTO PARA INVENTARIO'],
-    ['health-offline', 'DISPOSITIVO LISTO PARA INVENTARIO OFFLINE'],
-    ['health-warning', 'DISPOSITIVO LISTO CON ADVERTENCIAS'],
-    ['health-blocked', 'REVISIÓN REQUERIDA'],
-  ] as const) {
-    test(`Device Health muestra ${state} con contrato y sin overflow`, async ({ page }) => {
-      await page.setViewportSize({ width: 390, height: 844 })
-      // Warm the complete fixture graph before the first READY navigation.
-      // The fixture imports all operational screens; the cold Vite transform
-      // can exceed the READY assertion budget while the test page is already
-      // waiting. HEALTH_BLOCKED exercises the same DeviceHealth component and
-      // makes the following READY assertion a product check, not a bundler race.
-      if (state === 'health-ready') {
-        await page.goto('/?fixture=health-blocked', { waitUntil: 'commit' })
-        await expect(page.getByRole('heading', { name: 'HEALTH CHECK DEL DISPOSITIVO' })).toBeVisible({ timeout: 55_000 })
-      }
-      await page.goto(`/?fixture=${state}`, { waitUntil: 'commit' })
-      await expect(page.getByRole('heading', { name: 'HEALTH CHECK DEL DISPOSITIVO' })).toBeVisible({ timeout: 45_000 })
-      await expect(page.getByText(label)).toBeVisible()
-      await expect(page.getByText('Versión de la aplicación')).toBeVisible()
-      await expect(page.getByText('Scanner', { exact: true })).toBeVisible()
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-    })
-  }
-
-  for (const width of [320, 390, 412, 430, 768, 1024, 1440]) {
-    test(`Device Health es responsive a ${width}px`, async ({ page }) => {
-      await page.setViewportSize({ width, height: 1000 })
-      await page.goto('/?fixture=health-blocked')
-      await expect(page.getByRole('heading', { name: 'HEALTH CHECK DEL DISPOSITIVO' })).toBeVisible()
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-    })
-  }
-
-  test('Health BLOCKED conserva MIS CONTEOS y sincronización, pero bloquea nueva captura', async ({ page }) => {
-    await page.setViewportSize({ width: 320, height: 900 })
-    await page.goto('/?fixture=counting-health-blocked')
-    await expect(page.getByText('REVISIÓN REQUERIDA')).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'CONTEO FÍSICO' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeDisabled()
-    await expect(page.getByRole('button', { name: 'Escanear ubicacion' })).toBeDisabled()
-    await expect(page.getByRole('heading', { name: 'MIS CONTEOS' })).toBeVisible()
-    await expect(page.getByText('Pendiente de sincronización').first()).toBeVisible()
-    await expect(page.getByText('Confirmado en servidor')).toBeVisible()
-    await expect(page.getByText('Pendiente de reintento')).toBeVisible()
-    await expect(page.getByRole('button', { name: 'REINTENTAR SINCRONIZACIÓN' })).toBeEnabled()
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-  })
-
-  test('READY_OFFLINE permite captura con runtime válido', async ({ page }) => {
+  test('C1 muestra conteo operativo sin Health Check ni revisión del dispositivo', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
-    await page.goto('/?fixture=counting-health-offline')
+    await page.goto('/?fixture=counting-normal')
+    await expect(page.getByText('C1 · Contexto operativo')).toBeVisible()
+    await expect(page.getByRole('button', { name: 'SINCRONIZAR' })).toHaveCount(0)
+    await resolveFixtureSku(page)
     await expect(page.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeEnabled()
+    await expect(page.getByText(/HEALTH CHECK DEL DISPOSITIVO|DISPOSITIVO REQUIERE REVISIÓN|VER DIAGNÓSTICO/)).toHaveCount(0)
   })
 
   for (const width of viewports) {
@@ -95,6 +54,7 @@ test.describe('F9A certificación responsive y accesible', () => {
       await expect(page.getByText('Pendiente de sincronización').first()).toBeVisible()
       await expect(page.getByText('Confirmado en servidor')).toBeVisible()
       await expect(page.getByText('Pendiente de reintento')).toBeVisible()
+      await resolveFixtureSku(page)
       if (pending === 50) await expect(page.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeDisabled()
       else await expect(page.getByRole('button', { name: 'GUARDAR CONTEO' })).toBeEnabled()
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
@@ -113,6 +73,7 @@ test.describe('F9A certificación responsive y accesible', () => {
       await expect(page.getByRole('heading', { name: 'CONTEO FÍSICO' })).toBeVisible()
       await expect(page.getByText(message)).toBeVisible()
       await expect(page.getByRole('heading', { name: 'MIS CONTEOS' })).toBeVisible()
+      await resolveFixtureSku(page)
       const save = page.getByRole('button', { name: 'GUARDAR CONTEO' })
       await expect(save).toBeVisible()
       if (blocked) await expect(save).toBeDisabled()
@@ -121,9 +82,9 @@ test.describe('F9A certificación responsive y accesible', () => {
     })
   }
 
-  test('READY_OFFLINE mantiene GUARDAR alcanzable con viewport reducido tipo teclado', async ({ page }) => {
+  test('C1 mantiene GUARDAR alcanzable con viewport reducido tipo teclado', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 500 })
-    await page.goto('/?fixture=counting-health-offline')
+    await page.goto('/?fixture=counting-normal')
     const section = page.locator('section.counting-screen')
     const code = section.locator('label.field').filter({ hasText: /^CODIGO/ }).locator('input').first()
     await code.focus()
@@ -137,9 +98,9 @@ test.describe('F9A certificación responsive y accesible', () => {
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   })
 
-  test('READY_OFFLINE no desborda en landscape móvil', async ({ page }) => {
+  test('C1 no desborda en landscape móvil', async ({ page }) => {
     await page.setViewportSize({ width: 844, height: 390 })
-    await page.goto('/?fixture=counting-health-offline')
+    await page.goto('/?fixture=counting-normal')
     await expect(page.getByRole('heading', { name: 'CONTEO FÍSICO' })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
   })
@@ -180,7 +141,7 @@ test.describe('F9A certificación responsive y accesible', () => {
 
   test('F01/F10 C1 conserva un hallazgo físico offline tras recargar sin convertirlo en un conteo', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
-    await page.goto('/?fixture=counting-health-offline')
+    await page.goto('/?fixture=counting-normal')
     const screen = page.locator('section.counting-screen')
     const code = screen.locator('label.field').filter({ hasText: /^CODIGO/ }).locator('input').first()
     await code.fill('00003')

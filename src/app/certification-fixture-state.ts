@@ -1,6 +1,6 @@
-export type CertificationFixtureState = 'counting-normal' | 'counting-warning' | 'counting-critical' | 'counting-blocked' | 'counting-health-blocked' | 'counting-health-offline' | 'health-ready' | 'health-offline' | 'health-warning' | 'health-blocked' | 'cuts-ready' | 'rectification' | 'artifacts' | 'layout' | 'recount-c2' | 'recount-c3' | 'findings-monitor' | 'findings-monitor-restricted'
+export type CertificationFixtureState = 'counting-normal' | 'counting-warning' | 'counting-critical' | 'counting-blocked' | 'cuts-ready' | 'rectification' | 'artifacts' | 'layout' | 'recount-c2' | 'recount-c3' | 'findings-monitor' | 'findings-monitor-restricted'
 
-const fixtureStates: readonly CertificationFixtureState[] = ['counting-normal', 'counting-warning', 'counting-critical', 'counting-blocked', 'counting-health-blocked', 'counting-health-offline', 'health-ready', 'health-offline', 'health-warning', 'health-blocked', 'cuts-ready', 'rectification', 'artifacts', 'layout', 'recount-c2', 'recount-c3', 'findings-monitor', 'findings-monitor-restricted']
+const fixtureStates: readonly CertificationFixtureState[] = ['counting-normal', 'counting-warning', 'counting-critical', 'counting-blocked', 'cuts-ready', 'rectification', 'artifacts', 'layout', 'recount-c2', 'recount-c3', 'findings-monitor', 'findings-monitor-restricted']
 
 /** The selector is consumed only after App has admitted the DEV-only fixture. */
 export function readCertificationFixtureState(search: string): CertificationFixtureState {

@@ -9,9 +9,14 @@ type ActiveInventoryContextValue = {
   inventories: ActiveInventory[]
   inventoryId: string
   activeInventory: ActiveInventory | null
+  /** C1 operational context. It is never auto-picked from several ABIERTO inventories. */
+  c1InventoryId: string
+  activeC1Inventory: ActiveInventory | null
+  operationalInventories: ActiveInventory[]
   loading: boolean
   error: string | null
   selectInventory: (inventoryId: string) => void
+  selectC1Inventory: (inventoryId: string) => void
   refreshInventories: () => Promise<void>
 }
 
@@ -23,9 +28,16 @@ export function selectAuthorizedInventoryId(currentId: string, inventories: read
   return inventories.some((inventory) => inventory.id === currentId) ? currentId : inventories[0]?.id ?? ''
 }
 
+/** A single authorized open inventory is selected automatically; multiple ones require an explicit inventory choice. */
+export function selectOperationalInventoryId(currentId: string, inventories: readonly ActiveInventory[]): string {
+  if (inventories.some((inventory) => inventory.id === currentId)) return currentId
+  return inventories.length === 1 ? inventories[0]?.id ?? '' : ''
+}
+
 export function ActiveInventoryProvider({ children }: { children: ReactNode }) {
   const [inventories, setInventories] = useState<ActiveInventory[]>([])
   const [inventoryId, setInventoryId] = useState('')
+  const [c1InventoryId, setC1InventoryId] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -33,8 +45,11 @@ export function ActiveInventoryProvider({ children }: { children: ReactNode }) {
     setLoading(true)
     try {
       const next = await repository.inventories() as ActiveInventory[]
+      const operational = next.filter((inventory) => inventory.status === 'ABIERTO')
       setInventories(next)
       setInventoryId((current) => selectAuthorizedInventoryId(current, next))
+      setC1InventoryId((current) => selectOperationalInventoryId(current, operational))
+      console.info('INVEN3_CONTEXT AUTHORIZED_INVENTORIES_LOADED')
       setError(null)
     } catch (cause: unknown) {
       setInventories([])
@@ -51,11 +66,19 @@ export function ActiveInventoryProvider({ children }: { children: ReactNode }) {
     inventories,
     inventoryId,
     activeInventory: inventories.find((inventory) => inventory.id === inventoryId) ?? null,
+    c1InventoryId,
+    activeC1Inventory: inventories.find((inventory) => inventory.id === c1InventoryId && inventory.status === 'ABIERTO') ?? null,
+    operationalInventories: inventories.filter((inventory) => inventory.status === 'ABIERTO'),
     loading,
     error,
     selectInventory: (nextId) => setInventoryId(selectAuthorizedInventoryId(nextId, inventories)),
+    selectC1Inventory: (nextId) => {
+      if (!inventories.some((inventory) => inventory.id === nextId && inventory.status === 'ABIERTO')) return
+      setC1InventoryId(nextId)
+      console.info('INVEN3_CONTEXT ACTIVE_INVENTORY_SELECTED')
+    },
     refreshInventories,
-  }), [error, inventories, inventoryId, loading, refreshInventories])
+  }), [c1InventoryId, error, inventories, inventoryId, loading, refreshInventories])
 
   return <ActiveInventoryContext.Provider value={value}>{children}</ActiveInventoryContext.Provider>
 }

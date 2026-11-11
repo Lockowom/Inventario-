@@ -49,16 +49,18 @@ export class DeviceHealthService {
   }
 
   private checkAuthUser(context: ResolvedCountingContext): DeviceHealthCheck {
-    if (context.kind !== 'BLOCKED') return { key: 'AUTH_USER', status: 'PASS', blocking: true, message: 'Identidad autorizada disponible localmente.' }
+    if (context.kind !== 'BLOCKED') return { key: 'AUTH_USER', status: 'PASS', blocking: true, message: 'Usuario validado.' }
     return { key: 'AUTH_USER', status: 'FAIL', blocking: true, message: 'Inicie sesión con un usuario activo.' }
   }
 
   private checkInventoryContext(context: ResolvedCountingContext): DeviceHealthCheck {
+    if (context.kind === 'SELECTION_REQUIRED') return { key: 'INVENTORY_CONTEXT', status: 'WARN', blocking: false, message: 'Tienes múltiples inventarios autorizados. Selecciona uno para comenzar.' }
     if (context.kind !== 'BLOCKED' && context.context.inventoryStatus === 'ABIERTO') return { key: 'INVENTORY_CONTEXT', status: 'PASS', blocking: true, message: 'Inventario abierto autorizado.' }
     return { key: 'INVENTORY_CONTEXT', status: 'FAIL', blocking: true, message: 'Seleccione un inventario abierto autorizado.' }
   }
 
   private async checkMasterSnapshot(context: ResolvedCountingContext): Promise<DeviceHealthCheck> {
+    if (context.kind === 'SELECTION_REQUIRED') return { key: 'MASTER_SNAPSHOT', status: 'WARN', blocking: false, message: 'Seleccione un inventario activo para validar su Maestro SKU.' }
     if (context.kind === 'BLOCKED') return { key: 'MASTER_SNAPSHOT', status: 'FAIL', blocking: true, message: 'El maestro de este inventario no está disponible localmente.' }
     try {
       const { inventoryId } = context.context
@@ -96,13 +98,14 @@ export class DeviceHealthService {
   private checkBackendConnectivity(context: ResolvedCountingContext): DeviceHealthCheck {
     if (context.kind === 'ONLINE') return { key: 'BACKEND_CONNECTIVITY', status: 'PASS', blocking: false, message: 'Servidor disponible.' }
     if (context.kind === 'OFFLINE') return { key: 'BACKEND_CONNECTIVITY', status: 'WARN', blocking: false, message: 'Servidor no disponible ahora. Puede trabajar offline y sincronizar después.' }
+    if (context.kind === 'SELECTION_REQUIRED') return { key: 'BACKEND_CONNECTIVITY', status: 'PASS', blocking: false, message: 'Servidor disponible.' }
     return { key: 'BACKEND_CONNECTIVITY', status: context.reason === 'CACHE_MISMATCH' ? 'WARN' : 'PASS', blocking: false, message: context.reason === 'CACHE_MISMATCH' ? 'No fue posible verificar el servidor.' : 'Servidor disponible.' }
   }
 
   private async checkDeviceTime(context: ResolvedCountingContext, deviceTime: Date): Promise<DeviceHealthCheck> {
     const localIso = validIso(deviceTime)
     if (!localIso) return { key: 'DEVICE_TIME', status: 'FAIL', blocking: true, message: 'La hora del dispositivo no es válida.' }
-    if (context.kind !== 'ONLINE') return { key: 'DEVICE_TIME', status: 'WARN', blocking: false, message: 'No fue posible comparar la hora del dispositivo con el servidor.' }
+    if (context.kind !== 'ONLINE' && context.kind !== 'SELECTION_REQUIRED') return { key: 'DEVICE_TIME', status: 'WARN', blocking: false, message: 'No fue posible comparar la hora del dispositivo con el servidor.' }
     const serverTime = await safely(this.dependencies.serverTime.getServerTime)
     if (!serverTime || !validIso(serverTime)) return { key: 'DEVICE_TIME', status: 'WARN', blocking: false, message: 'No fue posible comparar la hora del dispositivo con el servidor.' }
     const driftMs = Math.abs(deviceTime.getTime() - serverTime.getTime())

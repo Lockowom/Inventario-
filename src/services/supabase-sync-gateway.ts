@@ -3,6 +3,7 @@ import type { CountSyncGateway } from '../domain/sync/sync-manager'
 import { SyncTransportError, type SyncTransportErrorKind } from '../domain/sync/transport-error'
 import { getPlatformCapabilities } from '../platform/runtime-platform'
 import { getSupabaseClient } from './supabase'
+import { releaseMetadata } from '../config/release-metadata'
 
 function platform(): 'ANDROID' | 'IOS' | 'WEB' {
   const current = getPlatformCapabilities().platform
@@ -35,8 +36,8 @@ export function classifySupabaseSyncError(error: unknown, status?: number): Sync
   return new SyncTransportError(kind, safeCode)
 }
 
-const appVersion = import.meta.env.VITE_APP_VERSION ?? '0.1.0'
-const deviceLabel = `INVEN3 ${platform()}`
+const appVersion = releaseMetadata.version
+const deviceLabel = `INVEN3 ${platform()} v${releaseMetadata.version} build ${releaseMetadata.versionCode}`
 
 /** Supabase-only adapter. No domain/use-case imports this implementation. */
 export class SupabaseSyncGateway implements CountSyncGateway {

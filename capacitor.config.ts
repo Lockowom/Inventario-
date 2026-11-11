@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
-// OTA-09 is deliberately bound to INVEN3-QA. This URL is native configuration,
-// not a frontend secret, and is immutable from JavaScript below.
-const inven3QaOtaEndpoint = 'https://uazunvlxlszdyweddxtb.supabase.co/functions/v1/ota-updates'
+// CUT2-11C is deliberately bound to the rebuilt INVEN3-QA project. This URL is
+// native configuration, not a frontend secret, and is immutable from JavaScript.
+const inven3QaOtaEndpoint = 'https://kpsdephjbvkwvazxubtb.supabase.co/functions/v1/ota-updates'
 
 const config: CapacitorConfig = {
   appId: 'com.lockowom.inven3',

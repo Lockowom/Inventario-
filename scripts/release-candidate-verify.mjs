@@ -113,11 +113,13 @@ if (!args.nativeWebEvidence) fail(60, '--native-web-evidence is required')
 
 const root = process.cwd()
 const policyPath = path.join(root, 'release-policy.json')
+const versionPath = path.join(root, 'version.json')
 const manifestPath = path.resolve(root, args.manifest)
 const nativeWebEvidencePath = path.resolve(root, args.nativeWebEvidence)
 
 if (!fs.existsSync(policyPath)) fail(43, 'release-policy.json not found')
 const policy = readJson(policyPath, 'release policy', 43, 43)
+const version = readJson(versionPath, 'version source', 43, 43)
 const manifest = readJson(manifestPath, 'release manifest', 44, 44)
 const nativeWeb = readJson(nativeWebEvidencePath, 'native web evidence', 61, 61)
 repoRelativeFile(root, manifestPath, 'release manifest')
@@ -128,14 +130,10 @@ if (manifest.productionLocked !== true) fail(46, 'manifest does not preserve pro
 if (manifest.schemaVersion !== 1 || manifest.product !== policy.product) fail(64, 'manifest product/schema is not aligned with policy')
 if (manifest.environment !== 'qa') fail(47, `candidate environment must be qa, got ${manifest.environment}`)
 if (manifest.channel !== 'beta') fail(48, `candidate channel must be beta, got ${manifest.channel}`)
-if (manifest.version !== policy.releaseVersion) fail(49, 'manifest release version is not aligned with policy')
-
-const effectiveBuildNumber = manifest?.native?.effectiveBuildNumber
-if (!Number.isInteger(effectiveBuildNumber)) fail(50, 'manifest native.effectiveBuildNumber is missing or invalid')
-const baseBuild = args.platform === 'android'
-  ? policy.native.androidBaseVersionCode
-  : policy.native.iosBaseBuildNumber
-if (effectiveBuildNumber < baseBuild) fail(51, `effective native build ${effectiveBuildNumber} is below policy base ${baseBuild}`)
+if (manifest.version !== version.version || manifest.versionCode !== version.versionCode) fail(49, 'manifest release version is not aligned with version.json')
+if (manifest?.native?.versionName !== version.version || manifest?.native?.versionCode !== version.versionCode) {
+  fail(50, 'manifest native version is not aligned with version.json')
+}
 
 const commit = currentCommit()
 if (!/^[0-9a-f]{40}$/i.test(String(manifest.commit ?? ''))) fail(52, 'manifest commit is not a full SHA')
@@ -213,7 +211,7 @@ const evidence = {
   environment: manifest.environment,
   channel: manifest.channel,
   build: manifest.build,
-  nativeBuildNumber: effectiveBuildNumber,
+  nativeBuildNumber: version.versionCode,
   commit: manifest.commit,
   productionLocked: true,
   webBundleSha256: manifest.webBundle.aggregateSha256,
@@ -239,7 +237,7 @@ fs.mkdirSync(path.dirname(outPath), { recursive: true })
 fs.writeFileSync(outPath, JSON.stringify(evidence, null, 2) + '\n')
 
 console.log(`[PASS] F10A_RELEASE_CANDIDATE ${args.platform}`)
-console.log(`[PASS] READY_FOR_BETA_SMOKE build=${manifest.build} native=${effectiveBuildNumber}`)
+console.log(`[PASS] READY_FOR_BETA_SMOKE build=${manifest.build} native=${version.versionCode}`)
 console.log(`[PASS] NATIVE_WEB_PARITY files=${nativeWeb.verifiedFileCount} sha256=${nativeWeb.webBundleSha256}`)
 for (const artifact of artifacts) {
   console.log(`[PASS] ARTIFACT ${artifact.path} ${artifact.bytes} bytes sha256=${artifact.sha256}`)

@@ -81,6 +81,7 @@ La certificación de SQLite, permisos de cámara y scanner requiere pruebas en d
 - [`docs/BACKUPS_RECOVERY_V1.md`](docs/BACKUPS_RECOVERY_V1.md) — contrato F8A de snapshots, respaldos y recuperación.
 - [`docs/CERTIFICATION_V1.md`](docs/CERTIFICATION_V1.md) — matriz autoritativa de certificación F9.
 - [`docs/F10A_RELEASE_ENGINEERING.md`](docs/F10A_RELEASE_ENGINEERING.md) — política, versionado, canales y guardas de release.
+- [`docs/VERSIONADO_INVEN3.md`](docs/VERSIONADO_INVEN3.md) — fuente canónica única de versión Web + Android y proceso controlado de bump.
 - [`docs/F10A_QA_BETA_RUNBOOK.md`](docs/F10A_QA_BETA_RUNBOOK.md) — ejecución controlada de candidatos QA/BETA.
 - [`docs/F10A_BETA_SMOKE_RUNBOOK.md`](docs/F10A_BETA_SMOKE_RUNBOOK.md) — smoke real de artefactos Release y cierre F10A.
 - [`docs/F10A_SMOKE_EVIDENCE_SCHEMA.md`](docs/F10A_SMOKE_EVIDENCE_SCHEMA.md) — contrato de evidencia Android/iOS para el gate de cierre.

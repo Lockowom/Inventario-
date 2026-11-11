@@ -13,7 +13,7 @@ describe('WIN-02.1 Tauri QA runtime contract', () => {
     }
 
     expect(packageJson.scripts['dev:qa']).toBe('vite --mode qa')
-    expect(packageJson.scripts['build:qa']).toBe('tsc -b && vite build --mode qa')
+    expect(packageJson.scripts['build:qa']).toBe('node scripts/build-qa.mjs')
     expect(packageJson.scripts['tauri:dev:qa']).toBe('tauri dev')
     expect(packageJson.scripts['tauri:build:qa']).toBe('tauri build')
     expect(tauriConfig.build.beforeDevCommand).toContain('npm run dev:qa')

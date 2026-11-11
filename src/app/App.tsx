@@ -13,12 +13,6 @@ import { LoginScreen } from '../features/auth/login-screen'
 import { nextRuntimeAuthState, type RuntimeAuthState } from '../features/auth/auth-boundary-state'
 import type { CountingRuntime } from '../features/counting/counting-screen'
 import type { SyncCoordinator } from '../domain/sync/sync-coordinator'
-import type { DeviceHealthMode, DeviceHealthReport } from '../domain/device-health/contracts'
-import { createDeviceHealthService } from '../features/device-health/device-health-runtime'
-import { DeviceHealthScreen } from '../features/device-health/device-health-screen'
-import { DeviceComponentsPanel } from '../features/device-health/device-components-panel'
-import { runDeviceHealthCheck } from '../features/device-health/device-health-runner'
-import { createCaptureGate } from '../features/device-health/capture-gate'
 import { CertificationFixture } from './certification-fixture'
 import { isCertificationFixtureEnabled } from './certification-fixture-mode'
 import { displayReleaseChannel, releaseMetadata } from '../config/release-metadata'
@@ -30,12 +24,13 @@ import { AppNavigation } from './app-navigation'
 import { defaultAppViewForRole, isAppViewAllowed, type AppView } from './app-navigation-policy'
 import { bindOtaRetryEvents, otaUpdateService, type OtaUpdateState } from '../services/ota-update-service'
 import { OtaUpdatePanel } from '../features/ota/ota-update-panel'
-import { ActiveInventoryProvider } from '../features/control-center/active-inventory-context'
+import { ActiveInventoryProvider, useRequiredActiveInventory } from '../features/control-center/active-inventory-context'
 import { ControlCenterScreen } from '../features/control-center/control-center-screen'
 import { ExperienceProvider } from '../ui/preferences/experience-preferences'
 import { ExperiencePanel } from '../ui/preferences/experience-panel'
 import { SoundRuntime } from '../ui/sound/sound-runtime'
 import { getPlatformCapabilities } from '../platform/runtime-platform'
+import { resolveC1Readiness, type C1Readiness } from '../features/counting/c1-readiness'
 
 export function App() {
   if (isCertificationFixtureEnabled({ dev: import.meta.env.DEV, fixture: import.meta.env.VITE_CERTIFICATION_FIXTURE })) return <CertificationFixture />
@@ -67,34 +62,34 @@ function AuthBoundary() {
 }
 
 function AuthenticatedRuntime() {
+  return <ExperienceProvider><SoundRuntime /><ActiveInventoryProvider><AuthenticatedWorkspace /></ActiveInventoryProvider></ExperienceProvider>
+}
+
+function AuthenticatedWorkspace() {
+  const { c1InventoryId, operationalInventories, activeC1Inventory, loading: inventoriesLoading, error: inventoryError, selectC1Inventory } = useRequiredActiveInventory()
   const [role, setRole] = useState<AppRole | null>(null)
   const [activeView, setActiveView] = useState<AppView>('counting')
   const [countingRuntime, setCountingRuntime] = useState<CountingRuntime | null>(null)
   const [syncCoordinator, setSyncCoordinator] = useState<SyncCoordinator | null>(null)
   const [startupSyncMessage, setStartupSyncMessage] = useState('')
-  const [healthReport, setHealthReport] = useState<DeviceHealthReport | null>(null)
-  const [healthLoading, setHealthLoading] = useState(true)
-  const [healthError, setHealthError] = useState<string | null>(null)
+  const [c1Readiness, setC1Readiness] = useState<C1Readiness | null>(null)
+  const [c1Loading, setC1Loading] = useState(true)
   const [otaState, setOtaState] = useState<OtaUpdateState | null>(null)
-  const healthRun = useRef(0)
+  const readinessRun = useRef(0)
 
-  const runHealth = useCallback(async (mode: DeviceHealthMode) => {
-    const run = ++healthRun.current
-    setHealthLoading(true); setHealthError(null); setHealthReport(null)
+  const refreshC1Readiness = useCallback(async (activeInventoryId?: string) => {
+    const run = ++readinessRun.current
+    setC1Loading(true); setC1Readiness(null); setCountingRuntime(null)
     try {
-      const result = await runDeviceHealthCheck(mode, { createService: createDeviceHealthService, createCountingRuntime })
-      if (run !== healthRun.current) return
-      if (result.report.resolvedContext.kind === 'BLOCKED' && result.report.resolvedContext.reason === 'NOT_AUTHORIZED') {
-        await authService.invalidateLocalAuthority()
-        return
-      }
-      setHealthReport(result.report); setCountingRuntime(result.runtime)
-    } catch (error: unknown) {
-      console.error('DEVICE_HEALTH_RUNTIME_FAIL', error)
-      if (run !== healthRun.current) return
-      setHealthError('No fue posible comprobar el dispositivo. Actualice el diagnóstico antes de capturar.')
+      const readiness = await resolveC1Readiness(activeInventoryId)
+      if (run !== readinessRun.current) return
+      setC1Readiness(readiness)
+      if (readiness.kind === 'C1_READY') setCountingRuntime(createCountingRuntime(readiness.context))
+    } catch {
+      if (run !== readinessRun.current) return
+      setC1Readiness({ kind: 'CONTEXT_UNAVAILABLE', message: 'No fue posible validar el contexto operativo. Reintenta.' })
     } finally {
-      if (run === healthRun.current) setHealthLoading(false)
+      if (run === readinessRun.current) setC1Loading(false)
     }
   }, [])
 
@@ -120,16 +115,23 @@ function AuthenticatedRuntime() {
         if (active) setStartupSyncMessage('No fue posible reconciliar los conteos pendientes. Permanecen protegidos localmente.')
       })
     }
-    const bootstrap = async () => { await prepareSync(); if (active) void runHealth('LIGHT') }
+    const bootstrap = async () => { await prepareSync() }
     void bootstrap()
     const localSignOut = authService.onLocalSignOut(() => {
       if (!active) return
-      healthRun.current += 1
-      setHealthReport(null); setHealthError(null); setHealthLoading(false); setCountingRuntime(null); setSyncCoordinator(null); setStartupSyncMessage('')
+      readinessRun.current += 1
+      setC1Readiness(null); setC1Loading(false); setCountingRuntime(null); setSyncCoordinator(null); setStartupSyncMessage('')
       void cache.clear()
     })
     return () => { active = false; localSignOut.unsubscribe() }
-  }, [runHealth])
+  }, [])
+
+  // C1 resolves only its operational dependencies after the authorized
+  // inventory list is available. Hardware diagnostics never gate this flow.
+  useEffect(() => {
+    if (inventoriesLoading) return
+    void refreshC1Readiness(c1InventoryId || undefined)
+  }, [c1InventoryId, inventoriesLoading, refreshC1Readiness])
 
   useEffect(() => {
     // Some isolated runtime tests provide only the auth capabilities they exercise.
@@ -158,20 +160,11 @@ function AuthenticatedRuntime() {
     if (role && !isAppViewAllowed(role, activeView)) setActiveView(defaultAppViewForRole(role))
   }, [activeView, role])
 
-  const healthCaptureGate = createCaptureGate(healthReport, healthLoading, healthError)
-  const captureGate = otaState?.kind === 'NATIVE_REQUIRED'
-    ? { blocked: true, message: otaState.message }
-    : healthCaptureGate
   const visibleView = isAppViewAllowed(role, activeView) ? activeView : defaultAppViewForRole(role)
-  const deviceNeedsReview = healthError !== null || healthReport?.overall === 'BLOCKED'
-  const backendStatus = healthReport?.checks?.find((check) => check.key === 'BACKEND_CONNECTIVITY')?.status
-  const deviceStatus = deviceNeedsReview ? 'REVISAR' : healthLoading ? 'COMPROBANDO' : backendStatus === 'WARN' || backendStatus === 'UNAVAILABLE' ? 'OFFLINE' : 'LISTO'
-  const content = visibleView === 'device-status'
-    ? <><DeviceComponentsPanel report={healthReport} loading={healthLoading} error={healthError} otaState={otaState} onOpenDiagnostic={() => void runHealth('FULL')} /><DeviceHealthScreen report={healthReport} loading={healthLoading} error={healthError} onRefresh={() => void runHealth('LIGHT')} onFullCheck={() => void runHealth('FULL')} /></>
-    : visibleView === 'counting'
-      ? <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} captureGate={captureGate} />
+  const content = visibleView === 'counting'
+      ? <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} readiness={c1Readiness} readinessLoading={c1Loading} inventoryContext={{ inventories: operationalInventories, inventoryId: c1InventoryId, activeInventory: activeC1Inventory, loading: inventoriesLoading, error: inventoryError, selectInventory: selectC1Inventory }} />
       : visibleView === 'recounts'
-        ? <RecountQueueScreen captureGate={captureGate} />
+        ? <RecountQueueScreen />
       : visibleView === 'control-center'
         ? <ControlCenterScreen role={role} />
       : visibleView === 'monitor'
@@ -190,11 +183,11 @@ function AuthenticatedRuntime() {
               ? <MasterSkuScreen />
               : <UserManagementScreen role={role} />
 
-  return <ExperienceProvider><SoundRuntime /><ActiveInventoryProvider><main className="app-shell app-shell--authenticated">
-    <AppNavigation role={role} activeView={visibleView} onSelect={(view) => { if (isAppViewAllowed(role, view)) setActiveView(view) }} onDeviceStatus={() => setActiveView('device-status')} deviceNeedsReview={deviceNeedsReview} deviceStatus={deviceStatus} onSignOut={() => void authService.signOut()} />
-    <section className="app-workspace" aria-label="Área de trabajo"><OtaUpdatePanel state={otaState} onApply={() => void otaUpdateService.apply().then((next) => { if (next) setOtaState(next) })} onRollback={() => void otaUpdateService.rollback()} />{deviceNeedsReview && visibleView !== 'device-status' && <section className="device-review-banner" role="alert"><strong>DISPOSITIVO REQUIERE REVISIÓN</strong><button className="button-secondary" type="button" onClick={() => setActiveView('device-status')}>VER DIAGNÓSTICO</button></section>}{content}</section>
+  return <main className="app-shell app-shell--authenticated">
+    <AppNavigation role={role} activeView={visibleView} onSelect={(view) => { if (isAppViewAllowed(role, view)) setActiveView(view) }} onSignOut={() => void authService.signOut()} />
+    <section className="app-workspace" aria-label="Área de trabajo"><OtaUpdatePanel state={otaState} onApply={() => void otaUpdateService.apply().then((next) => { if (next) setOtaState(next) })} onRollback={() => void otaUpdateService.rollback()} />{content}</section>
     <ExperiencePanel />
-  </main></ActiveInventoryProvider></ExperienceProvider>
+  </main>
 }
 
 function InfrastructureDiagnostic({ supabaseState }: { supabaseState: 'CONFIGURED' | 'NOT CONFIGURED' }) {

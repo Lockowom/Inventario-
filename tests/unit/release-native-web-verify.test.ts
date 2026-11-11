@@ -32,13 +32,14 @@ function fixture(platform: 'android' | 'ios' = 'android') {
   fs.mkdirSync(path.join(dir, 'artifacts/release'), { recursive: true })
   fs.writeFileSync(path.join(dir, 'release-policy.json'), JSON.stringify({
     product: 'INVEN3',
-    releaseVersion: '1.0.0',
     productionLocked: true,
   }))
+  fs.writeFileSync(path.join(dir, 'version.json'), JSON.stringify({ version: '0.0.00.01', versionCode: 1 }))
   fs.writeFileSync(path.join(dir, 'artifacts/release/INVEN3-release-manifest.json'), JSON.stringify({
     schemaVersion: 1,
     product: 'INVEN3',
-    version: '1.0.0',
+    version: '0.0.00.01',
+    versionCode: 1,
     environment: 'qa',
     channel: 'beta',
     build: 'aaaaaaaa.42',

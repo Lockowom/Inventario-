@@ -36,4 +36,10 @@ describe('DeviceHealthScreen', () => {
     render(<DeviceHealthScreen report={null} loading={false} error="No fue posible comprobar el dispositivo. Actualice el diagnóstico antes de capturar." onRefresh={vi.fn()} onFullCheck={vi.fn()} />)
     expect(screen.getByRole('alert')).toHaveTextContent('No fue posible comprobar el dispositivo')
   })
+
+  it('explains a multiple-open-inventory context as an operational selection, not an authentication failure', () => {
+    const selectionRequired = { ...report('READY_WITH_WARNINGS'), resolvedContext: { kind: 'SELECTION_REQUIRED' as const } }
+    render(<DeviceHealthScreen report={selectionRequired} loading={false} error={null} onRefresh={vi.fn()} onFullCheck={vi.fn()} />)
+    expect(screen.getByRole('status')).toHaveTextContent('Tienes múltiples inventarios autorizados. Selecciona uno para comenzar.')
+  })
 })

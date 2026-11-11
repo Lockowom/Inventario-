@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createCaptureGate } from '../../src/features/device-health/capture-gate'
 import { runDeviceHealthCheck } from '../../src/features/device-health/device-health-runner'
 import type { DeviceHealthReport } from '../../src/domain/device-health/contracts'
 
@@ -26,18 +25,4 @@ describe('Device Health app composition', () => {
     expect(createRuntime).not.toHaveBeenCalled()
   })
 
-  it('keeps new capture unavailable initially, after runner errors, and after a blocked refresh', () => {
-    expect(createCaptureGate(null, true, null).blocked).toBe(true)
-    expect(createCaptureGate(readyReport, false, 'No fue posible comprobar el dispositivo. Actualice el diagnóstico antes de capturar.').blocked).toBe(true)
-    expect(createCaptureGate({ ...readyReport, overall: 'BLOCKED' }, false, null).blocked).toBe(true)
-  })
-
-  it.each(['READY', 'READY_OFFLINE', 'READY_WITH_WARNINGS'] as const)('does not block capture for %s', (overall) => {
-    expect(createCaptureGate({ ...readyReport, overall }, false, null)).toEqual({ blocked: false, message: null })
-  })
-
-  it('rehabilitates capture immediately after a later READY report', () => {
-    expect(createCaptureGate({ ...readyReport, overall: 'BLOCKED' }, false, null).blocked).toBe(true)
-    expect(createCaptureGate(readyReport, false, null).blocked).toBe(false)
-  })
 })

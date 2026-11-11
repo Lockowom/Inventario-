@@ -1,7 +1,7 @@
 import type { DeviceHealthCheck, DeviceHealthOverall } from './contracts'
 import type { ResolvedCountingContext } from '../count/resolve-counting-context'
 
-/** Pure policy evaluator. Authorization semantics remain owned by resolveCountingContext. */
+/** Technical readiness only. Inventory selection is an operational action, not a device fault. */
 export function evaluateDeviceHealthOverall(checks: readonly DeviceHealthCheck[], context: ResolvedCountingContext): DeviceHealthOverall {
   if (context.kind === 'BLOCKED') return 'BLOCKED'
   if (checks.some((check) => check.blocking && check.status === 'FAIL')) return 'BLOCKED'

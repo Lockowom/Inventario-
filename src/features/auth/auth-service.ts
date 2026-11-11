@@ -1,9 +1,10 @@
 import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 import { profileSchema, type AppRole, type Profile } from '../../domain/auth/contracts'
-import { getSupabaseClient } from '../../services/supabase'
+import { getSupabaseClient, getSupabaseRuntimeConfiguration } from '../../services/supabase'
 import { getCountingContextRepository } from '../counting/counting-runtime'
 import { signOutAndClearCountingContext } from '../../domain/count/sign-out-counting-context'
 import { clearPersistedAuthUserId, persistAuthUserId } from '../../services/local-auth-identity'
+import { recordAuthSignInAttempt, recordAuthSignInFailure, recordAuthSignInInput, recordAuthSignInSuccess } from './auth-diagnostics'
 
 export interface AuthSubscription { unsubscribe(): void }
 export type AuthSessionListener = (event: AuthChangeEvent, session: Session | null) => void
@@ -40,11 +41,21 @@ export class AuthService {
 
   public async signIn(email: string, password: string): Promise<Session> {
     const client = getSupabaseClient()
-    if (!client) throw new Error('Supabase no configurado.')
+    const configuration = getSupabaseRuntimeConfiguration()
+    if (!client) {
+      recordAuthSignInAttempt(configuration)
+      throw new Error('Supabase no configurado.')
+    }
     const normalizedEmail = email.trim().toLowerCase()
     if (!normalizedEmail || !password) throw new Error('Correo y contraseña son obligatorios.')
+    recordAuthSignInInput(email, password)
+    recordAuthSignInAttempt(configuration)
     const { data, error } = await client.auth.signInWithPassword({ email: normalizedEmail, password })
-    if (error || !data.session) throw new Error('Credenciales inválidas o sesión no disponible.')
+    if (error || !data.session) {
+      recordAuthSignInFailure(configuration, error)
+      throw new Error('Credenciales inválidas o sesión no disponible.')
+    }
+    recordAuthSignInSuccess(configuration)
     const userId = data.session.user?.id ?? data.user?.id
     if (userId) persistAuthUserId(userId)
     return data.session

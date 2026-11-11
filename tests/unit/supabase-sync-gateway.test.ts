@@ -31,6 +31,16 @@ describe('SupabaseSyncGateway error classification', () => {
     await expect(new SupabaseSyncGateway().registerDevice({ deviceId })).rejects.toMatchObject({ kind: 'TRANSIENT', retryable: true })
   })
 
+  it('reports the canonical application version and version code through the existing device RPC', async () => {
+    rpc.mockResolvedValueOnce({ data: { ok: true }, error: null })
+    await new SupabaseSyncGateway().registerDevice({ deviceId })
+    expect(rpc).toHaveBeenCalledWith('register_sync_device', expect.objectContaining({
+      p_device_id: deviceId,
+      p_app_version: '0.0.00.01',
+      p_device_label: expect.stringContaining('v0.0.00.01 build 1'),
+    }))
+  })
+
   it('uses the real RPC response status for 42501 / HTTP 403', async () => {
     rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'forbidden' }, status: 403, statusText: 'Forbidden' })
     await expect(new SupabaseSyncGateway().reportPending({ inventoryId, deviceId, pendingCount: 1 })).rejects.toMatchObject({ kind: 'TERMINAL_AUTHORIZATION', retryable: false })

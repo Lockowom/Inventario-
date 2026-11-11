@@ -6,6 +6,7 @@ import { execFileSync } from 'node:child_process'
 
 const root = process.cwd()
 const policy = JSON.parse(fs.readFileSync(path.join(root, 'release-policy.json'), 'utf8'))
+const versionConfig = JSON.parse(fs.readFileSync(path.join(root, 'version.json'), 'utf8'))
 const dist = path.join(root, 'dist')
 
 function sha256(buffer) {
@@ -42,6 +43,9 @@ function resolveCommit() {
 const files = collectFiles(dist).sort((a, b) => a.path.localeCompare(b.path))
 if (files.length === 0) throw new Error('Release manifest requires a non-empty dist/ bundle. Run the build first.')
 if (policy.productionLocked !== true) throw new Error('Release manifest requires productionLocked=true during F10A.')
+if (typeof versionConfig.version !== 'string' || !/^\d+\.\d+\.\d{2}\.\d{2}$/.test(versionConfig.version) || !Number.isInteger(versionConfig.versionCode) || versionConfig.versionCode <= 0) {
+  throw new Error('Release manifest requires a valid canonical version.json.')
+}
 const aggregate = sha256(Buffer.from(files.map((file) => `${file.path}:${file.sha256}:${file.bytes}`).join('\n')))
 const environment = process.env.VITE_RELEASE_ENV || policy.defaultEnvironment
 const channel = process.env.VITE_RELEASE_CHANNEL || policy.defaultChannel
@@ -51,32 +55,20 @@ const build = process.env.VITE_APP_BUILD || null
 if (!build || !new RegExp(`^${commit.slice(0, 8)}\\.\\d+$`, 'i').test(build)) {
   throw new Error('Release manifest build identity must be <candidate-sha8>.<run-number>.')
 }
-const nativeBuildNumberRaw = process.env.INVEN3_NATIVE_BUILD_NUMBER || ''
-const nativeBuildNumber = /^\d+$/.test(nativeBuildNumberRaw) ? Number(nativeBuildNumberRaw) : null
-const buildRunNumber = Number(build.split('.')[1])
-const androidBase = policy.native?.androidBaseVersionCode
-const iosBase = policy.native?.iosBaseBuildNumber
-if (!Number.isInteger(androidBase) || !Number.isInteger(iosBase) || androidBase !== iosBase) {
-  throw new Error('Release manifest requires equal integer Android/iOS native base build numbers for F10A.')
-}
-if (!Number.isInteger(nativeBuildNumber) || nativeBuildNumber !== androidBase + buildRunNumber) {
-  throw new Error('Release manifest native build number is not bound to the candidate run number.')
-}
 
 const manifest = {
   schemaVersion: 1,
   product: policy.product,
-  version: policy.releaseVersion,
+  version: versionConfig.version,
+  appVersion: versionConfig.version,
+  versionCode: versionConfig.versionCode,
   environment,
   channel,
   build,
   commit,
   productionLocked: policy.productionLocked,
   generatedAt: new Date().toISOString(),
-  native: {
-    ...policy.native,
-    effectiveBuildNumber: nativeBuildNumber,
-  },
+  native: { versionName: versionConfig.version, versionCode: versionConfig.versionCode },
   webBundle: {
     fileCount: files.length,
     aggregateSha256: aggregate,

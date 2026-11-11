@@ -29,7 +29,14 @@ export function DeviceHealthScreen({ report, loading, error, onRefresh, onFullCh
   onFullCheck: () => void
 }) {
   const overall = report?.overall
-  const statusText = error ?? (loading ? 'Comprobando el estado del dispositivo…' : overall ? overallLabels[overall] : 'No fue posible comprobar el dispositivo. Actualice el diagnóstico antes de capturar.')
+  const selectionRequired = report?.resolvedContext.kind === 'SELECTION_REQUIRED'
+  const statusText = error ?? (loading
+    ? 'Comprobando el estado del dispositivo…'
+    : selectionRequired
+      ? 'Tienes múltiples inventarios autorizados. Selecciona uno para comenzar.'
+      : overall
+        ? overallLabels[overall]
+        : 'No fue posible comprobar el dispositivo. Actualice el diagnóstico antes de capturar.')
   const statusRole = error || overall === 'BLOCKED' ? 'alert' : 'status'
   return <section className="device-health-screen" aria-labelledby="device-health-title">
     <header><p className="eyebrow">Diagnóstico operativo</p><h1 id="device-health-title">HEALTH CHECK DEL DISPOSITIVO</h1></header>

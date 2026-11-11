@@ -1,10 +1,11 @@
 import { z } from 'zod'
+import { postgresUuidSchema } from '../postgres-id'
 
 export const inventoryLifecycleSchema = z.enum(['BORRADOR', 'PREPARADO', 'ABIERTO', 'CERRADO', 'CONGELADO'])
 export type InventoryLifecycle = z.infer<typeof inventoryLifecycleSchema>
 
 export const inventorySchema = z.object({
-  id: z.uuid(),
+  id: postgresUuidSchema,
   name: z.string().trim().min(1),
   status: inventoryLifecycleSchema,
 })

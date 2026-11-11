@@ -357,6 +357,13 @@ function IssueList({title,items}:{title:string;items:Array<{key:string;title:str
 }
 
 function describeError(error: unknown, fallback: string): string {
+  // Contracts are deliberately strict, but their Zod issue payload is an
+  // implementation detail. Operators need a recoverable message; QA logs
+  // retain only the safe error category for diagnosis.
+  if (error instanceof Error && error.name === 'ZodError') {
+    if (import.meta.env.MODE === 'qa' || import.meta.env.DEV) console.info('INVEN3_DATA_LOAD validation_error')
+    return fallback
+  }
   if (error instanceof Error && error.message) return error.message
   if (!error || typeof error !== 'object') return fallback
   const candidate = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown }

@@ -27,18 +27,12 @@ function fixture(
   writeJson(path.join(dir, 'release-policy.json'), {
     schemaVersion: 1,
     product: 'INVEN3',
-    releaseVersion: '1.0.0',
     defaultEnvironment: 'qa',
     defaultChannel: 'beta',
     qaSupabaseProjectRef: 'uazunvlxlszdyweddxtb',
     productionLocked: true,
-    native: {
-      androidVersionName: '1.0.0',
-      androidBaseVersionCode: 10000,
-      iosMarketingVersion: '1.0.0',
-      iosBaseBuildNumber: 10000,
-    },
   })
+  writeJson(path.join(dir, 'version.json'), { version: '0.0.00.01', versionCode: 1 })
   const apk = path.join(dir, 'candidate.apk')
   const aab = path.join(dir, 'candidate.aab')
   fs.writeFileSync(apk, Buffer.from('apk candidate'))
@@ -50,19 +44,14 @@ function fixture(
   const manifest = {
     schemaVersion: 1,
     product: 'INVEN3',
-    version: '1.0.0',
+    version: '0.0.00.01',
+    versionCode: 1,
     environment: 'qa',
     channel: 'beta',
     build: 'deadbeef.42',
     commit: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
     productionLocked: true,
-    native: {
-      androidVersionName: '1.0.0',
-      androidBaseVersionCode: 10000,
-      iosMarketingVersion: '1.0.0',
-      iosBaseBuildNumber: 10000,
-      effectiveBuildNumber: 10042,
-    },
+    native: { versionName: '0.0.00.01', versionCode: 1 },
     webBundle: {
       fileCount: 1,
       aggregateSha256: webHash,
@@ -77,7 +66,7 @@ function fixture(
     gate: 'F10A_NATIVE_WEB_PARITY',
     status: 'PASS',
     platform,
-    version: '1.0.0',
+    version: '0.0.00.01',
     environment: 'qa',
     channel: 'beta',
     build: manifest.build,
@@ -138,7 +127,7 @@ describe('F10A release candidate verifier', () => {
     expect(result.stdout).toContain('READY_FOR_BETA_SMOKE')
     const evidence = JSON.parse(fs.readFileSync(path.join(dir, 'artifacts/release/INVEN3-android-candidate-evidence.json'), 'utf8'))
     expect(evidence.status).toBe('READY_FOR_BETA_SMOKE')
-    expect(evidence.nativeBuildNumber).toBe(10042)
+    expect(evidence.nativeBuildNumber).toBe(1)
     expect(evidence.nativeWebVerification.nativeFileCount).toBe(1)
     expect(evidence.artifacts).toHaveLength(2)
   })
@@ -250,8 +239,8 @@ describe('F10A release candidate verifier', () => {
     expect(result.status).toBe(47)
   })
 
-  test('rejects missing effective native build number', () => {
-    const { dir, artifacts } = fixture({ native: { effectiveBuildNumber: null } })
+  test('rejects a manifest native version that diverges from version.json', () => {
+    const { dir, artifacts } = fixture({ native: { versionName: '0.0.00.01', versionCode: null } })
     const result = run(dir, artifacts)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(50)

@@ -1,7 +1,21 @@
 apply plugin: 'com.android.application'
 
-def inven3VersionCode = (project.findProperty("INVEN3_VERSION_CODE") ?: "10000").toInteger()
-def inven3VersionName = project.findProperty("INVEN3_VERSION_NAME") ?: "1.0.0"
+import groovy.json.JsonSlurper
+
+def inven3VersionSource = rootProject.file('../version.json')
+if (!inven3VersionSource.exists()) throw new GradleException('INVEN3_VERSION_SOURCE_MISSING')
+def inven3Version = new JsonSlurper().parse(inven3VersionSource)
+def inven3VersionName = inven3Version.version instanceof String ? inven3Version.version : null
+def inven3VersionCode = inven3Version.versionCode instanceof Number ? inven3Version.versionCode.intValue() : null
+if (inven3VersionName == null || !(inven3VersionName ==~ /^\d+\.\d+\.\d{2}\.\d{2}$/)) throw new GradleException('INVEN3_VERSION_FORMAT_INVALID')
+if (inven3VersionCode == null || inven3VersionCode <= 0) throw new GradleException('INVEN3_VERSION_CODE_INVALID')
+
+// CI may pass the properties for evidence, but Gradle refuses any value that
+// diverges from version.json. This keeps Web and APK on one release identity.
+def requestedCode = project.findProperty('INVEN3_VERSION_CODE')
+def requestedName = project.findProperty('INVEN3_VERSION_NAME')
+if (requestedCode != null && requestedCode.toString().toInteger() != inven3VersionCode) throw new GradleException('INVEN3_VERSION_OVERRIDE_MISMATCH')
+if (requestedName != null && requestedName.toString() != inven3VersionName) throw new GradleException('INVEN3_VERSION_OVERRIDE_MISMATCH')
 
 android {
     namespace = "com.lockowom.inven3"

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { postgresUuidSchema } from '../postgres-id'
 
 export const masterControlTypeSchema = z.enum(['SERIAL', 'PARTIDA', 'LEGACY'])
 export type MasterControlType = z.infer<typeof masterControlTypeSchema>
@@ -18,7 +19,7 @@ export function deriveMasterControlType(codigo: string): MasterControlType {
 }
 
 export const masterSkuSchema = z.object({
-  inventoryId: z.uuid(),
+  inventoryId: postgresUuidSchema,
   codigo: z.string().trim().min(1).transform((value) => normalizeMasterCode(value)),
   descripcion: z.string().trim().min(1),
   controlType: masterControlTypeSchema,
@@ -48,7 +49,7 @@ export const masterImportPreviewSchema = z.object({
 export type MasterImportPreview = z.infer<typeof masterImportPreviewSchema>
 
 export const masterMetadataSchema = z.object({
-  inventoryId: z.uuid(),
+  inventoryId: postgresUuidSchema,
   masterVersion: z.number().int().positive(),
   rowCount: z.number().int().positive(),
   fingerprint: z.string().regex(/^[a-f0-9]{64}$/i),

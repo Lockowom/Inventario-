@@ -16,10 +16,9 @@ function temp() {
   fs.mkdirSync(path.join(dir, 'artifacts/release'), { recursive: true })
   fs.writeFileSync(path.join(dir, 'release-policy.json'), JSON.stringify({
     product:'INVEN3',
-    releaseVersion:'1.0.0',
     productionLocked:true,
-    native:{androidBaseVersionCode:10000,iosBaseBuildNumber:10000},
   }))
+  fs.writeFileSync(path.join(dir, 'version.json'), JSON.stringify({ version:'0.0.00.01', versionCode:1 }))
   return dir
 }
 
@@ -29,7 +28,7 @@ function candidate(platform:'android'|'ios', nativeBuildNumber:number) {
     gate:'F10A_RELEASE_CANDIDATE',
     status:'READY_FOR_BETA_SMOKE',
     platform,
-    version:'1.0.0',
+    version:'0.0.00.01',
     build:`${sha.slice(0,8)}.10`,
     environment:'qa',
     channel:'beta',
@@ -75,13 +74,13 @@ function smoke(platform:'android'|'ios', native_build_number:number, overrides:R
     installed_artifact_sha256:platform === 'android' ? 'c'.repeat(64) : 'e'.repeat(64),
     install_method:platform === 'android' ? 'local_device' : 'managed_device_lab',
     signing_provenance:platform === 'android' ? 'ephemeral_lab_signing' : 'laboratory_resign',
-    version:'1.0.0',
+    version:'0.0.00.01',
     build:`${sha.slice(0,8)}.10`,
     environment:'qa',
     channel:'beta',
     production_locked:true,
     native_build_number,
-    app_display_version:`1.0.0-beta+${sha.slice(0,8)}.10`,
+    app_display_version:`0.0.00.01-beta+${sha.slice(0,8)}.10`,
     device_model:'QA Device',
     os:platform === 'android' ? 'Android' : 'iOS',
     os_version:'test',
@@ -119,7 +118,7 @@ function write(dir:string, overrides:{
   const androidJson=JSON.stringify(a)
   const iosJson=JSON.stringify(i)
   const p={
-    product:'INVEN3', gate:'F10A_PLATFORM_PARITY', status:'READY_FOR_BETA_SMOKE', version:'1.0.0',
+    product:'INVEN3', gate:'F10A_PLATFORM_PARITY', status:'READY_FOR_BETA_SMOKE', version:'0.0.00.01',
     environment:'qa', channel:'beta', build:a.build, nativeBuildNumber:a.nativeBuildNumber, commit:sha, productionLocked:true, webBundleSha256:webHash,
     platforms:{
       android:{
@@ -194,8 +193,8 @@ describe('F10A evidence-driven closure',()=>{
     expect(closure.android.candidateEvidenceSha256).toMatch(/^[0-9a-f]{64}$/)
     expect(closure.ios.candidateEvidenceSha256).toMatch(/^[0-9a-f]{64}$/)
     expect(closure.parityEvidenceSha256).toMatch(/^[0-9a-f]{64}$/)
-    expect(closure.android.appDisplayVersion).toBe(`1.0.0-beta+${sha.slice(0,8)}.10`)
-    expect(closure.ios.appDisplayVersion).toBe(`1.0.0-beta+${sha.slice(0,8)}.10`)
+    expect(closure.android.appDisplayVersion).toBe(`0.0.00.01-beta+${sha.slice(0,8)}.10`)
+    expect(closure.ios.appDisplayVersion).toBe(`0.0.00.01-beta+${sha.slice(0,8)}.10`)
   })
 
   test('rejects a candidate build not bound to its commit',()=>{
@@ -248,7 +247,7 @@ describe('F10A evidence-driven closure',()=>{
   })
 
   test('rejects candidate native build below policy base',()=>{
-    const dir=temp(); write(dir,{android:{nativeBuildNumber:9999},androidSmoke:{native_build_number:9999}})
+    const dir=temp(); write(dir,{android:{nativeBuildNumber:0},androidSmoke:{native_build_number:1}})
     const result=run(dir)
     expect(result.ok).toBe(false)
     expect(result.status).toBe(116)
@@ -276,7 +275,7 @@ describe('F10A evidence-driven closure',()=>{
     write(dir,{
       androidSmoke:{
         build:`${sha.slice(0,8)}.11`,
-        app_display_version:`1.0.0-beta+${sha.slice(0,8)}.11`,
+        app_display_version:`0.0.00.01-beta+${sha.slice(0,8)}.11`,
       },
     })
     const result=run(dir)
@@ -305,7 +304,7 @@ describe('F10A evidence-driven closure',()=>{
     const dir=temp(); write(dir,{androidSmoke:{
       candidate_sha:foreignSha,
       build:`${foreignSha.slice(0,8)}.10`,
-      app_display_version:`1.0.0-beta+${foreignSha.slice(0,8)}.10`,
+      app_display_version:`0.0.00.01-beta+${foreignSha.slice(0,8)}.10`,
     }})
     const result=run(dir)
     expect(result.ok).toBe(false)
@@ -480,7 +479,7 @@ describe('F10A evidence-driven closure',()=>{
 
   test('rejects closure when production lock is disabled',()=>{
     const dir=temp()
-    fs.writeFileSync(path.join(dir,'release-policy.json'),JSON.stringify({product:'INVEN3',releaseVersion:'1.0.0',productionLocked:false,native:{androidBaseVersionCode:10000,iosBaseBuildNumber:10000}}))
+    fs.writeFileSync(path.join(dir,'release-policy.json'),JSON.stringify({product:'INVEN3',productionLocked:false}))
     write(dir)
     const result=run(dir)
     expect(result.ok).toBe(false)

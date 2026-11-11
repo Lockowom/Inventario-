@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 const h = vi.hoisted(() => ({
   createSyncCoordinator: vi.fn(),
-  runDeviceHealthCheck: vi.fn(),
+  createCountingRuntime: vi.fn(),
+  resolveC1Readiness: vi.fn(),
 }))
 
 vi.mock('../../src/services/supabase', () => ({
@@ -23,7 +24,7 @@ vi.mock('../../src/features/auth/auth-service', () => ({
 }))
 
 vi.mock('../../src/features/counting/counting-runtime', () => ({
-  createCountingRuntime: vi.fn(),
+  createCountingRuntime: h.createCountingRuntime,
   createSyncCoordinator: h.createSyncCoordinator,
   getCountingContextRepository: () => ({
     get: async () => null,
@@ -31,20 +32,8 @@ vi.mock('../../src/features/counting/counting-runtime', () => ({
   }),
 }))
 
-vi.mock('../../src/features/device-health/device-health-runner', () => ({
-  runDeviceHealthCheck: h.runDeviceHealthCheck,
-}))
-
-vi.mock('../../src/features/device-health/capture-gate', () => ({
-  createCaptureGate: () => ({ blocked: false, message: null }),
-}))
-
-vi.mock('../../src/features/device-health/device-health-runtime', () => ({
-  createDeviceHealthService: vi.fn(),
-}))
-
-vi.mock('../../src/features/device-health/device-health-screen', () => ({
-  DeviceHealthScreen: () => <div>health</div>,
+vi.mock('../../src/features/counting/c1-readiness', () => ({
+  resolveC1Readiness: h.resolveC1Readiness,
 }))
 
 vi.mock('../../src/features/master/master-sku-screen', () => ({
@@ -70,15 +59,15 @@ vi.mock('../../src/app/certification-fixture-mode', () => ({
 import { App } from '../../src/app/App'
 
 describe('App sync bootstrap', () => {
-  it('enables sync when health resolves an authorized runtime after the initial cache lookup was empty', async () => {
+  it('enables sync when C1 readiness resolves an authorized runtime after the initial cache lookup was empty', async () => {
     const userId = '22222222-2222-4222-8222-222222222222'
     const coordinator = {
       runOutstanding: vi.fn(async () => ({ scopes: 0, claimed: 0, confirmed: 0, rejected: 0, failed: 0, conflicts: 0, diagnostic: null })),
     }
     h.createSyncCoordinator.mockReturnValue(coordinator)
-    h.runDeviceHealthCheck.mockResolvedValue({
-      report: { resolvedContext: { kind: 'READY' } },
-      runtime: { context: { inventoryId: '11111111-1111-4111-8111-111111111111', userId, inventoryStatus: 'ABIERTO' } },
+    h.createCountingRuntime.mockImplementation((context) => ({ context }))
+    h.resolveC1Readiness.mockResolvedValue({
+      kind: 'C1_READY', offline: false, message: 'C1 listo para operar.', context: { inventoryId: '11111111-1111-4111-8111-111111111111', userId, inventoryStatus: 'ABIERTO' },
     })
 
     const view = render(<App />)
