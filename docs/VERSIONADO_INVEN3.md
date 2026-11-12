@@ -9,9 +9,9 @@ release. Mantiene separadas la aplicación efectiva y el shell Android:
 
 ```json
 {
-  "appVersion": "0.0.00.03",
-  "nativeVersion": "0.0.00.02",
-  "versionCode": 2
+  "appVersion": "0.0.00.05",
+  "nativeVersion": "0.0.00.04",
+  "versionCode": 3
 }
 ```
 
@@ -26,8 +26,8 @@ son atributos de distribución, no cambian la identidad funcional.
   cambian si hay una modificación nativa (plugin Capacitor, permisos, Gradle,
   SQLite nativo, scanner o código Android incompatible).
 
-Un teléfono con APK `0.0.00.02`/build `2` puede ejecutar la app efectiva
-`0.0.00.03` mediante `qa-beta`, sin reinstalarse.
+Un teléfono con APK `0.0.00.04`/build `3` puede ejecutar la app efectiva
+`0.0.00.05` mediante `qa-beta`, sin reinstalarse.
 
 ## Correlativo y comandos
 
@@ -69,7 +69,10 @@ npm run ota:qa:bundle
 ```
 
 El workflow de QA publica el ZIP y su manifiesto inmutables sólo desde la rama
-`qa`. Producción continúa bloqueada por `release-policy.json`.
+`qa`. Un commit de bootstrap nativo (cuando `appVersion` es igual a
+`nativeVersion`) ejecuta las validaciones de QA, pero nunca publica un ZIP OTA:
+esa identidad se entrega exclusivamente como APK auditado. Producción continúa
+bloqueada por `release-policy.json`.
 
 ## Metadatos y dispositivos
 
