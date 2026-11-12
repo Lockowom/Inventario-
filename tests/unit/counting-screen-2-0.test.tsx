@@ -25,8 +25,15 @@ function runtime(): CountingRuntime {
   } as unknown as CountingRuntime
 }
 
+const lookupRepository = {
+  lookupSku: async (_inventoryId: string, code: string) => (['SERIAL', 'PARTIDA', 'LEGACY'] as const).includes(code as 'SERIAL' | 'PARTIDA' | 'LEGACY')
+    ? master(code as MasterSku['controlType'])
+    : null,
+  lookupTraceability: async () => [],
+}
+
 async function resolve(controlType: MasterSku['controlType']) {
-  render(<CountingScreen runtime={runtime()} />)
+  render(<CountingScreen runtime={runtime()} lookupRepository={lookupRepository} />)
   const code = await screen.findByLabelText('CODIGO')
   fireEvent.change(code, { target: { value: controlType } })
   fireEvent.blur(code)
