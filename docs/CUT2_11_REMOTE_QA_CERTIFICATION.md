@@ -47,6 +47,8 @@ Target exclusivo: `kpsdephjbvkwvazxubtb` (`LOCK AND FREE`, `ACTIVE_HEALTHY`). No
 | `live_reconciliation_c2_c3_test.sql` | PASS, 25 assertions |
 | `c2_2_hybrid_recount_contract_test.sql` | PASS, 22 assertions |
 | Carrera PostgreSQL de reconciliación | PASS: una identidad produce un caso, una misión y un evento de creación |
+| `ota_qa_beta_contract_test.sql` | PASS, 6 assertions |
+| Cliente OTA/versionado | PASS, 4 files / 22 tests |
 | `supabase db lint --linked` | Sin errores; sólo warnings heredados ya documentados |
 | Edge `ota-updates` | Desplegada en QA, `verify_jwt=true`; request sin JWT devuelve 401 |
 | Edge `ota-publish` | Desplegada en QA; publisher sin token devuelve 401 |
