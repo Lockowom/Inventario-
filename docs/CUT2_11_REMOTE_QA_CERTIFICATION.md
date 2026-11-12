@@ -27,3 +27,39 @@
 - No se ejecutaron `db reset`, `migration repair`, migraciones, operaciones ERP/Softland ni mutaciones de stock.
 - El acceso privilegiado empleado por los harnesses queda en proceso local; el navegador recibió únicamente configuración pública de QA.
 - Android queda expresamente fuera de este bloque y es el siguiente gate (`CUT2-11C`). Su estado y evidencia física están en [CUT2_11C_ANDROID_QA_CERTIFICATION.md](CUT2_11C_ANDROID_QA_CERTIFICATION.md).
+
+## QA live reconciliation + OTA effective version — 2026-11-12
+
+Target exclusivo: `kpsdephjbvkwvazxubtb` (`LOCK AND FREE`, `ACTIVE_HEALTHY`). No se contactó producción ni el QA histórico.
+
+### Migraciones aplicadas y verificadas
+
+- `20261111223135_live_reconciliation_c2_c3_without_c1_close.sql`: aplicada realmente mediante `supabase db push --linked`; el ledger remoto coincide con local.
+- `20261112102540_ota_effective_app_version_contract.sql`: aplicada inmediatamente después; el ledger remoto termina en `20261112102540` sin gaps.
+- QA contiene el trigger `count_records_live_c1_reconciliation`, el índice natural abierto de casos y la restricción única de misión por caso/ronda.
+- Inspección remota: el claim de C2 no condiciona por `c1_completed_at` ni `source_cut_id`; el trigger usa la referencia backend y bloqueo advisory por identidad. Hay cuatro C2 y una C3 activas sin `source_cut_id`, evidencia de disponibilidad con inventario abierto.
+- C3 sigue originándose al cerrar C2 con desacuerdo C1/C2. RLS está habilitado en casos, misiones, eventos, bundles, dispositivos y eventos de dispositivos.
+
+### Validación focal
+
+| Control | Resultado |
+| --- | --- |
+| `live_reconciliation_c2_c3_test.sql` | PASS, 25 assertions |
+| `c2_2_hybrid_recount_contract_test.sql` | PASS, 22 assertions |
+| Carrera PostgreSQL de reconciliación | PASS: una identidad produce un caso, una misión y un evento de creación |
+| `supabase db lint --linked` | Sin errores; sólo warnings heredados ya documentados |
+| Edge `ota-updates` | Desplegada en QA, `verify_jwt=true`; request sin JWT devuelve 401 |
+| Edge `ota-publish` | Desplegada en QA; publisher sin token devuelve 401 |
+
+### Candidato OTA inmutable
+
+- Bundle local: `artifacts/ota/INVEN3-QA-OTA-v0.0.00.03.zip`.
+- `appVersion`: `0.0.00.03`; base nativa mínima: `0.0.00.02` / `versionCode=2`; canal: `qa-beta`.
+- SHA-256 recalculado: `286ffeadb4058e4b10b945dc86f3a08f38c034e91e844482052cf4d7470c651a`.
+- Tamaño: `1,868,733` bytes.
+
+### Bloqueo de publicación y prueba física
+
+La publicación no fue eludida: el único publisher aceptado requiere `OTA_PUBLISH_TOKEN`, que existe exclusivamente como secreto de GitHub Actions. El workflow `OTA QA Beta` permite publicar únicamente desde `refs/heads/qa`; el candidato certificado está en `qa-cut2-11-preprod` (`6809931083ba4677556202d6ed47795b8c299a94`), ya enviado al remoto sin force-push. No se insertó un bundle directamente en la base ni se creó una release parcialmente registrada.
+
+La prueba física OTA permanece pendiente hasta que el candidato sea promovido por la ruta CI autorizada. En esta ejecución ADB no detectó el Xiaomi `25069PTEBG`; no hubo instalación, borrado de datos ni reconstrucción de APK.
