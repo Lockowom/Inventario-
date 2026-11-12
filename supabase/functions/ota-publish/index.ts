@@ -31,7 +31,19 @@ export default {
     const checksum = typeof body.sha256 === 'string' ? body.sha256.trim().toLowerCase() : ''
     const commit = typeof body.commitSha === 'string' ? body.commitSha.trim().toLowerCase() : ''
     const size = typeof body.sizeBytes === 'number' ? body.sizeBytes : 0
-    if (!qaVersion.test(version) || !qaVersion.test(nativeVersion) || nativeVersionCode < 1 || entrypoint !== 'index.html' || !url.startsWith(releasePrefix) || !sha256.test(checksum) || !commitSha.test(commit) || !Number.isSafeInteger(size) || size < 1) return deny(400, 'Invalid immutable QA OTA manifest.')
+    // Field names are safe to return to the CI-only publisher and make an
+    // immutable release registration diagnosable without logging its token.
+    const invalidFields = [
+      !qaVersion.test(version) && 'version',
+      !qaVersion.test(nativeVersion) && 'minNativeVersion',
+      nativeVersionCode < 1 && 'minVersionCode',
+      entrypoint !== 'index.html' && 'entrypoint',
+      !url.startsWith(releasePrefix) && 'url',
+      !sha256.test(checksum) && 'sha256',
+      !commitSha.test(commit) && 'commitSha',
+      (!Number.isSafeInteger(size) || size < 1) && 'sizeBytes',
+    ].filter((field): field is string => Boolean(field))
+    if (invalidFields.length > 0) return deny(400, `Invalid immutable QA OTA manifest: ${invalidFields.join(',')}.`)
     const inserted = await ctx.supabaseAdmin.from('ota_bundles').insert({ channel_name: 'qa-beta', version, min_native_version: nativeVersion, min_native_version_code: nativeVersionCode, entrypoint, release_url: url, sha256: checksum, size_bytes: size, published_commit_sha: commit }).select('id, channel_name, version, sha256, published_at').single()
     if (inserted.error) {
       const existing = await ctx.supabaseAdmin.from('ota_bundles').select('id, channel_name, version, sha256, published_at').eq('channel_name', 'qa-beta').eq('version', version).maybeSingle()

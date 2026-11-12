@@ -77,8 +77,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "ota-${{ steps.version.outputs.version }}" "inven3-ota-${{ steps.version.outputs.version }}.zip" "inven3-ota-${{ steps.version.outputs.version }}.manifest.json" \
-            --target "$GITHUB_SHA" --title "INVEN3 QA OTA ${{ steps.version.outputs.version }}" --notes "Android QA web bundle. Immutable SHA-256: ${{ steps.bundle.outputs.sha256 }}"
+          set -euo pipefail
+          TAG="ota-${{ steps.version.outputs.version }}"
+          ZIP="inven3-ota-${{ steps.version.outputs.version }}.zip"
+          if gh release view "$TAG" --json targetCommitish,assets > existing-release.json 2>/dev/null; then
+            PUBLISHED_COMMIT="$(jq -r '.targetCommitish' existing-release.json)"
+            jq -e --arg name "$ZIP" --arg digest "sha256:${{ steps.bundle.outputs.sha256 }}" \
+              'any(.assets[]; .name == $name and .digest == $digest)' existing-release.json >/dev/null
+            echo "OTA_RELEASE_COMMIT=$PUBLISHED_COMMIT" >> "$GITHUB_ENV"
+          else
+            gh release create "$TAG" "$ZIP" "inven3-ota-${{ steps.version.outputs.version }}.manifest.json" \
+              --target "$GITHUB_SHA" --title "INVEN3 QA OTA ${{ steps.version.outputs.version }}" --notes "Android QA web bundle. Immutable SHA-256: ${{ steps.bundle.outputs.sha256 }}"
+            echo "OTA_RELEASE_COMMIT=$GITHUB_SHA" >> "$GITHUB_ENV"
+          fi
       - name: Register immutable bundle in INVEN3 QA
         env:
           OTA_PUBLISH_TOKEN: ${{ secrets.OTA_PUBLISH_TOKEN }}
@@ -88,4 +99,4 @@ jobs:
           curl --fail-with-body --silent --show-error --request POST "$OTA_PUBLISH_URL" \
             --header 'content-type: application/json' \
             --header "x-ota-publish-token: $OTA_PUBLISH_TOKEN" \
-            --data "{\"version\":\"${{ steps.version.outputs.version }}\",\"minNativeVersion\":\"${VITE_NATIVE_VERSION}\",\"minVersionCode\":${INVEN3_VERSION_CODE},\"entrypoint\":\"index.html\",\"url\":\"https://github.com/${{ github.repository }}/releases/download/ota-${{ steps.version.outputs.version }}/inven3-ota-${{ steps.version.outputs.version }}.zip\",\"sha256\":\"${{ steps.bundle.outputs.sha256 }}\",\"sizeBytes\":${{ steps.bundle.outputs.size }},\"commitSha\":\"$GITHUB_SHA\"}"
+            --data "{\"version\":\"${{ steps.version.outputs.version }}\",\"minNativeVersion\":\"${VITE_NATIVE_VERSION}\",\"minVersionCode\":${INVEN3_VERSION_CODE},\"entrypoint\":\"index.html\",\"url\":\"https://github.com/${{ github.repository }}/releases/download/ota-${{ steps.version.outputs.version }}/inven3-ota-${{ steps.version.outputs.version }}.zip\",\"sha256\":\"${{ steps.bundle.outputs.sha256 }}\",\"sizeBytes\":${{ steps.bundle.outputs.size }},\"commitSha\":\"$OTA_RELEASE_COMMIT\"}"
