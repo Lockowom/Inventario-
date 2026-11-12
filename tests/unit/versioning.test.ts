@@ -38,6 +38,12 @@ describe('versionado canónico INVEN3', () => {
     expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ appVersion: '0.0.00.03', nativeVersion: '0.0.00.03', versionCode: 3 })
   })
 
+  it('creates the .04/code 3 OTA bootstrap from the .03/.02 shell split', () => {
+    const file = fixture('0.0.00.03', '0.0.00.02', 2)
+    run('bump-native', file)
+    expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ appVersion: '0.0.00.04', nativeVersion: '0.0.00.04', versionCode: 3 })
+  })
+
   it('shows and validates the canonical initial release', () => {
     const file = fixture('0.0.00.01')
     expect(run('show', file)).toContain('AppVersion: 0.0.00.01')

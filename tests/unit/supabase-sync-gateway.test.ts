@@ -4,6 +4,7 @@ const rpc = vi.hoisted(() => vi.fn())
 vi.mock('../../src/services/supabase', () => ({ getSupabaseClient: () => ({ rpc }) }))
 
 import { classifySupabaseSyncError, SupabaseSyncGateway } from '../../src/services/supabase-sync-gateway'
+import { releaseMetadata } from '../../src/config/release-metadata'
 
 const inventoryId = '11111111-1111-4111-8111-111111111111'
 const deviceId = '22222222-2222-4222-8222-222222222222'
@@ -36,8 +37,8 @@ describe('SupabaseSyncGateway error classification', () => {
     await new SupabaseSyncGateway().registerDevice({ deviceId })
     expect(rpc).toHaveBeenCalledWith('register_sync_device', expect.objectContaining({
       p_device_id: deviceId,
-      p_app_version: '0.0.00.03',
-      p_device_label: expect.stringContaining('app 0.0.00.03 apk 0.0.00.02 build 2'),
+      p_app_version: releaseMetadata.appVersion,
+      p_device_label: expect.stringContaining(`app ${releaseMetadata.appVersion} apk ${releaseMetadata.nativeVersion} build ${releaseMetadata.versionCode}`),
     }))
   })
 

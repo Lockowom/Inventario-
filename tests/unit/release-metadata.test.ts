@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { resolveReleaseMetadata } from '../../src/config/release-metadata'
+import { releaseMetadata, resolveReleaseMetadata } from '../../src/config/release-metadata'
 
 describe('release metadata', () => {
   it('defaults safely to local development', () => {
     expect(resolveReleaseMetadata({})).toEqual({
       environment: 'local',
       channel: 'development',
-      version: '0.0.00.03',
-      appVersion: '0.0.00.03',
-      nativeVersion: '0.0.00.02',
-      versionCode: 2,
+      version: releaseMetadata.appVersion,
+      appVersion: releaseMetadata.appVersion,
+      nativeVersion: releaseMetadata.nativeVersion,
+      versionCode: releaseMetadata.versionCode,
       build: null,
-      displayVersion: '0.0.00.03-development',
+      displayVersion: `${releaseMetadata.appVersion}-development`,
       isProduction: false,
     })
   })
@@ -25,8 +25,8 @@ describe('release metadata', () => {
     })).toMatchObject({
       environment: 'qa',
       channel: 'beta',
-      version: '0.0.00.03',
-      displayVersion: '0.0.00.03-beta+a67c5648',
+      version: releaseMetadata.appVersion,
+      displayVersion: `${releaseMetadata.appVersion}-beta+a67c5648`,
       isProduction: false,
     })
   })
@@ -38,6 +38,6 @@ describe('release metadata', () => {
 
   it('does not allow a legacy display override to replace the canonical version', () => {
     expect(resolveReleaseMetadata({ displayVersionOverride: 'f9b-ios-qa-38992a0' }).displayVersion)
-      .toBe('0.0.00.03-development')
+      .toBe(`${releaseMetadata.appVersion}-development`)
   })
 })

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { LoginScreen } from '../../src/features/auth/login-screen'
+import { releaseMetadata } from '../../src/config/release-metadata'
 
 describe('LoginScreen', () => {
   it('inicia sesión con correo y contraseña y notifica el éxito', async () => {
@@ -8,7 +9,7 @@ describe('LoginScreen', () => {
     const onSignedIn = vi.fn()
     render(<LoginScreen service={{ signIn }} onSignedIn={onSignedIn} />)
 
-    expect(screen.getByLabelText('Versión de la aplicación')).toHaveTextContent('INVEN3 · v0.0.00.03')
+    expect(screen.getByLabelText('Versión de la aplicación')).toHaveTextContent(`INVEN3 · v${releaseMetadata.appVersion}`)
 
     fireEvent.change(screen.getByLabelText('Correo'), { target: { value: 'qa-analista@inven3-qa.test' } })
     fireEvent.change(screen.getByLabelText('Contraseña'), { target: { value: 'secreto-qa' } })

@@ -79,6 +79,25 @@ describe('OTA version contract', () => {
     expect(mocks.set).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps the .04 native bootstrap when the QA channel still offers immutable .03', async () => {
+    mocks.current.mockResolvedValue({ native: '0.0.00.04', nativeVersionCode: 3, bundle: { id: 'builtin', version: 'builtin', downloaded: '', checksum: '', status: 'success' } })
+    mocks.invoke.mockResolvedValue({ data: { update: { version: '0.0.00.03', minNativeVersion: '0.0.00.02', minVersionCode: 2, url: 'https://example.test/ota-03.zip', sha256: 'a'.repeat(64), sizeBytes: 100 } }, error: null })
+    const result = await new OtaUpdateService().check()
+    expect(result).toMatchObject({ kind: 'UP_TO_DATE' })
+    expect(mocks.download).not.toHaveBeenCalled()
+    expect(mocks.set).not.toHaveBeenCalled()
+  })
+
+  it('downloads, verifies and stages .05 from the .04 native bootstrap', async () => {
+    mocks.current.mockResolvedValue({ native: '0.0.00.04', nativeVersionCode: 3, bundle: { id: 'builtin', version: 'builtin', downloaded: '', checksum: '', status: 'success' } })
+    mocks.invoke.mockResolvedValueOnce({ data: { update: { version: '0.0.00.05', minNativeVersion: '0.0.00.04', minVersionCode: 3, url: 'https://example.test/ota-05.zip', sha256: 'b'.repeat(64), sizeBytes: 100 } }, error: null })
+    mocks.invoke.mockResolvedValueOnce({ data: {}, error: null })
+    const result = await new OtaUpdateService().check()
+    expect(result).toMatchObject({ kind: 'READY', version: '0.0.00.05' })
+    expect(mocks.download).toHaveBeenCalledWith(expect.objectContaining({ version: '0.0.00.05', checksum: 'b'.repeat(64) }))
+    expect(mocks.set).toHaveBeenCalledTimes(1)
+  })
+
   it('does not offer rollback after a real download failure from builtin', async () => {
     mocks.invoke.mockResolvedValue({ data: { update: { version: '0.0.00.03', minNativeVersion: '0.0.00.02', minVersionCode: 2, url: 'https://example.test/ota.zip', sha256: 'a'.repeat(64), sizeBytes: 100 } }, error: null })
     mocks.download.mockRejectedValue(new Error('checksum mismatch'))

@@ -10,10 +10,11 @@ vi.mock('../../src/services/supabase', () => ({ getSupabaseClient }))
 
 import { CapacitorAppVersionProvider } from '../../src/services/app-version-provider'
 import { SupabaseServerTimeGateway } from '../../src/services/supabase-server-time-gateway'
+import { releaseMetadata } from '../../src/config/release-metadata'
 
 describe('device health infrastructure providers', () => {
   it('uses a native App version when available and the configured build fallback otherwise', async () => {
-    const expectedBuildVersion = '0.0.00.03'
+    const expectedBuildVersion = releaseMetadata.appVersion
     platform.mockReturnValue('android')
     await expect(new CapacitorAppVersionProvider().getVersion()).resolves.toBe('8.1.0')
     getInfo.mockRejectedValueOnce(new Error('native unavailable'))
