@@ -15,6 +15,9 @@ const config: CapacitorConfig = {
     CapacitorUpdater: {
       appId: 'com.lockowom.inven3',
       autoUpdate: 'off',
+      // The application owns the safety decision: download is automatic, but
+      // a loaded C1/C2/C3 screen or unsafe outbox must never be restarted.
+      autoDeletePrevious: false,
       updateUrl: inven3QaOtaEndpoint,
       statsUrl: '',
       allowSetDefaultChannel: false,

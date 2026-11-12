@@ -15,6 +15,8 @@ export interface ReleaseMetadata {
   environment: ReleaseEnvironment
   channel: ReleaseChannel
   version: string
+  appVersion: string
+  nativeVersion: string
   versionCode: number
   build: string | null
   displayVersion: string
@@ -41,10 +43,9 @@ function normalizeChannel(value?: string): ReleaseChannel {
 export function resolveReleaseMetadata(input: ReleaseMetadataInput): ReleaseMetadata {
   const environment = normalizeEnvironment(input.environment)
   const channel = normalizeChannel(input.channel)
-  // Functional release identity is intentionally not configurable at runtime.
-  // Channel/build can vary, but Web, Android and device reporting always share
-  // the Git-versioned source of truth.
-  const version = canonicalVersion.version
+  // appVersion is the effective Web/OTA identity. The Android shell is kept
+  // separately so a web-compatible release does not force APK replacement.
+  const version = canonicalVersion.appVersion
   const build = input.build?.trim() || null
   void input.version
   void input.displayVersionOverride
@@ -57,6 +58,8 @@ export function resolveReleaseMetadata(input: ReleaseMetadataInput): ReleaseMeta
     environment,
     channel,
     version,
+    appVersion: canonicalVersion.appVersion,
+    nativeVersion: canonicalVersion.nativeVersion,
     versionCode: canonicalVersion.versionCode,
     build,
     displayVersion,

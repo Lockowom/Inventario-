@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 
-const canonicalVersion = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'version.json'), 'utf8')).version
+const canonicalVersion = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'version.json'), 'utf8')).appVersion
 
 const requiredFields = [
   'execution_id','gate','status','platform','candidate_sha','candidate_evidence_ref','candidate_evidence_sha256',

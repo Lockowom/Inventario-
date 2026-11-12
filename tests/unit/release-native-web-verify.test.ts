@@ -34,17 +34,19 @@ function fixture(platform: 'android' | 'ios' = 'android') {
     product: 'INVEN3',
     productionLocked: true,
   }))
-  fs.writeFileSync(path.join(dir, 'version.json'), JSON.stringify({ version: '0.0.00.01', versionCode: 1 }))
+  fs.writeFileSync(path.join(dir, 'version.json'), JSON.stringify({ appVersion: '0.0.00.01', nativeVersion: '0.0.00.01', versionCode: 1 }))
   fs.writeFileSync(path.join(dir, 'artifacts/release/INVEN3-release-manifest.json'), JSON.stringify({
     schemaVersion: 1,
     product: 'INVEN3',
     version: '0.0.00.01',
+    appVersion: '0.0.00.01',
     versionCode: 1,
     environment: 'qa',
     channel: 'beta',
     build: 'aaaaaaaa.42',
     commit,
     productionLocked: true,
+    native: { versionName: '0.0.00.01', versionCode: 1 },
     webBundle: {
       fileCount: files.length,
       aggregateSha256,

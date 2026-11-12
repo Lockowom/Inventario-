@@ -33,7 +33,7 @@ describe('DeviceComponentsPanel', () => {
   })
 
   it('makes native OTA requirements explicit rather than silently failing scanner/manual operation', () => {
-    render(<DeviceComponentsPanel report={report('UNAVAILABLE')} loading={false} error={null} otaState={{ kind: 'NATIVE_REQUIRED', minNativeVersion: '1.0.1', message: 'APK requerida' }} onOpenDiagnostic={vi.fn()} />)
+    render(<DeviceComponentsPanel report={report('UNAVAILABLE')} loading={false} error={null} otaState={{ kind: 'NATIVE_REQUIRED', minNativeVersion: '1.0.1', minVersionCode: 2, message: 'APK requerida' }} onOpenDiagnostic={vi.fn()} />)
     expect(screen.getByText('NO DISPONIBLE')).toBeVisible()
     expect(screen.getByText('REQUIERE APK')).toBeVisible()
   })

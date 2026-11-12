@@ -10,7 +10,7 @@ const dirs: string[] = []
 function temp() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inven3-smoke-evidence-'))
   dirs.push(dir)
-  fs.writeFileSync(path.join(dir, 'version.json'), JSON.stringify({ version: '0.0.00.02', versionCode: 2 }))
+  fs.writeFileSync(path.join(dir, 'version.json'), JSON.stringify({ appVersion: '0.0.00.03', nativeVersion: '0.0.00.02', versionCode: 2 }))
   return dir
 }
 
@@ -27,13 +27,13 @@ function record(overrides: Record<string, unknown> = {}) {
     installed_artifact_sha256: 'c'.repeat(64),
     install_method: 'local_device',
     signing_provenance: 'ephemeral_lab_signing',
-    version: '0.0.00.02',
+    version: '0.0.00.03',
     build: 'aaaaaaaa.42',
     environment: 'qa',
     channel: 'beta',
     production_locked: true,
     native_build_number: 10042,
-    app_display_version: '0.0.00.02-beta+aaaaaaaa.42',
+    app_display_version: '0.0.00.03-beta+aaaaaaaa.42',
     device_model: 'QA Device',
     os: 'Android',
     os_version: '16',
@@ -106,14 +106,14 @@ describe('F10A smoke evidence validator', () => {
   })
 
   test('rejects a build identity not bound to the candidate SHA', () => {
-    const result = run(temp(), record({ build: 'deadbeef.42', app_display_version: '0.0.00.02-beta+deadbeef.42' }))
+    const result = run(temp(), record({ build: 'deadbeef.42', app_display_version: '0.0.00.03-beta+deadbeef.42' }))
     expect(result.ok).toBe(false)
     expect(result.status).toBe(83)
     expect(result.stderr).toContain('INVALID_BUILD')
   })
 
   test('rejects a visible app version that does not match the exact candidate build', () => {
-    const result = run(temp(), record({ app_display_version: '0.0.00.02-beta+aaaaaaaa.99' }))
+    const result = run(temp(), record({ app_display_version: '0.0.00.03-beta+aaaaaaaa.99' }))
     expect(result.ok).toBe(false)
     expect(result.status).toBe(83)
     expect(result.stderr).toContain('INVALID_APP_DISPLAY_VERSION')

@@ -130,8 +130,8 @@ if (manifest.productionLocked !== true) fail(46, 'manifest does not preserve pro
 if (manifest.schemaVersion !== 1 || manifest.product !== policy.product) fail(64, 'manifest product/schema is not aligned with policy')
 if (manifest.environment !== 'qa') fail(47, `candidate environment must be qa, got ${manifest.environment}`)
 if (manifest.channel !== 'beta') fail(48, `candidate channel must be beta, got ${manifest.channel}`)
-if (manifest.version !== version.version || manifest.versionCode !== version.versionCode) fail(49, 'manifest release version is not aligned with version.json')
-if (manifest?.native?.versionName !== version.version || manifest?.native?.versionCode !== version.versionCode) {
+if (manifest.appVersion !== version.appVersion || manifest.versionCode !== version.versionCode) fail(49, 'manifest app version is not aligned with version.json')
+if (manifest?.native?.versionName !== version.nativeVersion || manifest?.native?.versionCode !== version.versionCode) {
   fail(50, 'manifest native version is not aligned with version.json')
 }
 

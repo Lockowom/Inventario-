@@ -12,7 +12,7 @@ function run(extraEnv: Record<string, string | undefined> = {}, args: string[] =
     ...process.env,
     VITE_RELEASE_ENV: 'qa',
     VITE_RELEASE_CHANNEL: 'beta',
-    VITE_RELEASE_VERSION: '0.0.00.02',
+    VITE_RELEASE_VERSION: '0.0.00.03',
     VITE_SUPABASE_URL: qaUrl,
     VITE_SUPABASE_ANON_KEY: qaKey,
     ...extraEnv,
@@ -61,7 +61,7 @@ describe('F10A release preflight fail-closed guard', () => {
   test('accepts the authorized QA/BETA environment', () => {
     const result = run()
     expect(result.ok).toBe(true)
-    expect(result.stdout).toContain('environment=qa channel=beta version=0.0.00.02')
+    expect(result.stdout).toContain('environment=qa channel=beta version=0.0.00.03')
     expect(result.stdout).toContain('production promotion is locked')
   })
 

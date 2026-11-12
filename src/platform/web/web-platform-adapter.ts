@@ -41,8 +41,9 @@ class UnavailableUpdateAdapter {
   public async notifyLaunchReady(): Promise<void> { /* Web has no native OTA acknowledgement. */ }
   public async current(): Promise<never> { throw new Error('Native updater unavailable') }
   public async getDeviceId(): Promise<never> { throw new Error('Native updater unavailable') }
-  public async download(input: { version: string; url: string; checksum: string }): Promise<never> {
+  public async download(input: { version: string; url: string; checksum: string }, onProgress?: (percent: number) => void): Promise<never> {
     void input
+    void onProgress
     throw new Error('Native updater unavailable')
   }
   public async set(bundle: unknown): Promise<void> {

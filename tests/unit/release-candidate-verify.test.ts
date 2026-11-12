@@ -32,7 +32,7 @@ function fixture(
     qaSupabaseProjectRef: 'uazunvlxlszdyweddxtb',
     productionLocked: true,
   })
-  writeJson(path.join(dir, 'version.json'), { version: '0.0.00.01', versionCode: 1 })
+  writeJson(path.join(dir, 'version.json'), { appVersion: '0.0.00.01', nativeVersion: '0.0.00.01', versionCode: 1 })
   const apk = path.join(dir, 'candidate.apk')
   const aab = path.join(dir, 'candidate.aab')
   fs.writeFileSync(apk, Buffer.from('apk candidate'))
@@ -45,6 +45,7 @@ function fixture(
     schemaVersion: 1,
     product: 'INVEN3',
     version: '0.0.00.01',
+    appVersion: '0.0.00.01',
     versionCode: 1,
     environment: 'qa',
     channel: 'beta',

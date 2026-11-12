@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 import { RecountQueueScreen } from '../../src/features/reconciliation/recount-queue-screen'
 
-const subscribeMissionQueue=vi.fn((_inventoryId:string,_onChange:()=>void)=>()=>{})
+const subscribeMissionQueue=vi.fn((inventoryId:string,onChange:()=>void)=>{ void inventoryId; void onChange; return ()=>{} })
 
 vi.mock('../../src/services/supabase-supervision-repository',()=>({
  SupabaseSupervisionRepository:class{

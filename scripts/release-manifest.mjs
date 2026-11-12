@@ -43,7 +43,7 @@ function resolveCommit() {
 const files = collectFiles(dist).sort((a, b) => a.path.localeCompare(b.path))
 if (files.length === 0) throw new Error('Release manifest requires a non-empty dist/ bundle. Run the build first.')
 if (policy.productionLocked !== true) throw new Error('Release manifest requires productionLocked=true during F10A.')
-if (typeof versionConfig.version !== 'string' || !/^\d+\.\d+\.\d{2}\.\d{2}$/.test(versionConfig.version) || !Number.isInteger(versionConfig.versionCode) || versionConfig.versionCode <= 0) {
+if (typeof versionConfig.appVersion !== 'string' || !/^\d+\.\d+\.\d{2}\.\d{2}$/.test(versionConfig.appVersion) || typeof versionConfig.nativeVersion !== 'string' || !/^\d+\.\d+\.\d{2}\.\d{2}$/.test(versionConfig.nativeVersion) || !Number.isInteger(versionConfig.versionCode) || versionConfig.versionCode <= 0) {
   throw new Error('Release manifest requires a valid canonical version.json.')
 }
 const aggregate = sha256(Buffer.from(files.map((file) => `${file.path}:${file.sha256}:${file.bytes}`).join('\n')))
@@ -59,8 +59,8 @@ if (!build || !new RegExp(`^${commit.slice(0, 8)}\\.\\d+$`, 'i').test(build)) {
 const manifest = {
   schemaVersion: 1,
   product: policy.product,
-  version: versionConfig.version,
-  appVersion: versionConfig.version,
+  version: versionConfig.appVersion,
+  appVersion: versionConfig.appVersion,
   versionCode: versionConfig.versionCode,
   environment,
   channel,
@@ -68,7 +68,7 @@ const manifest = {
   commit,
   productionLocked: policy.productionLocked,
   generatedAt: new Date().toISOString(),
-  native: { versionName: versionConfig.version, versionCode: versionConfig.versionCode },
+  native: { versionName: versionConfig.nativeVersion, versionCode: versionConfig.versionCode },
   webBundle: {
     fileCount: files.length,
     aggregateSha256: aggregate,

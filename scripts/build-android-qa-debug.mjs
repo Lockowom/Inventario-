@@ -40,7 +40,8 @@ const env = {
   VITE_SUPABASE_ANON_KEY: publishable,
   VITE_RELEASE_ENV: 'QA',
   VITE_RELEASE_CHANNEL: 'beta',
-  VITE_RELEASE_VERSION: version.version,
+  VITE_RELEASE_VERSION: version.appVersion,
+  VITE_NATIVE_VERSION: version.nativeVersion,
   INVEN3_VERSION_CODE: String(version.versionCode),
   VITE_BUILD_TYPE: 'BETA',
 }
@@ -50,17 +51,17 @@ delete env.SERVICE_ROLE_KEY
 
 run('npm', ['run', 'build:qa'], { env })
 run('npx', ['cap', 'sync', 'android'], { env })
-run(process.platform === 'win32' ? 'gradlew.bat' : './gradlew', ['assembleDebug', '--no-daemon', `-PINVEN3_VERSION_CODE=${version.versionCode}`, `-PINVEN3_VERSION_NAME=${version.version}`], { cwd: resolve('android'), env })
+run(process.platform === 'win32' ? 'gradlew.bat' : './gradlew', ['assembleDebug', '--no-daemon', `-PINVEN3_VERSION_CODE=${version.versionCode}`, `-PINVEN3_VERSION_NAME=${version.nativeVersion}`], { cwd: resolve('android'), env })
 
 const apk = resolve('android/app/build/outputs/apk/debug/app-debug.apk')
 if (!fs.existsSync(apk)) throw new Error('QA_APK_MISSING')
 const artifacts = resolve('artifacts')
 fs.mkdirSync(artifacts, { recursive: true })
-const namedApk = resolve(artifacts, `INVEN3-QA-v${version.version}.apk`)
+const namedApk = resolve(artifacts, `INVEN3-QA-native-v${version.nativeVersion}-app-v${version.appVersion}.apk`)
 fs.copyFileSync(apk, namedApk)
 const bytes = fs.statSync(namedApk).size
 const sha256 = crypto.createHash('sha256').update(fs.readFileSync(namedApk)).digest('hex')
 const commit = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', windowsHide: true }).trim()
-fs.writeFileSync(resolve(artifacts, `INVEN3-QA-v${version.version}.manifest.json`), `${JSON.stringify({ product: 'INVEN3', appVersion: version.version, versionCode: version.versionCode, environment: 'QA', channel: 'qa-beta', commit, buildTimestamp: new Date().toISOString(), apk: { path: `artifacts/INVEN3-QA-v${version.version}.apk`, sha256, sizeBytes: bytes } }, null, 2)}\n`)
+fs.writeFileSync(resolve(artifacts, `INVEN3-QA-native-v${version.nativeVersion}-app-v${version.appVersion}.manifest.json`), `${JSON.stringify({ product: 'INVEN3', appVersion: version.appVersion, nativeVersion: version.nativeVersion, versionCode: version.versionCode, environment: 'QA', channel: 'qa-beta', commit, buildTimestamp: new Date().toISOString(), apk: { path: `artifacts/INVEN3-QA-native-v${version.nativeVersion}-app-v${version.appVersion}.apk`, sha256, sizeBytes: bytes } }, null, 2)}\n`)
 console.log(`QA_APK_ARTIFACT ${namedApk}`)
 console.log(`QA_APK_SHA256 ${sha256}`)

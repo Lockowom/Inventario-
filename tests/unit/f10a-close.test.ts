@@ -18,7 +18,7 @@ function temp() {
     product:'INVEN3',
     productionLocked:true,
   }))
-  fs.writeFileSync(path.join(dir, 'version.json'), JSON.stringify({ version:'0.0.00.01', versionCode:1 }))
+  fs.writeFileSync(path.join(dir, 'version.json'), JSON.stringify({ appVersion:'0.0.00.01', nativeVersion:'0.0.00.01', versionCode:1 }))
   return dir
 }
 

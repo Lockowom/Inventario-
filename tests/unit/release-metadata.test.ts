@@ -6,10 +6,12 @@ describe('release metadata', () => {
     expect(resolveReleaseMetadata({})).toEqual({
       environment: 'local',
       channel: 'development',
-      version: '0.0.00.02',
+      version: '0.0.00.03',
+      appVersion: '0.0.00.03',
+      nativeVersion: '0.0.00.02',
       versionCode: 2,
       build: null,
-      displayVersion: '0.0.00.02-development',
+      displayVersion: '0.0.00.03-development',
       isProduction: false,
     })
   })
@@ -23,8 +25,8 @@ describe('release metadata', () => {
     })).toMatchObject({
       environment: 'qa',
       channel: 'beta',
-      version: '0.0.00.02',
-      displayVersion: '0.0.00.02-beta+a67c5648',
+      version: '0.0.00.03',
+      displayVersion: '0.0.00.03-beta+a67c5648',
       isProduction: false,
     })
   })
@@ -36,6 +38,6 @@ describe('release metadata', () => {
 
   it('does not allow a legacy display override to replace the canonical version', () => {
     expect(resolveReleaseMetadata({ displayVersionOverride: 'f9b-ios-qa-38992a0' }).displayVersion)
-      .toBe('0.0.00.02-development')
+      .toBe('0.0.00.03-development')
   })
 })

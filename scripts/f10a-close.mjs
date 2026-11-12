@@ -190,7 +190,7 @@ for (const [label, candidate, platform] of [
   if (candidate.environment !== 'qa' || candidate.channel !== 'beta') fail(98, `${label} is not QA/BETA`)
   if (candidate.productionLocked !== true) fail(99, `${label} production lock missing`)
   if (candidate.product !== policy.product) fail(116, `${label} product mismatch`)
-  if (candidate.version !== version.version) fail(116, `${label} version mismatch with version.json`)
+  if (candidate.version !== version.appVersion) fail(116, `${label} version mismatch with version.json`)
   if (!validBuildIdentity(candidate)) fail(116, `${label} build identity is not bound to commit`)
   if (!isSha256(candidate.webBundleSha256)) fail(116, `${label} web bundle hash invalid`)
   const baseBuild = version.versionCode
@@ -205,7 +205,7 @@ if (parity.gate !== 'F10A_PLATFORM_PARITY' || parity.status !== 'READY_FOR_BETA_
   fail(100, 'platform parity is not READY_FOR_BETA_SMOKE')
 }
 if (parity.productionLocked !== true) fail(101, 'platform parity lost production lock')
-if (parity.product !== policy.product || parity.version !== version.version) {
+if (parity.product !== policy.product || parity.version !== version.appVersion) {
   fail(117, 'platform parity product/version mismatch')
 }
 if (!/^[0-9a-f]{40}$/i.test(String(parity.commit ?? '')) || !isSha256(parity.webBundleSha256)) {

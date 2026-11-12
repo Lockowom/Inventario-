@@ -84,7 +84,7 @@ if (policy.productionLocked !== true || manifest.productionLocked !== true) {
 if (manifest.schemaVersion !== 1 || manifest.product !== policy.product) {
   fail(124, 'release manifest identity is invalid')
 }
-if (manifest.version !== version.version || manifest.versionCode !== version.versionCode || manifest.environment !== 'qa' || manifest.channel !== 'beta') {
+if (manifest.appVersion !== version.appVersion || manifest.versionCode !== version.versionCode || manifest?.native?.versionName !== version.nativeVersion || manifest.environment !== 'qa' || manifest.channel !== 'beta') {
   fail(124, 'release manifest is not the authorized QA/BETA version')
 }
 if (!/^[0-9a-f]{40}$/i.test(String(manifest.commit ?? '')) || !manifest.build) {

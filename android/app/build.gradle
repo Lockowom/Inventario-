@@ -5,7 +5,7 @@ import groovy.json.JsonSlurper
 def inven3VersionSource = rootProject.file('../version.json')
 if (!inven3VersionSource.exists()) throw new GradleException('INVEN3_VERSION_SOURCE_MISSING')
 def inven3Version = new JsonSlurper().parse(inven3VersionSource)
-def inven3VersionName = inven3Version.version instanceof String ? inven3Version.version : null
+def inven3VersionName = inven3Version.nativeVersion instanceof String ? inven3Version.nativeVersion : null
 def inven3VersionCode = inven3Version.versionCode instanceof Number ? inven3Version.versionCode.intValue() : null
 if (inven3VersionName == null || !(inven3VersionName ==~ /^\d+\.\d+\.\d{2}\.\d{2}$/)) throw new GradleException('INVEN3_VERSION_FORMAT_INVALID')
 if (inven3VersionCode == null || inven3VersionCode <= 0) throw new GradleException('INVEN3_VERSION_CODE_INVALID')

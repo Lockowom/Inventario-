@@ -37,7 +37,7 @@ export function classifySupabaseSyncError(error: unknown, status?: number): Sync
 }
 
 const appVersion = releaseMetadata.version
-const deviceLabel = `INVEN3 ${platform()} v${releaseMetadata.version} build ${releaseMetadata.versionCode}`
+const deviceLabel = `INVEN3 ${platform()} app ${releaseMetadata.appVersion} apk ${releaseMetadata.nativeVersion} build ${releaseMetadata.versionCode}`
 
 /** Supabase-only adapter. No domain/use-case imports this implementation. */
 export class SupabaseSyncGateway implements CountSyncGateway {

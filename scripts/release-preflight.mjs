@@ -23,7 +23,8 @@ function read(file) {
 }
 
 if (policy.productionLocked !== true) fail(10, 'F10A requires productionLocked=true until production is explicitly authorized.')
-if (!/^\d+\.\d+\.\d{2}\.\d{2}$/.test(String(version.version ?? ''))) fail(11, 'version.json version must use M.m.rr.nn.')
+if (!/^\d+\.\d+\.\d{2}\.\d{2}$/.test(String(version.appVersion ?? ''))) fail(11, 'version.json appVersion must use M.m.rr.nn.')
+if (!/^\d+\.\d+\.\d{2}\.\d{2}$/.test(String(version.nativeVersion ?? ''))) fail(11, 'version.json nativeVersion must use M.m.rr.nn.')
 if (!Number.isInteger(version.versionCode) || version.versionCode <= 0) fail(11, 'version.json versionCode must be a positive integer.')
 if (policy.defaultEnvironment !== 'qa') fail(12, 'F10A defaultEnvironment must remain qa.')
 if (policy.defaultChannel !== 'beta') fail(13, 'F10A defaultChannel must remain beta.')
@@ -55,20 +56,20 @@ if (!deferIos) {
   if (!iosPodfile.includes("platform :ios, '15.5'")) fail(183, 'iOS deployment target must remain at least 15.5 for barcode scanning.')
 }
 
-pass(`static release policy version=${version.version}/${version.versionCode}; production locked`)
+pass(`static release policy app=${version.appVersion} native=${version.nativeVersion}/${version.versionCode}; production locked`)
 if (deferIos) pass('iOS checks deferred until the final development stage')
 
 if (staticOnly) process.exit(0)
 
 const environment = (process.env.VITE_RELEASE_ENV || policy.defaultEnvironment).toLowerCase()
 const channel = (process.env.VITE_RELEASE_CHANNEL || policy.defaultChannel).toLowerCase()
-const runtimeVersion = process.env.VITE_RELEASE_VERSION || version.version
+const runtimeVersion = process.env.VITE_RELEASE_VERSION || version.appVersion
 const supabaseUrl = process.env.VITE_SUPABASE_URL || ''
 const anonKey = process.env.VITE_SUPABASE_ANON_KEY || ''
 
 if (!['qa', 'production'].includes(environment)) fail(20, `unsupported release environment: ${environment}`)
 if (!['beta', 'production'].includes(channel)) fail(21, `unsupported release channel: ${channel}`)
-if (runtimeVersion !== version.version) fail(22, `runtime release version ${runtimeVersion} != version.json ${version.version}`)
+if (runtimeVersion !== version.appVersion) fail(22, `runtime release version ${runtimeVersion} != version.json ${version.appVersion}`)
 
 if (policy.productionLocked && (environment === 'production' || channel === 'production')) {
   fail(30, 'PRODUCTION RELEASE BLOCKED: productionLocked=true. This branch may only produce QA/BETA candidates.')

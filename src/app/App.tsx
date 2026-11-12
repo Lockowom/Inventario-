@@ -76,6 +76,7 @@ function AuthenticatedWorkspace() {
   const [c1Loading, setC1Loading] = useState(true)
   const [otaState, setOtaState] = useState<OtaUpdateState | null>(null)
   const readinessRun = useRef(0)
+  const otaSafePointAttempt = useRef<string | null>(null)
 
   const refreshC1Readiness = useCallback(async (activeInventoryId?: string) => {
     const run = ++readinessRun.current
@@ -149,18 +150,34 @@ function AuthenticatedWorkspace() {
   }, [])
 
   useEffect(() => {
-    let active = true
-    const refreshOta = () => { setOtaState({ kind: 'CHECKING', message: 'Buscando una actualización OTA compatible…' }); void otaUpdateService.check().then((next) => { if (active) setOtaState(next) }) }
-    refreshOta()
-    const stopRetryEvents = bindOtaRetryEvents((listener) => authService.onAuthStateChange((event) => listener(event)), refreshOta)
-    return () => { active = false; stopRetryEvents() }
-  }, [])
-
-  useEffect(() => {
     if (role && !isAppViewAllowed(role, activeView)) setActiveView(defaultAppViewForRole(role))
   }, [activeView, role])
 
   const visibleView = isAppViewAllowed(role, activeView) ? activeView : defaultAppViewForRole(role)
+  const isOtaSafePoint = useCallback(async () => {
+    // A reload never interrupts C1/C2/C3. Saved but unsent evidence is also
+    // kept durable and must be reconciled before automatic replacement.
+    if (visibleView === 'counting' || visibleView === 'recounts') return false
+    if (!syncCoordinator) return true
+    return (await syncCoordinator.discoverOutstandingScopes()).length === 0
+  }, [syncCoordinator, visibleView])
+
+  useEffect(() => {
+    let active = true
+    const unsubscribe = otaUpdateService.subscribe((next) => { if (active) setOtaState(next) })
+    const refreshOta = () => { void otaUpdateService.check().then((next) => { if (active) setOtaState(next) }) }
+    refreshOta()
+    const stopRetryEvents = bindOtaRetryEvents((listener) => authService.onAuthStateChange((event) => listener(event)), refreshOta)
+    return () => { active = false; unsubscribe(); stopRetryEvents() }
+  }, [])
+
+  useEffect(() => {
+    if (otaState?.kind !== 'READY') { otaSafePointAttempt.current = null; return }
+    const attempt = `${otaState.version}:${visibleView}:${syncCoordinator ? 'sync' : 'no-sync'}`
+    if (otaSafePointAttempt.current === attempt) return
+    otaSafePointAttempt.current = attempt
+    void otaUpdateService.applyWhenSafe(isOtaSafePoint).then((next) => { if (next) setOtaState(next) })
+  }, [isOtaSafePoint, otaState, syncCoordinator, visibleView])
   const content = visibleView === 'counting'
       ? <CountingScreen runtime={countingRuntime} syncCoordinator={syncCoordinator} startupSyncMessage={startupSyncMessage} readiness={c1Readiness} readinessLoading={c1Loading} inventoryContext={{ inventories: operationalInventories, inventoryId: c1InventoryId, activeInventory: activeC1Inventory, loading: inventoriesLoading, error: inventoryError, selectInventory: selectC1Inventory }} />
       : visibleView === 'recounts'
@@ -185,7 +202,7 @@ function AuthenticatedWorkspace() {
 
   return <main className="app-shell app-shell--authenticated">
     <AppNavigation role={role} activeView={visibleView} onSelect={(view) => { if (isAppViewAllowed(role, view)) setActiveView(view) }} onSignOut={() => void authService.signOut()} />
-    <section className="app-workspace" aria-label="Área de trabajo"><OtaUpdatePanel state={otaState} onApply={() => void otaUpdateService.apply().then((next) => { if (next) setOtaState(next) })} onRollback={() => void otaUpdateService.rollback()} />{content}</section>
+    <section className="app-workspace" aria-label="Área de trabajo"><OtaUpdatePanel state={otaState} />{content}</section>
     <ExperiencePanel />
   </main>
 }

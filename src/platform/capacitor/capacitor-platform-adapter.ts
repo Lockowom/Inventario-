@@ -117,9 +117,21 @@ class CapacitorLifecycleAdapter {
 class CapgoAndroidUpdateAdapter {
   public isAvailable(): boolean { return platform() === 'android' && Capacitor.isPluginAvailable('CapacitorUpdater') }
   public async notifyLaunchReady(): Promise<void> { if (this.isAvailable()) await CapacitorUpdater.notifyAppReady() }
-  public async current() { return CapacitorUpdater.current() }
+  public async current() {
+    const [current, appInfo] = await Promise.all([CapacitorUpdater.current(), App.getInfo().catch(() => null)])
+    const nativeVersionCode = appInfo && /^\d+$/.test(appInfo.build) ? Number(appInfo.build) : undefined
+    return { ...current, native: appInfo?.version?.trim() || current.native, nativeVersionCode }
+  }
   public async getDeviceId(): Promise<string> { return (await CapacitorUpdater.getDeviceId()).deviceId }
-  public async download(input: { version: string; url: string; checksum: string }): Promise<unknown> { return CapacitorUpdater.download(input) }
+  public async download(input: { version: string; url: string; checksum: string }, onProgress?: (percent: number) => void): Promise<unknown> {
+    const listener = onProgress
+      ? await CapacitorUpdater.addListener('download', ({ percent }) => {
+          onProgress(Math.max(0, Math.min(100, Math.round(percent))))
+        })
+      : null
+    try { return await CapacitorUpdater.download(input) }
+    finally { await listener?.remove() }
+  }
   public async set(bundle: unknown): Promise<void> { await CapacitorUpdater.set(bundle as Parameters<typeof CapacitorUpdater.set>[0]) }
   public async reload(): Promise<void> { await CapacitorUpdater.reload() }
   public async resetToLastSuccessful(): Promise<void> { await CapacitorUpdater.reset({ toLastSuccessful: true }) }

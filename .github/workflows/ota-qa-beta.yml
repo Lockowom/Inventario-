@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       ota_version:
-        description: Immutable QA bundle version (for example 1.0.0-qa.1)
+        description: Immutable canonical app version, equal to version.json appVersion
         required: false
         type: string
 
@@ -30,27 +30,30 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="$(node -p 'require("./version.json").version')"
+          APP_VERSION="$(node -p 'require("./version.json").appVersion')"
+          NATIVE_VERSION="$(node -p 'require("./version.json").nativeVersion')"
           VERSION_CODE="$(node -p 'require("./version.json").versionCode')"
-          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]{2}\.[0-9]{2}$ ]]
+          [[ "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]{2}\.[0-9]{2}$ ]]
+          [[ "$NATIVE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]{2}\.[0-9]{2}$ ]]
           [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]]
-          echo "VITE_RELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "VITE_RELEASE_VERSION=$APP_VERSION" >> "$GITHUB_ENV"
+          echo "VITE_NATIVE_VERSION=$NATIVE_VERSION" >> "$GITHUB_ENV"
           echo "INVEN3_VERSION_CODE=$VERSION_CODE" >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Assign immutable QA-only OTA version
+      - name: Validate immutable QA-only OTA version
         id: version
         shell: bash
         run: |
           set -euo pipefail
           VERSION="${{ inputs.ota_version }}"
-          if [[ -z "$VERSION" ]]; then VERSION="${VITE_RELEASE_VERSION}-qa.${GITHUB_RUN_NUMBER}"; fi
-          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]{2}\.[0-9]{2}-qa\.[0-9]+$ ]]
+          if [[ -z "$VERSION" ]]; then VERSION="${VITE_RELEASE_VERSION}"; fi
+          [[ "$VERSION" == "$VITE_RELEASE_VERSION" ]]
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]{2}\.[0-9]{2}$ ]]
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "VITE_APP_VERSION=$VERSION" >> "$GITHUB_ENV"
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
@@ -63,11 +66,18 @@ jobs:
           (cd dist && find . -type f -print | LC_ALL=C sort | zip -X -q ../inven3-ota-${{ steps.version.outputs.version }}.zip -@)
           echo "sha256=$(sha256sum inven3-ota-${{ steps.version.outputs.version }}.zip | awk '{print $1}')" >> "$GITHUB_OUTPUT"
           echo "size=$(stat -c%s inven3-ota-${{ steps.version.outputs.version }}.zip)" >> "$GITHUB_OUTPUT"
+      - name: Write immutable OTA manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "inven3-ota-${{ steps.version.outputs.version }}.manifest.json" <<EOF
+          {"product":"INVEN3","appVersion":"${{ steps.version.outputs.version }}","channel":"qa-beta","minimumNativeVersion":"${VITE_NATIVE_VERSION}","minimumVersionCode":${INVEN3_VERSION_CODE},"sha256":"${{ steps.bundle.outputs.sha256 }}","sizeBytes":${{ steps.bundle.outputs.size}},"createdAt":"$(date -u +%Y-%m-%dT%H:%M:%SZ)","commitSha":"$GITHUB_SHA","entrypoint":"index.html"}
+          EOF
       - name: Publish immutable GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "ota-${{ steps.version.outputs.version }}" "inven3-ota-${{ steps.version.outputs.version }}.zip" \
+          gh release create "ota-${{ steps.version.outputs.version }}" "inven3-ota-${{ steps.version.outputs.version }}.zip" "inven3-ota-${{ steps.version.outputs.version }}.manifest.json" \
             --target "$GITHUB_SHA" --title "INVEN3 QA OTA ${{ steps.version.outputs.version }}" --notes "Android QA web bundle. Immutable SHA-256: ${{ steps.bundle.outputs.sha256 }}"
       - name: Register immutable bundle in INVEN3 QA
         env:
@@ -78,4 +88,4 @@ jobs:
           curl --fail-with-body --silent --show-error --request POST "$OTA_PUBLISH_URL" \
             --header 'content-type: application/json' \
             --header "x-ota-publish-token: $OTA_PUBLISH_TOKEN" \
-            --data "{\"version\":\"${{ steps.version.outputs.version }}\",\"minNativeVersion\":\"${VITE_RELEASE_VERSION}\",\"minVersionCode\":${INVEN3_VERSION_CODE},\"url\":\"https://github.com/${{ github.repository }}/releases/download/ota-${{ steps.version.outputs.version }}/inven3-ota-${{ steps.version.outputs.version }}.zip\",\"sha256\":\"${{ steps.bundle.outputs.sha256 }}\",\"sizeBytes\":${{ steps.bundle.outputs.size }},\"commitSha\":\"$GITHUB_SHA\"}"
+            --data "{\"version\":\"${{ steps.version.outputs.version }}\",\"minNativeVersion\":\"${VITE_NATIVE_VERSION}\",\"minVersionCode\":${INVEN3_VERSION_CODE},\"entrypoint\":\"index.html\",\"url\":\"https://github.com/${{ github.repository }}/releases/download/ota-${{ steps.version.outputs.version }}/inven3-ota-${{ steps.version.outputs.version }}.zip\",\"sha256\":\"${{ steps.bundle.outputs.sha256 }}\",\"sizeBytes\":${{ steps.bundle.outputs.size }},\"commitSha\":\"$GITHUB_SHA\"}"

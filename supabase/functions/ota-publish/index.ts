@@ -3,7 +3,7 @@ import { withSupabase } from '@supabase/server'
 
 const sha256 = /^[a-f0-9]{64}$/i
 const commitSha = /^[a-f0-9]{40}$/i
-const qaVersion = /^\d+\.\d+\.\d+-qa\.\d+$/
+const qaVersion = /^\d+\.\d+\.\d{2}\.\d{2}$/
 const releasePrefix = 'https://github.com/Lockowom/Inventario-/releases/download/'
 
 function deny(status: number, error: string) { return Response.json({ error }, { status }) }
@@ -25,12 +25,14 @@ export default {
     try { body = await request.json() } catch { return deny(400, 'Body must be JSON.') }
     const version = typeof body.version === 'string' ? body.version.trim() : ''
     const nativeVersion = typeof body.minNativeVersion === 'string' ? body.minNativeVersion.trim() : ''
+    const nativeVersionCode = typeof body.minVersionCode === 'number' && Number.isSafeInteger(body.minVersionCode) ? body.minVersionCode : 0
+    const entrypoint = typeof body.entrypoint === 'string' ? body.entrypoint.trim() : 'index.html'
     const url = typeof body.url === 'string' ? body.url.trim() : ''
     const checksum = typeof body.sha256 === 'string' ? body.sha256.trim().toLowerCase() : ''
     const commit = typeof body.commitSha === 'string' ? body.commitSha.trim().toLowerCase() : ''
     const size = typeof body.sizeBytes === 'number' ? body.sizeBytes : 0
-    if (!qaVersion.test(version) || !nativeVersion || !url.startsWith(releasePrefix) || !sha256.test(checksum) || !commitSha.test(commit) || !Number.isSafeInteger(size) || size < 1) return deny(400, 'Invalid immutable QA OTA manifest.')
-    const inserted = await ctx.supabaseAdmin.from('ota_bundles').insert({ channel_name: 'qa-beta', version, min_native_version: nativeVersion, release_url: url, sha256: checksum, size_bytes: size, published_commit_sha: commit }).select('id, channel_name, version, sha256, published_at').single()
+    if (!qaVersion.test(version) || !qaVersion.test(nativeVersion) || nativeVersionCode < 1 || entrypoint !== 'index.html' || !url.startsWith(releasePrefix) || !sha256.test(checksum) || !commitSha.test(commit) || !Number.isSafeInteger(size) || size < 1) return deny(400, 'Invalid immutable QA OTA manifest.')
+    const inserted = await ctx.supabaseAdmin.from('ota_bundles').insert({ channel_name: 'qa-beta', version, min_native_version: nativeVersion, min_native_version_code: nativeVersionCode, entrypoint, release_url: url, sha256: checksum, size_bytes: size, published_commit_sha: commit }).select('id, channel_name, version, sha256, published_at').single()
     if (inserted.error) {
       const existing = await ctx.supabaseAdmin.from('ota_bundles').select('id, channel_name, version, sha256, published_at').eq('channel_name', 'qa-beta').eq('version', version).maybeSingle()
       if (!existing.error && existing.data?.sha256 === checksum) return Response.json({ bundle: existing.data, idempotent: true })

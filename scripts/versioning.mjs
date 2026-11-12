@@ -12,10 +12,11 @@ function versionFileFrom(args = process.argv.slice(2)) {
 
 export function validateVersionConfig(value) {
   if (!value || typeof value !== 'object') throw new Error('VERSION_CONFIG_INVALID')
-  const { version, versionCode } = value
-  if (typeof version !== 'string' || !VERSION_PATTERN.test(version)) throw new Error('VERSION_FORMAT_INVALID')
+  const { appVersion, nativeVersion, versionCode } = value
+  if (typeof appVersion !== 'string' || !VERSION_PATTERN.test(appVersion)) throw new Error('APP_VERSION_FORMAT_INVALID')
+  if (typeof nativeVersion !== 'string' || !VERSION_PATTERN.test(nativeVersion)) throw new Error('NATIVE_VERSION_FORMAT_INVALID')
   if (!Number.isInteger(versionCode) || versionCode <= 0) throw new Error('VERSION_CODE_INVALID')
-  return { version, versionCode }
+  return { appVersion, nativeVersion, versionCode }
 }
 
 export function readVersionConfig(file = path.resolve(process.cwd(), 'version.json')) {
@@ -33,7 +34,15 @@ export function nextVersion(version) {
 
 export function bumpVersionConfig(config) {
   const current = validateVersionConfig(config)
-  return { version: nextVersion(current.version), versionCode: current.versionCode + 1 }
+  // Regular releases are OTA bundles. The immutable Android shell changes
+  // only through an explicit native bump.
+  return { ...current, appVersion: nextVersion(current.appVersion) }
+}
+
+export function bumpNativeVersionConfig(config) {
+  const current = validateVersionConfig(config)
+  const next = nextVersion(current.appVersion)
+  return { appVersion: next, nativeVersion: next, versionCode: current.versionCode + 1 }
 }
 
 export function writeVersionConfig(file, config) {
@@ -46,7 +55,8 @@ export function writeVersionConfig(file, config) {
 
 function print(config) {
   console.log('INVEN3')
-  console.log(`Version: ${config.version}`)
+  console.log(`AppVersion: ${config.appVersion}`)
+  console.log(`NativeVersion: ${config.nativeVersion}`)
   console.log(`VersionCode: ${config.versionCode}`)
 }
 
@@ -56,5 +66,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   if (command === 'show') print(readVersionConfig(file))
   else if (command === 'validate') { print(readVersionConfig(file)); console.log('VERSION_CONFIG_VALID') }
   else if (command === 'bump') print(writeVersionConfig(file, bumpVersionConfig(readVersionConfig(file))))
+  else if (command === 'bump-native') print(writeVersionConfig(file, bumpNativeVersionConfig(readVersionConfig(file))))
   else throw new Error(`Unsupported version command: ${command}`)
 }

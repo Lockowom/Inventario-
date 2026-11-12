@@ -49,6 +49,7 @@ export type LifecycleAdapter = Pick<AppVersionProvider, 'getVersion'>
 
 export type CurrentUpdateBundle = {
   native: string
+  nativeVersionCode?: number
   bundle: { id: string; version: string }
 }
 
@@ -57,7 +58,7 @@ export interface UpdateAdapter {
   notifyLaunchReady(): Promise<void>
   current(): Promise<CurrentUpdateBundle>
   getDeviceId(): Promise<string>
-  download(input: { version: string; url: string; checksum: string }): Promise<unknown>
+  download(input: { version: string; url: string; checksum: string }, onProgress?: (percent: number) => void): Promise<unknown>
   set(bundle: unknown): Promise<void>
   reload(): Promise<void>
   resetToLastSuccessful(): Promise<void>

@@ -74,6 +74,7 @@ La certificación de SQLite, permisos de cámara y scanner requiere pruebas en d
 - [`docs/SYNC_ENGINE_V1.md`](docs/SYNC_ENGINE_V1.md) — outbox local, lotes, ACK y reintentos.
 - [`docs/IDEMPOTENCIA_V1.md`](docs/IDEMPOTENCIA_V1.md) — contrato `client_count_id` y conflictos.
 - [`docs/DEVICE_SYNC_V1.md`](docs/DEVICE_SYNC_V1.md) — registro de dispositivo y guardas de freeze.
+- [`docs/VERSIONADO_INVEN3.md`](docs/VERSIONADO_INVEN3.md) — versión efectiva Web/OTA y versión nativa Android.
 - [`docs/CORRECCIONES_PRE_CORTE_V1.md`](docs/CORRECCIONES_PRE_CORTE_V1.md) — corrección auditada antes del corte.
 - [`docs/CORTES_V1.md`](docs/CORTES_V1.md) — corte idempotente y snapshot inmutable, sin XLSX.
 - [`docs/EXPORT_RP_XLSX_V1.md`](docs/EXPORT_RP_XLSX_V1.md) — contrato, generación, validación y descarga RP.

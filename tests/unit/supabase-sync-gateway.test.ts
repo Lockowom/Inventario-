@@ -36,8 +36,8 @@ describe('SupabaseSyncGateway error classification', () => {
     await new SupabaseSyncGateway().registerDevice({ deviceId })
     expect(rpc).toHaveBeenCalledWith('register_sync_device', expect.objectContaining({
       p_device_id: deviceId,
-      p_app_version: '0.0.00.02',
-      p_device_label: expect.stringContaining('v0.0.00.02 build 2'),
+      p_app_version: '0.0.00.03',
+      p_device_label: expect.stringContaining('app 0.0.00.03 apk 0.0.00.02 build 2'),
     }))
   })
 
